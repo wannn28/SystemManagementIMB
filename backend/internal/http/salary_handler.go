@@ -200,7 +200,7 @@ func (h *SalaryHandler) saveUploadedFile(file *multipart.FileHeader, dstPath str
 }
 
 func (h *SalaryHandler) CreateSalaryDetail(c echo.Context) error {
-	fmt.Println("Request Body:", c.Request().Body)
+	// fmt.Println("Request Body:", c.Request().Body)
 
 	salaryID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -211,7 +211,7 @@ func (h *SalaryHandler) CreateSalaryDetail(c echo.Context) error {
 	if err := c.Bind(&detail); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
-	fmt.Printf("Received Data: %+v\n", detail)
+	// fmt.Printf("Received Data: %+v\n", detail)
 	detail.SalaryID = uint(salaryID)
 	if err := h.detailService.CreateDetail(&detail); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
