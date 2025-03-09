@@ -1,0 +1,249 @@
+package http
+
+import (
+	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/internal/service"
+	"dashboardadminimb/pkg/response"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"gorm.io/datatypes"
+)
+
+type MemberHandler struct {
+	service   service.MemberService
+	uploadDir string
+}
+
+func NewMemberHandler(service service.MemberService, uploadDir string) *MemberHandler {
+	return &MemberHandler{
+		service:   service,
+		uploadDir: uploadDir,
+	}
+}
+
+func (h *MemberHandler) CreateMember(c echo.Context) error {
+	var member entity.Member
+	if err := c.Bind(&member); err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+
+	// Generate ID
+	member.ID = uuid.New().String()
+
+	// Inisialisasi nilai default
+	member.ProfileImage = ""
+	member.Documents = datatypes.JSON("[]")
+	member.Files = datatypes.JSON("[]")
+
+	if err := h.service.CreateMember(&member); err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusCreated, member)
+}
+
+func (h *MemberHandler) UpdateMember(c echo.Context) error {
+	id := c.Param("id")
+	// Dapatkan member yang akan diupdate
+	member, err := h.service.GetMemberByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	// Bind request body ke member
+	if err := c.Bind(member); err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+
+	// Update member
+	if err := h.service.UpdateMember(member); err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusOK, member)
+}
+
+func (h *MemberHandler) GetAllMembers(c echo.Context) error {
+	members, err := h.service.GetAllMembers()
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusOK, members)
+}
+
+func (h *MemberHandler) GetMemberByID(c echo.Context) error {
+	id := c.Param("id")
+	member, err := h.service.GetMemberByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	baseURL := "http://localhost:8080/uploads/"
+
+	// Konversi ke response object dengan URL lengkap
+	responseData := struct {
+		*entity.Member
+		ProfileURL   string   `json:"profileUrl"`
+		DocumentURLs []string `json:"documentUrls"`
+		FileURLs     []string `json:"fileUrls"`
+	}{
+		Member: member,
+
+		ProfileURL: baseURL + member.ProfileImage,
+	}
+
+	// Ambil nama-nama file dan konversi ke URL
+	var documentNames []string
+	json.Unmarshal(member.Documents, &documentNames)
+	for _, docName := range documentNames {
+		responseData.DocumentURLs = append(responseData.DocumentURLs, baseURL+docName)
+	}
+
+	var fileNames []string
+	json.Unmarshal(member.Files, &fileNames)
+	for _, fileName := range fileNames {
+		responseData.FileURLs = append(responseData.FileURLs, baseURL+fileName)
+	}
+
+	return response.Success(c, http.StatusOK, responseData)
+}
+
+func (h *MemberHandler) DeleteMember(c echo.Context) error {
+	id := c.Param("id")
+	if err := h.service.DeleteMember(id); err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+	return response.Success(c, http.StatusNoContent, nil)
+}
+
+// Endpoint untuk upload gambar profil
+func (h *MemberHandler) UploadProfileImage(c echo.Context) error {
+	id := c.Param("id")
+	file, err := c.FormFile("file")
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+
+	// Generate nama file unik
+	fileExt := filepath.Ext(file.Filename)
+	fileName := uuid.New().String() + fileExt
+	dstPath := filepath.Join(h.uploadDir, fileName)
+
+	// Simpan file
+	if err := h.saveUploadedFile(file, dstPath); err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	// Update member
+	member, err := h.service.GetMemberByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	// Hapus file lama jika ada
+	if member.ProfileImage != "" {
+		os.Remove(filepath.Join(h.uploadDir, member.ProfileImage))
+	}
+
+	member.ProfileImage = fileName
+	return h.service.UpdateMember(member)
+}
+
+// Fungsi utilitas untuk menyimpan file
+func (h *MemberHandler) saveUploadedFile(file *multipart.FileHeader, dstPath string) error {
+	src, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	if err := os.MkdirAll(h.uploadDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	return err
+}
+
+// Tambah dokumen
+func (h *MemberHandler) AddDocument(c echo.Context) error {
+	id := c.Param("id")
+	form, err := c.MultipartForm()
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+
+	files := form.File["files"] // Ambil semua file dengan key "files"
+	if len(files) == 0 {
+		return response.Error(c, http.StatusBadRequest, errors.New("no files uploaded"))
+	}
+
+	var fileNames []string
+	for _, file := range files {
+		fileExt := filepath.Ext(file.Filename)
+		fileName := uuid.New().String() + fileExt
+		dstPath := filepath.Join(h.uploadDir, fileName)
+		if err := h.saveUploadedFile(file, dstPath); err != nil {
+			return response.Error(c, http.StatusInternalServerError, err)
+		}
+		fileNames = append(fileNames, fileName) // Simpan hanya nama file, bukan path lengkap
+	}
+
+	// Update array documents
+	member, err := h.service.GetMemberByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	var documents []string
+	json.Unmarshal(member.Documents, &documents)
+	documents = append(documents, fileNames...)
+	documentsJSON, _ := json.Marshal(documents)
+	member.Documents = documentsJSON
+
+	return h.service.UpdateMember(member)
+}
+
+// Hapus dokumen
+func (h *MemberHandler) DeleteDocument(c echo.Context) error {
+	id := c.Param("id")
+	fileName := c.Param("fileName")
+
+	member, err := h.service.GetMemberByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	// Hapus dari array
+	var documents []string
+	json.Unmarshal(member.Documents, &documents)
+
+	newDocs := make([]string, 0)
+	for _, doc := range documents {
+		if doc != fileName {
+			newDocs = append(newDocs, doc)
+		}
+	}
+
+	documentsJSON, _ := json.Marshal(newDocs)
+	member.Documents = documentsJSON
+
+	// Hapus file dari sistem
+	fmt.Print(fileName)
+	os.Remove(filepath.Join(h.uploadDir, fileName))
+
+	return h.service.UpdateMember(member)
+}
