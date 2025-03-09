@@ -20,7 +20,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState<Member | null>(null);
   const [newDocumentName, setNewDocumentName] = useState('');
-  const [newDocumentFile, setNewDocumentFile] = useState<File | null>(null);
+  // const [newDocumentFile, setNewDocumentFile] = useState<File | null>(null);
   const [isAddingDocument, setIsAddingDocument] = useState(false);
   const [newProfileImage, setNewProfileImage] = useState<File | null>(null);
   const [newDocumentFiles, setNewDocumentFiles] = useState<File[]>([]); // Ubah ke array
@@ -31,7 +31,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [newModalSalary, setNewModalSalary] = useState(false);
   const [editModalSalary, setEditModalSalary] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [salaryDetails, setSalaryDetails] = useState<SalaryDetail[]>([]);
+  // const [salaryDetails, setSalaryDetails] = useState<SalaryDetail[]>([]);
   const [kasbonDetails, setKasbonDetails] = useState<Kasbon[]>([]);
   // Di dalam komponen Team.tsx
   // Di fungsi fetchSalaryDetails:
@@ -155,6 +155,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Team.tsx - Pastikan menghapus berdasarkan ID yang benar
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     try {
+      console.log(salaryId, id)
       await axios.delete(`http://localhost:8080/salaries/${salaryId}/details/${id}`);
 
       // Update state
@@ -187,10 +188,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     setKasbonDetails(kasbonDetails.filter(item => item.id !== id));
   };
 
-  const calculatedValues = {
-    grossSalary: newSalaryAmount, // Gaji kotor = gaji pokok
-    netSalary: newSalaryAmount - newLoanAmount // Gaji bersih = gaji pokok - pinjaman
-  };
+  // const calculatedValues = {
+  //   grossSalary: newSalaryAmount, // Gaji kotor = gaji pokok
+  //   netSalary: newSalaryAmount - newLoanAmount // Gaji bersih = gaji pokok - pinjaman
+  // };
   const [editingSalaryIndex, setEditingSalaryIndex] = useState<number | null>(null);
   const [newSalaryImages, setNewSalaryImages] = useState<File[]>([]);
   useEffect(() => {
@@ -366,21 +367,21 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     }
   };
 
-  const handleAddSalary = (newSalary: SalaryRecord) => {
-    if (selectedMember) {
-      setEditFormData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          salaries: [...prev.salaries, newSalary],
-        };
-      });
-      setSelectedMember((prev) => ({
-        ...prev!,
-        salaries: [...prev!.salaries, newSalary],
-      }));
-    }
-  };
+  // const handleAddSalary = (newSalary: SalaryRecord) => {
+  //   if (selectedMember) {
+  //     setEditFormData((prev) => {
+  //       if (!prev) return prev;
+  //       return {
+  //         ...prev,
+  //         salaries: [...prev.salaries, newSalary],
+  //       };
+  //     });
+  //     setSelectedMember((prev) => ({
+  //       ...prev!,
+  //       salaries: [...prev!.salaries, newSalary],
+  //     }));
+  //   }
+  // };
 
   const handleDeleteSalary = async (salaryId: string) => {
     if (!selectedMember) return;
@@ -415,23 +416,23 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleModalNewSalary = () => {
     setNewModalSalary(!newModalSalary)
   }
-  const handleSalaryUpload = async (memberId: string, files: File[]) => {
-    try {
-      const formData = new FormData();
-      files.forEach(file => formData.append("files", file));
+  // const handleSalaryUpload = async (memberId: string, files: File[]) => {
+  //   try {
+  //     const formData = new FormData();
+  //     files.forEach(file => formData.append("files", file));
 
-      const response = await axios.post(
-        `http://localhost:8080/members/${memberId}/salaries`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+  //     const response = await axios.post(
+  //       `http://localhost:8080/members/${memberId}/salaries`,
+  //       formData,
+  //       { headers: { "Content-Type": "multipart/form-data" } }
+  //     );
 
-      return response.data.files; // Return array nama file
-    } catch (error) {
-      console.error("Error uploading salary documents:", error);
-      return [];
-    }
-  };
+  //     return response.data.files; // Return array nama file
+  //   } catch (error) {
+  //     console.error("Error uploading salary documents:", error);
+  //     return [];
+  //   }
+  // };
 
   const handleNewSalarySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -846,12 +847,12 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                             onEdit={(id, data) => handleEditKasbon(String(salary.id), id, data)}
                             onDelete={(id) => handleDeleteKasbon(String(salary.id))}
                           />
-                          <p>Id: {salary.id}</p>
-                          <p>Salary: {salary.salary}</p>
-                          <p>Loan: {salary.loan}</p>
-                          <p>Net Salary: {salary.net_salary}</p>
-                          <p>Gross Salary: {salary.gross_salary}</p>
-                          <p>Status: {salary.status}</p>
+                          <p>Id : {salary.id}</p>
+                          <p>Jumlah Gaji : {salary.salary}</p>
+                          <p>Kasbon : {salary.loan}</p>
+                          <p>Gaji Bersih : {salary.net_salary}</p>
+                          <p>Gaji Kotor : {salary.gross_salary}</p>
+                          <p>Status : {salary.status}</p>
                           {salary.documents.length > 0 && (
                             <div className="mt-2">
                               <h5 className="font-medium">Bukti Pembayaran dan Kasbon :</h5>
