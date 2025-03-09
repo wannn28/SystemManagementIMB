@@ -2,20 +2,20 @@ import React, { useState } from 'react';
 import { SalaryDetail, Kasbon } from '../types/BasicTypes';
 
 interface SalaryDetailsTableProps {
-    type: 'salary' | 'kasbon';
-    data: Array<SalaryDetail | Kasbon>;
-    onAdd: (newData: any) => void;
-    onEdit: (id: string, updatedData: any) => void;
-    onDelete: (id: string) => void;
-    
-  }
+  type: 'salary' | 'kasbon';
+  data: Array<SalaryDetail | Kasbon>;
+  onAdd: (newData: any) => void;
+  onEdit: (id: string, updatedData: any) => void;
+  onDelete: (id: string) => void;
 
-export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({ 
-  type, 
-  data, 
-  onAdd, 
-  onEdit, 
-  onDelete 
+}
+
+export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
+  type,
+  data,
+  onAdd,
+  onEdit,
+  onDelete
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,8 +56,8 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   type="date"
                   required
                   placeholder="Tanggal"
-                  value={formData.tanggal || ''}
-                  onChange={(e) => setFormData({...formData, tanggal: e.target.value})}
+                  value={formData.tanggal ? formData.tanggal.split('T')[0] : ''}
+                  onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
                   className="p-2 border rounded"
                 />
                 <input
@@ -65,7 +65,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   required
                   placeholder="Jam/Trip"
                   value={formData.jam_trip || ''}
-                  onChange={(e) => setFormData({...formData, jam_trip: Number(e.target.value)})}
+                  onChange={(e) => setFormData({ ...formData, jam_trip: Number(e.target.value) })}
                   className="p-2 border rounded"
                 />
                 <input
@@ -73,13 +73,13 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   required
                   placeholder="Harga per Jam/Trip"
                   value={formData.harga_per_jam || ''}
-                  onChange={(e) => setFormData({...formData, harga_per_jam: Number(e.target.value)})}
+                  onChange={(e) => setFormData({ ...formData, harga_per_jam: Number(e.target.value) })}
                   className="p-2 border rounded"
                 />
                 <input
                   placeholder="Keterangan"
                   value={formData.keterangan || ''}
-                  onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                   className="p-2 border rounded"
                 />
               </div>
@@ -91,8 +91,8 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   type="date"
                   required
                   placeholder="Tanggal"
-                  value={formData.tanggal || ''}
-                  onChange={(e) => setFormData({...formData, tanggal: e.target.value})}
+                  value={formData.tanggal ? formData.tanggal.split('T')[0] : ''}
+                  onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
                   className="p-2 border rounded"
                 />
                 <input
@@ -100,13 +100,13 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   required
                   placeholder="Jumlah"
                   value={formData.jumlah || ''}
-                  onChange={(e) => setFormData({...formData, jumlah: Number(e.target.value)})}
+                  onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })}
                   className="p-2 border rounded"
                 />
                 <input
                   placeholder="Keterangan"
                   value={formData.keterangan || ''}
-                  onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                   className="p-2 border rounded"
                 />
               </div>
@@ -170,7 +170,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                         {(item as SalaryDetail).jam_trip}
                       </td>
                       <td className="py-2 px-4 border-b">
-                      Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
+                        Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
                       </td>
                       <td className="py-2 px-4 border-b">
                         Rp{((item as SalaryDetail).jam_trip *
