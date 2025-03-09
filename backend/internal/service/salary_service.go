@@ -93,6 +93,6 @@ func (s *salaryService) RecalculateSalary(salaryID uint) error {
 	salary.GrossSalary = gross
 	salary.Loan = loan
 	salary.NetSalary = gross - loan
-
+	salary.Salary = gross
 	return s.salaryRepo.Update(salary)
 }
