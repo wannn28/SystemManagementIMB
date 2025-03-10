@@ -9,6 +9,7 @@ type KasbonService interface {
 	CreateKasbon(kasbon *entity.Kasbon) error
 	UpdateKasbon(kasbon *entity.Kasbon) error
 	DeleteKasbon(id uint) error
+	GetKasbonByID(id uint) (*entity.Kasbon, error)
 	GetKasbonsBySalary(salaryID uint) ([]entity.Kasbon, error)
 }
 
@@ -34,4 +35,7 @@ func (s *kasbonService) DeleteKasbon(id uint) error {
 
 func (s *kasbonService) GetKasbonsBySalary(salaryID uint) ([]entity.Kasbon, error) {
 	return s.repo.FindBySalaryID(salaryID)
+}
+func (s *kasbonService) GetKasbonByID(id uint) (*entity.Kasbon, error) {
+	return s.repo.FindByID(id)
 }

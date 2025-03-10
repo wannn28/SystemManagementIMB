@@ -10,6 +10,7 @@ type SalaryDetailService interface {
 	CreateDetail(detail *entity.SalaryDetail) error
 	UpdateDetail(detail *entity.SalaryDetail) error
 	DeleteDetail(id uint) error
+	GetDetailByID(id uint) (*entity.SalaryDetail, error)
 	GetDetailsBySalary(salaryID uint) ([]entity.SalaryDetail, error)
 }
 
@@ -33,6 +34,9 @@ func (s *salaryDetailService) DeleteDetail(id uint) error {
 }
 func (s *salaryDetailService) GetDetailsBySalary(salaryID uint) ([]entity.SalaryDetail, error) {
 	return s.repo.FindBySalaryID(salaryID)
+}
+func (s *salaryDetailService) GetDetailByID(id uint) (*entity.SalaryDetail, error) {
+	return s.repo.FindByID(id)
 }
 
 // type KasbonService interface {

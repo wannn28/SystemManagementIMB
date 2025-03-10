@@ -65,21 +65,25 @@ func (h *KasbonHandler) UpdateKasbon(c echo.Context) error {
 }
 
 func (h *KasbonHandler) DeleteKasbon(c echo.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
-	kasbon, err := h.kasbonService.GetKasbonsBySalary(uint(id))
+	kasbonID, err := strconv.Atoi(c.Param("id")) // ID kasbon dari URL
 	if err != nil {
-		return response.Error(c, 500, err)
+		return response.Error(c, 400, err)
 	}
 
-	if err := h.kasbonService.DeleteKasbon(uint(id)); err != nil {
+	// Dapatkan kasbon untuk mendapatkan SalaryID
+	kasbon, err := h.kasbonService.GetKasbonByID(uint(kasbonID))
+	if err != nil {
+		return response.Error(c, 404, err)
+	}
+
+	// Hapus kasbon
+	if err := h.kasbonService.DeleteKasbon(uint(kasbonID)); err != nil {
 		return response.Error(c, 500, err)
 	}
 
 	// Recalculate Salary
-	if len(kasbon) > 0 {
-		if err := h.salaryService.RecalculateSalary(kasbon[0].SalaryID); err != nil {
-			return response.Error(c, 500, err)
-		}
+	if err := h.salaryService.RecalculateSalary(kasbon.SalaryID); err != nil {
+		return response.Error(c, 500, err)
 	}
 
 	return response.Success(c, 204, nil)

@@ -260,19 +260,24 @@ func (h *SalaryHandler) UpdateSalaryDetail(c echo.Context) error {
 }
 
 func (h *SalaryHandler) DeleteSalaryDetail(c echo.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
-	// detail, err := h.detailService.GetDetailsBySalary(uint(id))
-	// if err != nil {
-	// 	return response.Error(c, http.StatusNotFound, err)
-	// }
+	detailID, err := strconv.Atoi(c.Param("detailId")) // Ambil detailId dari URL
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, errors.New("invalid detail ID"))
+	}
 
-	var detail2 entity.SalaryDetail
-	if err := h.detailService.DeleteDetail(uint(id)); err != nil {
+	// Dapatkan detail untuk mendapatkan SalaryID
+	detail, err := h.detailService.GetDetailByID(uint(detailID))
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	// Hapus detail
+	if err := h.detailService.DeleteDetail(uint(detailID)); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-	detail2.SalaryID = uint(id)
-	// Trigger Recalculate
-	if err := h.service.RecalculateSalary(detail2.SalaryID); err != nil {
+
+	// Recalculate Salary
+	if err := h.service.RecalculateSalary(detail.SalaryID); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 

@@ -2,8 +2,6 @@
 package entity
 
 import (
-	"time"
-
 	"gorm.io/datatypes"
 )
 
@@ -30,7 +28,7 @@ type Member struct {
 	Role         string         `gorm:"size:100" json:"role"`
 	PhoneNumber  string         `gorm:"size:50" json:"phoneNumber"`
 	Address      string         `gorm:"type:text" json:"address"`
-	JoinDate     time.Time      `json:"joinDate"`
+	JoinDate     string         `json:"joinDate"`
 	ProfileImage string         `json:"profileImage"`                // Hanya menyimpan nama file
 	Documents    datatypes.JSON `gorm:"type:jsonb" json:"documents"` // Menyimpan array string
 	Files        datatypes.JSON `gorm:"type:jsonb" json:"files"`     // Menyimpan array string

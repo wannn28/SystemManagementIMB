@@ -10,6 +10,7 @@ type KasbonRepository interface {
 	Create(kasbon *entity.Kasbon) error
 	Update(kasbon *entity.Kasbon) error
 	Delete(id uint) error
+	FindByID(id uint) (*entity.Kasbon, error)
 	FindBySalaryID(salaryID uint) ([]entity.Kasbon, error)
 }
 
@@ -37,4 +38,10 @@ func (r *kasbonRepository) FindBySalaryID(salaryID uint) ([]entity.Kasbon, error
 	var kasbons []entity.Kasbon
 	err := r.db.Where("salary_id = ?", salaryID).Find(&kasbons).Error
 	return kasbons, err
+}
+
+func (r *kasbonRepository) FindByID(id uint) (*entity.Kasbon, error) {
+	var kasbon entity.Kasbon
+	err := r.db.First(&kasbon, id).Error
+	return &kasbon, err
 }

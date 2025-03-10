@@ -126,6 +126,8 @@ func (h *MemberHandler) DeleteMember(c echo.Context) error {
 // Endpoint untuk upload gambar profil
 func (h *MemberHandler) UploadProfileImage(c echo.Context) error {
 	id := c.Param("id")
+
+	// Ambil file dengan key "file"
 	file, err := c.FormFile("file")
 	if err != nil {
 		return response.Error(c, http.StatusBadRequest, err)

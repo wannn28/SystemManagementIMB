@@ -3,6 +3,7 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -11,6 +12,7 @@ type SalaryDetailRepository interface {
 	Create(detail *entity.SalaryDetail) error
 	Update(detail *entity.SalaryDetail) error
 	Delete(id uint) error
+	FindByID(id uint) (*entity.SalaryDetail, error)
 	FindBySalaryID(salaryID uint) ([]entity.SalaryDetail, error)
 }
 
@@ -31,6 +33,7 @@ func (r *salaryDetailRepository) Update(detail *entity.SalaryDetail) error {
 }
 
 func (r *salaryDetailRepository) Delete(id uint) error {
+	fmt.Println("ID:", id)
 	return r.db.Delete(&entity.SalaryDetail{}, id).Error
 }
 
@@ -40,21 +43,26 @@ func (r *salaryDetailRepository) FindBySalaryID(salaryID uint) ([]entity.SalaryD
 	return details, err
 }
 
-// Implementasi serupa untuk KasbonRepository
-func (r *salaryDetailRepository) CreateKasbon(kasbon *entity.Kasbon) error {
-	return r.db.Create(kasbon).Error
-}
+// // Implementasi serupa untuk KasbonRepository
+// func (r *salaryDetailRepository) CreateKasbon(kasbon *entity.Kasbon) error {
+// 	return r.db.Create(kasbon).Error
+// }
 
-func (r *salaryDetailRepository) UpdateKasbon(kasbon *entity.Kasbon) error {
-	return r.db.Save(kasbon).Error
-}
+// func (r *salaryDetailRepository) UpdateKasbon(kasbon *entity.Kasbon) error {
+// 	return r.db.Save(kasbon).Error
+// }
 
-func (r *salaryDetailRepository) DeleteKasbon(id uint) error {
-	return r.db.Delete(&entity.Kasbon{}, id).Error
-}
+// func (r *salaryDetailRepository) DeleteKasbon(id uint) error {
+// 	return r.db.Delete(&entity.Kasbon{}, id).Error
+// }
 
-func (r *salaryDetailRepository) FindBySalaryIDKasbon(salaryID uint) ([]entity.Kasbon, error) {
-	var kasbons []entity.Kasbon
-	err := r.db.Where("salary_id = ?", salaryID).Find(&kasbons).Error
-	return kasbons, err
+//	func (r *salaryDetailRepository) FindBySalaryIDKasbon(salaryID uint) ([]entity.Kasbon, error) {
+//		var kasbons []entity.Kasbon
+//		err := r.db.Where("salary_id = ?", salaryID).Find(&kasbons).Error
+//		return kasbons, err
+//	}
+func (r *salaryDetailRepository) FindByID(id uint) (*entity.SalaryDetail, error) {
+	var detail entity.SalaryDetail
+	err := r.db.First(&detail, id).Error
+	return &detail, err
 }
