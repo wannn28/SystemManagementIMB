@@ -1052,11 +1052,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
                             </div>
                           )}
-                          {salary.documents && salary.documents.length > 0 && (
+                          {/* {salary.documents && salary.documents.length > 0 && (
                             <div className="mt-4">
                               <PDFGeneratorButton member={selectedMember} salary={salary} />
                             </div>
-                          )}
+                          )} */}
+                          <div className="mt-4">
+                              <PDFGeneratorButton member={selectedMember} salary={salary} />
+                            </div>
                         </div>
                         <div className="flex gap-2 py-4">
                           <button
