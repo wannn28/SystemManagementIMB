@@ -5,6 +5,8 @@ import { teamMembers } from '../types/teamMembersData';
 import { Member, SalaryRecord, SalaryDetail, Kasbon } from '../types/BasicTypes';
 import { AddButtonCategory } from '../component/AddButton';
 import { SalaryDetailsTable } from './SalaryDetailsTable';
+import { PDFGeneratorButton } from '../component/PDFGeneratorButton';
+import { IDCardGeneratorButton } from '../component/IDCardGeneratorButton';
 interface TeamProps {
   isCollapsed: boolean;
 }
@@ -20,6 +22,15 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState<Member | null>(null);
   const [newDocumentName, setNewDocumentName] = useState('');
+  const [isAddMemberModal, setIsAddMemberModal] = useState(false);
+  const [newMemberData, setNewMemberData] = useState({
+    fullName: '',
+    role: '',
+    phoneNumber: '',
+    address: '',
+    joinDate: '',
+    profileImageFile: null as File | null,
+  });
   // const [newDocumentFile, setNewDocumentFile] = useState<File | null>(null);
   const [isAddingDocument, setIsAddingDocument] = useState(false);
   const [newProfileImage, setNewProfileImage] = useState<File | null>(null);
@@ -155,7 +166,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Team.tsx - Pastikan menghapus berdasarkan ID yang benar
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     try {
-      console.log(salaryId, id)
+      // console.log(salaryId, id)
       await axios.delete(`http://localhost:8080/salaries/${salaryId}/details/${id}`);
 
       // Update state
@@ -184,8 +195,12 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     ));
   };
 
-  const handleDeleteKasbon = (id: string) => {
-    setKasbonDetails(kasbonDetails.filter(item => item.id !== id));
+  const handleDeleteKasbon = async (id: string) => {
+    try {
+      await axios.delete(`http://localhost:8080/kasbons/${id}`);
+    } catch (error) {
+      setKasbonDetails(kasbonDetails.filter(item => item.id !== id));
+    }
   };
 
   // const calculatedValues = {
@@ -212,10 +227,26 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     fetchTeamMembers();
   }, []);
 
-  const handleCreateMember = async (newMember: Member) => {
+  const handleCreateMember = async (memberData: Omit<Member, 'id' | 'profileImage'>, profileImageFile?: File) => {
     try {
-      const response = await axios.post('http://localhost:8080/members', newMember);
-      setTeamMembersData((prev) => [...prev, response.data.data]);
+      // 1. Create member tanpa gambar
+      const response = await axios.post('http://localhost:8080/members', memberData);
+      const newMember = response.data.data;
+
+      // 2. Upload gambar profil jika ada
+      if (profileImageFile) {
+        const formData = new FormData();
+        formData.append('file', profileImageFile);
+
+        await axios.post(
+          `http://localhost:8080/members/${newMember.id}/profile`,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+      }
+
+      // 3. Update state dengan data member baru
+      setTeamMembersData(prev => [...prev, newMember]);
     } catch (error) {
       console.error('Error creating member:', error);
     }
@@ -230,16 +261,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       );
 
       // 2. Jika ada gambar profil baru, upload terpisah
-      if (newProfileImage) {
-        const profileFormData = new FormData();
-        profileFormData.append("file", newProfileImage);
 
-        await axios.post(
-          `http://localhost:8080/members/${updatedMember.id}/profile`,
-          profileFormData,
-          { headers: { "Content-Type": "multipart/form-data" } }
-        );
-      }
 
       // 3. Perbarui state dengan data terbaru
       setTeamMembersData(prev =>
@@ -251,8 +273,26 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       console.error("Error updating member:", error);
     }
   };
+  const handleProfileImageChange = async (memberId: string, file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file); // Gunakan key "file"
 
+      const response = await axios.post(
+        `http://localhost:8080/members/${memberId}/profile`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
 
+      // Refresh data member setelah upload
+      const updatedMember = { ...selectedMember!, profileImage: response.data.fileName };
+      setSelectedMember(updatedMember);
+
+      return response.data;
+    } catch (error) {
+      console.error("Error uploading profile image:", error);
+    }
+  };
 
   const handleDocumentUpload = async (memberId: string, files: File[]) => {
     try {
@@ -653,24 +693,143 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     }
   };
 
-  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const newUrl = URL.createObjectURL(file);
-      setNewProfileImage(file);
-      setEditFormData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          profileImage: newUrl, // Update the profile image URL in the state
-        };
-      });
-    }
-  };
+
 
   return (
     <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
       <div className="max-w-7xl mx-auto p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Team Members</h2>
+          <button
+            onClick={() => setIsAddMemberModal(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Add New Member
+          </button>
+        </div>
+        {isAddMemberModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-xl font-semibold mb-4">Add New Member</h3>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const { fullName, role, phoneNumber, address, joinDate, profileImageFile } = newMemberData;
+                handleCreateMember(
+                  {
+                    fullName,
+                    role,
+                    phoneNumber,
+                    address,
+                    joinDate,
+                    salaries: [], // Add this property
+                    documents: [], // Add this property
+                  },
+                  profileImageFile || undefined
+                );
+                setIsAddMemberModal(false);
+                setNewMemberData({
+                  fullName: '',
+                  role: '',
+                  phoneNumber: '',
+                  address: '',
+                  joinDate: '',
+                  profileImageFile: null,
+                });
+              }} className="space-y-4">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                  <input
+                    type="text"
+                    value={newMemberData.fullName}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, fullName: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                {/* Role */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Role</label>
+                  <input
+                    type="text"
+                    value={newMemberData.role}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, role: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                {/* Phone Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                  <input
+                    type="text"
+                    value={newMemberData.phoneNumber}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, phoneNumber: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Address</label>
+                  <input
+                    type="text"
+                    value={newMemberData.address}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, address: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                {/* Join Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Join Date</label>
+                  <input
+                    type="date"
+                    value={newMemberData.joinDate}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, joinDate: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                {/* Profile Image */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Profile Image</label>
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setNewMemberData({ ...newMemberData, profileImageFile: e.target.files[0] });
+                      }
+                    }}
+                    className="w-full px-4 py-2 border rounded-md"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddMemberModal(false)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md"
+                  >
+                    Create Member
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Team</h1>
         <p className="text-gray-500">Collaborate with your team members.</p>
 
@@ -726,10 +885,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
               <form className="space-y-4" onSubmit={handleEditSubmit}>
                 <div className="mt-4">
                   <img
-                    src={selectedMember.profileImage}
+                    src={'http://localhost:8080/uploads/' + selectedMember.profileImage}
                     alt="Profile"
                     className="w-24 h-24 rounded-full cursor-pointer"
-                    onClick={() => handleImageClick(selectedMember.profileImage)}
+                    onClick={() => handleImageClick('http://localhost:8080/uploads/' + selectedMember.profileImage)}
                   />
                 </div>
                 {isEditMode && (
@@ -737,8 +896,13 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                     <label className="block font-medium text-gray-700">Profile Image:</label>
                     <input
                       type="file"
-                      onChange={handleProfileImageChange}
-                      className="mt-1 border border-gray-300 rounded-md p-1"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files && files[0]) {
+                          handleProfileImageChange(selectedMember.id, files[0]);
+                        }
+                      }}
                     />
                   </div>
                 )}
@@ -845,7 +1009,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                             data={salary.kasbons}
                             onAdd={(newData) => handleAddKasbon(String(salary.id), newData)}
                             onEdit={(id, data) => handleEditKasbon(String(salary.id), id, data)}
-                            onDelete={(id) => handleDeleteKasbon(String(salary.id))}
+                            onDelete={(id) => handleDeleteKasbon(id)}
                           />
                           <p>Id : {salary.id}</p>
                           <p>Jumlah Gaji : {salary.salary}</p>
@@ -853,7 +1017,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                           <p>Gaji Bersih : {salary.net_salary}</p>
                           <p>Gaji Kotor : {salary.gross_salary}</p>
                           <p>Status : {salary.status}</p>
-                          {salary.documents.length > 0 && (
+                          {salary.documents && salary.documents.length > 0 && (
                             <div className="mt-2">
                               <h5 className="font-medium">Bukti Pembayaran dan Kasbon :</h5>
                               <div
@@ -886,6 +1050,11 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                                 ))}
                               </div>
 
+                            </div>
+                          )}
+                          {salary.documents && salary.documents.length > 0 && (
+                            <div className="mt-4">
+                              <PDFGeneratorButton member={selectedMember} salary={salary} />
                             </div>
                           )}
                         </div>
@@ -1090,7 +1259,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                           <div className="mt-4">
                             <h5 className="font-medium mb-2">Dokumen Terlampir:</h5>
                             <div className="grid grid-cols-3 gap-2">
-                              {selectedMember.salaries[editingSalaryIndex].documents.map(
+                              {selectedMember.salaries[editingSalaryIndex].documents && selectedMember.salaries[editingSalaryIndex].documents.map(
                                 (fileName, idx) => (
                                   <img
                                     key={idx}
@@ -1372,7 +1541,6 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
             {selectedTab === "Personal" && (
               <div className="mt-4">
-
                 {isEditMode ? (
                   <>
                     <button className="px-4 py-2 bg-green-600 text-white rounded-md" onClick={() => handleUpdateMember(editFormData!)}>Save</button>
@@ -1381,6 +1549,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                 ) : (
                   <>
                     <button className="px-4 py-2 bg-blue-600 text-white rounded-md" onClick={() => setIsEditMode(true)}>Edit</button>
+                    <IDCardGeneratorButton member={selectedMember} />
                     <button className="px-4 py-2 bg-red-600 text-white rounded-md ml-4" onClick={() => setIsDeleteModalOpen(true)}>Delete</button>
                   </>
                 )}

@@ -169,22 +169,22 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                       <td className="py-2 px-4 border-b text-center">
                         {(item as SalaryDetail).jam_trip}
                       </td>
-                      <td className="py-2 px-4 border-b">
+                      <td className="py-2 px-4 border-b text-center">
                         Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
                       </td>
-                      <td className="py-2 px-4 border-b">
+                      <td className="py-2 px-4 border-b text-center">
                         Rp{((item as SalaryDetail).jam_trip *
                           (item as SalaryDetail).harga_per_jam).toLocaleString()}
                       </td>
                     </>
                   )}
                   {type === 'kasbon' && (
-                    <td className="py-2 px-4 border-b">
+                    <td className="py-2 px-4 border-b text-center">
                       Rp{(item as Kasbon).jumlah.toLocaleString()}
                     </td>
                   )}
-                  <td className="py-2 px-4 border-b">{item.keterangan}</td>
-                  <td className="py-2 px-4 border-b">
+                  <td className="py-2 px-4 border-b text-center">{item.keterangan}</td>
+                  <td className="py-2 px-4 border-b text-center">
                     <button
                       onClick={() => {
                         setEditingId(item.id);
