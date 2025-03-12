@@ -15,12 +15,12 @@ const getAggregatedRevenueData = (project: Project, timeRange: string) => {
   const groupIntoWeeks = () => {
     const weeksMap = new Map<string, any>();
     const projectStart = new Date(project.startDate);
-    
+
     dailyData.forEach(day => {
       const dayDate = new Date(day.date);
       const diffTime = dayDate.getTime() - projectStart.getTime();
       const weekNumber = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000)) + 1;
-      
+
       const weekKey = `Week ${weekNumber}`;
       if (!weeksMap.has(weekKey)) {
         weeksMap.set(weekKey, {
@@ -29,39 +29,39 @@ const getAggregatedRevenueData = (project: Project, timeRange: string) => {
           paid: 0,
         });
       }
-      
+
       const week = weeksMap.get(weekKey);
       week.revenue += day.revenue || 0;
       week.paid += day.paid || 0;
       week.totalRevenue = project.totalRevenue;
     });
-    
+
     return Array.from(weeksMap.values());
   };
 
   // Fungsi untuk mengelompokkan data harian ke bulanan
   const groupIntoMonths = () => {
     const monthsMap = new Map<string, any>();
-    
+
     dailyData.forEach(day => {
       const dayDate = new Date(day.date);
       const monthKey = `${dayDate.getFullYear()}-${dayDate.getMonth()}`;
-      
+
       if (!monthsMap.has(monthKey)) {
         monthsMap.set(monthKey, {
           monthStart: new Date(dayDate.getFullYear(), dayDate.getMonth(), 1),
           revenue: 0,
           paid: 0,
-          totalRevenue : 0,
+          totalRevenue: 0,
         });
       }
-      
+
       const month = monthsMap.get(monthKey);
       month.revenue += day.revenue || 0;
       month.paid += day.paid || 0;
       month.totalRevenue = project.totalRevenue;
     });
-    
+
     return Array.from(monthsMap.values());
   };
 
@@ -270,10 +270,10 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
                     <p>Sisa: {remainingVolume?.toLocaleString()}</p>
                   </div>
                   <div className="text-[#ffc658]">
-                    <p>Aktual: {data.aktual?.toLocaleString()}</p>
-                    <p>Plan: {data.plan?.toLocaleString()}</p>
-                    <p>Capai: {aktualPercentage}%</p>
-                    <p>Sisa: {remainingAktual?.toLocaleString()}</p>
+                    <p>Plan: {data.plan} (Target: {data.targetPlan})</p>
+                    <p>Deviasi Plan: {data.plan - data.targetPlan}</p>
+                    <p>Aktual: {data.aktual} (Target: {data.targetAktual})</p>
+                    <p>Deviasi Aktual: {data.aktual - data.targetAktual}</p>
                   </div>
                 </div>
               </div>
@@ -453,6 +453,99 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [fullscreenChart, setFullscreenChart] = useState<{ projectId: number; chartType: string } | null>(null);
+  const groupDataByTimeRange = (project: Project, timeRange: 'daily' | 'weekly' | 'monthly') => {
+    const dailyData = project.reports.daily;
+
+    // Kelompokkan ke mingguan
+    const groupIntoWeeks = () => {
+      const weeksMap = new Map<string, any>();
+      const projectStart = new Date(project.startDate);
+
+      dailyData.forEach(day => {
+        const dayDate = new Date(day.date);
+        const diffDays = Math.floor((dayDate.getTime() - projectStart.getTime()) / (1000 * 3600 * 24));
+        const weekNumber = Math.floor(diffDays / 7) + 1;
+        const weekKey = `Week ${weekNumber}`;
+
+        if (!weeksMap.has(weekKey)) {
+          weeksMap.set(weekKey, {
+            week: weekKey,
+            weekStart: new Date(projectStart.getTime() + (weekNumber - 1) * 7 * 24 * 3600 * 1000),
+            weekEnd: new Date(projectStart.getTime() + weekNumber * 7 * 24 * 3600 * 1000 - 1),
+            plan: 0,
+            aktual: 0,
+            volume: 0,
+            targetVolume: 0,
+            targetPlan: 0,
+            targetAktual: 0,
+          });
+        }
+
+        const week = weeksMap.get(weekKey);
+        week.plan += day.plan || 0;
+        week.aktual += day.aktual || 0;
+        week.volume += day.volume || 0;
+        week.targetVolume += day.targetVolume || 0;
+      });
+
+      // Gabungkan dengan target dari server
+      return Array.from(weeksMap.values()).map((week, index) => ({
+        ...week,
+        targetPlan: project.reports.weekly[index]?.targetPlan || 0,
+        targetAktual: project.reports.weekly[index]?.targetAktual || 0,
+      }));
+    };
+
+    // Kelompokkan ke bulanan
+    const groupIntoMonths = () => {
+      const monthsMap = new Map<string, any>();
+
+      dailyData.forEach(day => {
+        const dayDate = new Date(day.date);
+        const monthKey = `${dayDate.getFullYear()}-${dayDate.getMonth()}`;
+
+        if (!monthsMap.has(monthKey)) {
+          monthsMap.set(monthKey, {
+            month: dayDate.toLocaleString('default', { month: 'long' }),
+            monthStart: new Date(dayDate.getFullYear(), dayDate.getMonth(), 1),
+            monthEnd: new Date(dayDate.getFullYear(), dayDate.getMonth() + 1, 0),
+            plan: 0,
+            aktual: 0,
+            volume: 0,
+            targetVolume: 0,
+            targetPlan: 0,
+            targetAktual: 0,
+          });
+        }
+
+        const month = monthsMap.get(monthKey);
+        month.plan += day.plan || 0;
+        month.aktual += day.aktual || 0;
+        month.volume += day.volume || 0;
+        month.targetVolume += day.targetVolume || 0;
+      });
+
+      // Gabungkan dengan target dari server
+      return Array.from(monthsMap.values()).map((month, index) => ({
+        ...month,
+        targetPlan: project.reports.monthly[index]?.targetPlan || 0,
+        targetAktual: project.reports.monthly[index]?.targetAktual || 0,
+      }));
+    };
+
+    switch (timeRange) {
+      case 'weekly':
+        return groupIntoWeeks();
+      case 'monthly':
+        return groupIntoMonths();
+      default:
+        return dailyData.map(day => ({
+          ...day,
+          date: new Date(day.date),
+        }));
+    }
+  };
+
   useEffect(() => {
     const fetchProjects = async () => {
       try {
@@ -483,43 +576,18 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   };
 
   const getTimeRangeData = (project: Project) => {
-    // Ambil data langsung dari reports sesuai timeRange
-    const timeRangeData = timeRange === 'daily'
-      ? project.reports.daily
-      : timeRange === 'weekly'
-        ? project.reports.weekly
-        : project.reports.monthly;
+    const data = groupDataByTimeRange(project, timeRange);
 
-    // Transformasi data untuk format yang diharapkan komponen
-    return timeRangeData.map((item: any) => ({
-      // Untuk daily: pakai date langsung
-      date: item.date ? new Date(item.date) : null,
-      plan: timeRange === 'daily' ? item.plan : item.targetPlan,
-      aktual: timeRange === 'daily' ? item.aktual : item.targetAktual,
-
-      // Atur tanggal sesuai timeRange
-      ...(timeRange === 'weekly' && {
-        weekStart: getStartOfWeek(item.week, project.startDate),
-        weekEnd: getEndOfWeek(item.week, project.startDate)
-      }),
-      ...(timeRange === 'monthly' && {
-        monthStart: new Date(`${item.month} 1, ${new Date(project.startDate).getFullYear()}`),
-        monthEnd: new Date(new Date(`${item.month} 1, ${new Date(project.startDate).getFullYear()}`).getFullYear(), new Date(`${item.month} 1`).getMonth() + 1, 0)
-      }),
-
-      // Data umum
-      revenue: item.revenue || 0,
-      paid: item.paid || 0,
-      volume: item.volume || 0,
-      targetVolume: item.targetVolume || 0, // Ambil dari data server
-
-      targetPlan: item.targetPlan || 0,      // Ambil dari data server
-      targetAktual: item.targetAktual || 0,  // Ambil dari data server
-      totalRevenue: project.totalRevenue,
-      totalVolume: project.totalVolume
+    return data.map((item: any) => ({
+      ...item,
+      date: item.date || item.weekStart || item.monthStart,
+      plan: item.plan,
+      aktual: item.aktual,
+      targetPlan: item.targetPlan,
+      targetAktual: item.targetAktual,
+      deviasi: item.aktual - item.targetAktual,
     }));
   };
-
   // Helper untuk konversi week number ke tanggal
   const getStartOfWeek = (weekNumber: string, startDate: string) => {
     const [_, week] = weekNumber.split(' ');
@@ -589,10 +657,10 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
           <div className="flex-1">
             {fullscreenChart.chartType === 'revenue' && (
               <RevenueChart
-              data={getAggregatedRevenueData(project, timeRange)}
-              timeRange={timeRange}
-              showTotals={showTotals}
-            />
+                data={getAggregatedRevenueData(project, timeRange)}
+                timeRange={timeRange}
+                showTotals={showTotals}
+              />
             )}
             {fullscreenChart.chartType === 'volume-progress' && (
               <VolumeProgressChart
@@ -677,7 +745,7 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                     </button>
                     <h3 className="text-lg font-semibold mb-4">Revenue vs Total Revenue ({timeRange})</h3>
                     <RevenueChart
-                     data={getAggregatedRevenueData(project, timeRange)}
+                      data={getAggregatedRevenueData(project, timeRange)}
                       timeRange={timeRange}
                       showTotals={showTotals}
                     />
