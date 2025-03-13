@@ -183,14 +183,9 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
                       : String(dateVal); // atau dateVal?.toString() jika dateVal bisa null
                   })()}
                 </p>
-                <p className="text-[#82ca9d]">Volume: {data.volume?.toLocaleString()}</p>
-                <p className="text-[#ff7300]">Target Volume: {data.targetVolume?.toLocaleString()}</p>
-                <p className="text-[#8884d8]">Total Volume: {data.totalVolume?.toLocaleString()}</p>
-                <div className="mt-2">
-                  <p>Capai Target: {targetPercentage}%</p>
-                  <p>Progress Total: {totalPercentage}%</p>
-                  <p>Sisa ke Total: {remainingToTotal?.toLocaleString()}</p>
-                </div>
+                <p className="text-[#82ca9d]">Volume Plan : {data.plan?.toLocaleString()}</p>
+                <p className="text-[#ff7300]">Volume Aktual: {data.aktual?.toLocaleString()}</p>
+
               </div>
             );
           }
@@ -198,17 +193,17 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
         }} />
         <Line
           type="monotone"
-          dataKey="volume"
+          dataKey="plan"
           stroke="#82ca9d"
-          name="Volume"
+          name="Plan"
           strokeWidth={2}
           dot={{ r: 4 }}
         />
         <Line
           type="monotone"
-          dataKey="targetVolume"
+          dataKey="aktual"
           stroke="#ff7300"
-          name="Target Volume"
+          name="Aktual"
           connectNulls={false}
           strokeWidth={2}
           dot={{ r: 4 }}
@@ -245,7 +240,9 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
             const volumePercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
             const remainingAktual = data.plan - data.aktual;
             const remainingVolume = data.targetVolume - data.volume;
-
+            const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
+            const totalPercentage = ((data.volume / data.totalVolume) * 100).toFixed(2);
+            const remainingToTotal = data.totalVolume - data.volume;
             return (
               <div className="bg-white p-3 border rounded-lg shadow-sm">
                 <p className="font-semibold">
@@ -270,10 +267,16 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
                     <p>Sisa: {remainingVolume?.toLocaleString()}</p>
                   </div>
                   <div className="text-[#ffc658]">
-                    <p>Plan: {data.plan} (Target: {data.targetPlan})</p>
+                    <div className="mt-2">
+                      <p className="text-[#8884d8]">Total Volume: {data.totalVolume?.toLocaleString()}</p>
+                      {/* <p>Capai Target: {targetPercentage}%</p> */}
+                      <p>Progress Total: {totalPercentage}%</p>
+                      <p>Sisa ke Total: {remainingToTotal?.toLocaleString()}</p>
+                    </div>
+                    {/* <p>Plan: {data.plan} (Target: {data.targetPlan})</p>
                     <p>Deviasi Plan: {data.plan - data.targetPlan}</p>
                     <p>Aktual: {data.aktual} (Target: {data.targetAktual})</p>
-                    <p>Deviasi Aktual: {data.aktual - data.targetAktual}</p>
+                    <p>Deviasi Aktual: {data.aktual - data.targetAktual}</p> */}
                   </div>
                 </div>
               </div>
@@ -299,7 +302,7 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
           dot={{ r: 4 }}
           connectNulls={false}
         />
-        <Line
+        {/* <Line
           type="monotone"
           dataKey="plan"
           stroke="#8884d8"
@@ -315,7 +318,7 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
           name="Aktual"
           strokeWidth={2}
           dot={{ r: 4 }}
-        />
+        /> */}
       </LineChart>
     </ResponsiveContainer>
   );
@@ -604,27 +607,23 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [showTotals, setShowTotals] = useState(false);
   const getVolumeData = (project: Project) => {
     const data = getTimeRangeData(project).map((item, index, array) => {
-      const volume = item.volume || 0;
-      const targetVolume = item.targetVolume || null;
-      const plan = item.plan || 0;
-      const aktual = item.aktual || 0;
-      const totalVolume = project.totalVolume || 0;
-      const totalRevenue = project.totalRevenue || 0;
-      const akumulasiPlan = array.slice(0, index + 1).reduce((acc, curr) => acc + curr.plan, 0);
-      const akumulasiAktual = array.slice(0, index + 1).reduce((acc, curr) => acc + curr.aktual, 0);
+      // Hitung akumulasi aktual dan plan
+      const akumulasiAktual = array
+        .slice(0, index + 1)
+        .reduce((acc, curr) => acc + (curr.aktual || 0), 0);
+
+      const akumulasiPlan = array
+        .slice(0, index + 1)
+        .reduce((acc, curr) => acc + (curr.plan || 0), 0);
 
       return {
         ...item,
-        volume,
-        targetVolume,
-        plan,
-        akumulasiPlan,
-        aktual,
-        akumulasiAktual,
-        deviasi: aktual - plan,
-        volumeDifference: volume - targetVolume,
-        totalVolume,
-        totalRevenue
+        volume: akumulasiAktual,         // Gunakan akumulasi aktual sebagai volume
+        targetVolume: akumulasiPlan,     // Gunakan akumulasi plan sebagai target volume
+        plan: item.plan,
+        aktual: item.aktual,
+        totalVolume: project.totalVolume,
+        totalRevenue: project.totalRevenue
       };
     });
     return data;
