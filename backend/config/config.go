@@ -12,6 +12,7 @@ type Config struct {
 	DBName     string `mapstructure:"DB_NAME"`
 	Port       string `mapstructure:"PORT"`
 	UploadDir  string `mapstructure:"UPLOAD_DIR"`
+	BaseURL    string `mapstructure:"BASE_URL"`
 }
 
 func LoadConfig() (config Config, err error) {

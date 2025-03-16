@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios'; // Import axios
 import { teamMembers } from '../types/teamMembersData';
 
-import { Member, SalaryRecord, SalaryDetail, Kasbon } from '../types/BasicTypes';
+import { Member, SalaryDetail, Kasbon } from '../types/BasicTypes';
 import { AddButtonCategory } from '../component/AddButton';
 import { SalaryDetailsTable } from './SalaryDetailsTable';
 import { PDFGeneratorButton } from '../component/PDFGeneratorButton';
@@ -33,7 +33,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   });
   // const [newDocumentFile, setNewDocumentFile] = useState<File | null>(null);
   const [isAddingDocument, setIsAddingDocument] = useState(false);
-  const [newProfileImage, setNewProfileImage] = useState<File | null>(null);
+  // const [newProfileImage, setNewProfileImage] = useState<File | null>(null);
   const [newDocumentFiles, setNewDocumentFiles] = useState<File[]>([]); // Ubah ke array
   const [newSalaryMonth, setNewSalaryMonth] = useState('');
   const [newStatus, setNewStatus] = useState('Paid');
@@ -189,7 +189,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
 
 
-  const handleEditKasbon = (salaryId: string, id: string, updatedData: Kasbon) => {
+  const handleEditKasbon = (id: string, updatedData: Kasbon) => {
     setKasbonDetails(kasbonDetails.map(item =>
       item.id === id ? { ...updatedData, id } : item
     ));
@@ -297,7 +297,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDocumentUpload = async (memberId: string, files: File[]) => {
     try {
       const formData = new FormData();
-      files.forEach((file, index) => {
+      files.forEach((file) => {
         formData.append("files", file); // Gunakan key "files" untuk semua file
       });
 
@@ -1008,7 +1008,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                             type="kasbon"
                             data={salary.kasbons}
                             onAdd={(newData) => handleAddKasbon(String(salary.id), newData)}
-                            onEdit={(id, data) => handleEditKasbon(String(salary.id), id, data)}
+                            onEdit={(id, data) => handleEditKasbon(id, data)}
                             onDelete={(id) => handleDeleteKasbon(id)}
                           />
                           <p>Id : {salary.id}</p>
@@ -1058,8 +1058,8 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                             </div>
                           )} */}
                           <div className="mt-4">
-                              <PDFGeneratorButton member={selectedMember} salary={salary} />
-                            </div>
+                            <PDFGeneratorButton member={selectedMember} salary={salary} />
+                          </div>
                         </div>
                         <div className="flex gap-2 py-4">
                           <button

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 import { Project } from '../types/BasicTypes';
 import EditReports from './EditReportForm';
@@ -163,9 +163,9 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
         <Tooltip content={({ active, payload }) => {
           if (active && payload && payload.length) {
             const data = payload[0].payload;
-            const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
-            const totalPercentage = ((data.volume / data.totalVolume) * 100).toFixed(2);
-            const remainingToTotal = data.totalVolume - data.volume;
+            // const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
+            // const totalPercentage = ((data.volume / data.totalVolume) * 100).toFixed(2);
+            // const remainingToTotal = data.totalVolume - data.volume;
 
             return (
               <div className="bg-white p-3 border rounded-lg shadow-sm">
@@ -194,7 +194,7 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
         <Line
           type="monotone"
           dataKey="plan"
-          stroke="#82ca9d"
+          stroke="#ff7300" 
           name="Plan"
           strokeWidth={2}
           dot={{ r: 4 }}
@@ -202,7 +202,7 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
         <Line
           type="monotone"
           dataKey="aktual"
-          stroke="#ff7300"
+          stroke="#82ca9d"
           name="Aktual"
           connectNulls={false}
           strokeWidth={2}
@@ -236,11 +236,11 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
         <Tooltip content={({ active, payload }) => {
           if (active && payload && payload.length) {
             const data = payload[0].payload;
-            const aktualPercentage = ((data.aktual / data.plan) * 100).toFixed(2);
+            // const aktualPercentage = ((data.aktual / data.plan) * 100).toFixed(2);
             const volumePercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
-            const remainingAktual = data.plan - data.aktual;
+            // const remainingAktual = data.plan - data.aktual;
             const remainingVolume = data.targetVolume - data.volume;
-            const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
+            // const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
             const totalPercentage = ((data.volume / data.totalVolume) * 100).toFixed(2);
             const remainingToTotal = data.totalVolume - data.volume;
             return (
@@ -453,8 +453,8 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null); // State for editing project
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // const [loading, setLoading] = useState(true);
+  // const [error, setError] = useState('');
   const [fullscreenChart, setFullscreenChart] = useState<{ projectId: number; chartType: string } | null>(null);
   const groupDataByTimeRange = (project: Project, timeRange: 'daily' | 'weekly' | 'monthly') => {
     const dailyData = project.reports.daily;
@@ -557,9 +557,9 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
           setProjects(response.data.data);
         }
       } catch (err) {
-        setError('Gagal memuat data projek');
+        // setError('Gagal memuat data projek');
       } finally {
-        setLoading(false);
+        // setLoading(false);
       }
     };
 
@@ -592,18 +592,18 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
     }));
   };
   // Helper untuk konversi week number ke tanggal
-  const getStartOfWeek = (weekNumber: string, startDate: string) => {
-    const [_, week] = weekNumber.split(' ');
-    const projectStart = new Date(startDate);
-    const start = new Date(projectStart.getTime() + (parseInt(week) - 1) * 7 * 24 * 3600 * 1000);
-    return start;
-  };
+  // const getStartOfWeek = (weekNumber: string, startDate: string) => {
+  //   const [_, week] = weekNumber.split(' ');
+  //   const projectStart = new Date(startDate);
+  //   const start = new Date(projectStart.getTime() + (parseInt(week) - 1) * 7 * 24 * 3600 * 1000);
+  //   return start;
+  // };
 
-  const getEndOfWeek = (weekNumber: string, startDate: string) => {
-    const start = getStartOfWeek(weekNumber, startDate);
-    const end = new Date(start.getTime() + 6 * 24 * 3600 * 1000);
-    return end;
-  };
+  // const getEndOfWeek = (weekNumber: string, startDate: string) => {
+  //   const start = getStartOfWeek(weekNumber, startDate);
+  //   const end = new Date(start.getTime() + 6 * 24 * 3600 * 1000);
+  //   return end;
+  // };
   const [showTotals, setShowTotals] = useState(false);
   const getVolumeData = (project: Project) => {
     const data = getTimeRangeData(project).map((item, index, array) => {
@@ -641,7 +641,7 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
     const project = projects.find(p => p.id === fullscreenChart.projectId);
     if (!project) return null;
 
-    const chartData = getTimeRangeData(project);
+    // const chartData = getTimeRangeData(project);
     const volumeData = getVolumeData(project);
 
     return (

@@ -16,6 +16,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
     { name: 'Inventory', icon: <FiBox />, path: '/inventory' },
     { name: 'Team', icon: <FiUsers />, path: '/team' },
     { name: 'Reports', icon: <FiFlag />, path: '/reports' },
+    { name: 'Finance', icon: <FiFlag />, path: '/finance' },
     { name: 'Settings', icon: <FiSettings />, path: '/settings' },
   ];
 

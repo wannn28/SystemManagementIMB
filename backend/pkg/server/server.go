@@ -54,6 +54,15 @@ func StartServer() {
 	route.RegisterProjectRoutes(e, projectService)
 	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService)
 
+	financeRepo := repository.NewFinanceRepository(db)
+	financeService := service.NewFinanceService(financeRepo)
+
+	inventoryRepo := repository.NewInventoryRepository(db)
+	inventoryService := service.NewInventoryService(inventoryRepo)
+	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL)
+	// Register routes
+	route.RegisterFinanceRoutes(e, financeService)
+
 	route.RegisterRoutes(e, userService)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))

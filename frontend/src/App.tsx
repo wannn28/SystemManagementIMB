@@ -7,6 +7,8 @@ import Inventory from './pages/Inventory.tsx';
 import Team from './pages/Team.tsx';
 import Reports from './pages/Reports.tsx';
 import Settings from './pages/Settings.tsx';
+import Finance from './pages/Finance.tsx';
+
 
 const App: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
@@ -23,6 +25,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<Home isCollapsed={isCollapsed} />} />
             <Route path="/projects" element={<Projects isCollapsed={isCollapsed} />} />
+            <Route path="/Finance" element={<Finance isCollapsed={isCollapsed} />} />
             <Route path="/inventory" element={<Inventory isCollapsed={isCollapsed} />} />
             <Route path="/team" element={<Team isCollapsed={isCollapsed} />} />
             <Route path="/reports" element={<Reports isCollapsed={isCollapsed} />} />
