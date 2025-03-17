@@ -3,6 +3,7 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/utils"
 )
 
 type UserService interface {
@@ -11,6 +12,7 @@ type UserService interface {
 	GetUserByID(id uint) (*entity.User, error)
 	UpdateUser(user *entity.User) error
 	DeleteUser(id uint) error
+	GetUserByEmail(email string) (*entity.User, error)
 }
 
 type userService struct {
@@ -22,6 +24,11 @@ func NewUserService(repo repository.UserRepository) UserService {
 }
 
 func (s *userService) CreateUser(user *entity.User) error {
+	hashedPassword, err := utils.HashPassword(user.Password)
+	if err != nil {
+		return err
+	}
+	user.Password = hashedPassword
 	return s.repo.Create(user)
 }
 
@@ -43,4 +50,9 @@ func (s *userService) DeleteUser(id uint) error {
 		return err
 	}
 	return s.repo.Delete(user)
+}
+
+func (s *userService) GetUserByEmail(email string) (*entity.User, error) {
+	user, err := s.repo.FindByEmail(email)
+	return user, err
 }

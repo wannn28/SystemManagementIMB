@@ -22,10 +22,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
-
+    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah'>('id');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     // Filter configuration
     const filterData = (data: FinanceEntry[]) => {
-        return data.filter((entry) => {
+        const filtered = data.filter((entry) => {
             const matchesSearch = entry.keterangan.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCategory = !selectedCategory || entry.category === selectedCategory;
             const entryDate = new Date(entry.tanggal);
@@ -36,12 +37,58 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
             return matchesSearch && matchesCategory && matchesMonth && matchesYear;
         });
+        const sorted = [...filtered].sort((a, b) => {
+            let valueA: number | string | Date;
+            let valueB: number | string | Date;
+
+            switch (sortBy) {
+                case 'id':
+                    valueA = a.id;
+                    valueB = b.id;
+                    break;
+                case 'tanggal':
+                    valueA = new Date(a.tanggal).getTime();
+                    valueB = new Date(b.tanggal).getTime();
+                    break;
+                case 'jumlah':
+                    valueA = a.unit * a.hargaPerUnit;
+                    valueB = b.unit * b.hargaPerUnit;
+                    break;
+                default:
+                    valueA = a[sortBy];
+                    valueB = b[sortBy];
+            }
+
+            if (typeof valueA === 'number' && typeof valueB === 'number') {
+                return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+            } else {
+                const strA = valueA.toString().toLowerCase();
+                const strB = valueB.toString().toLowerCase();
+                const comparison = strA.localeCompare(strB);
+                return sortOrder === 'asc' ? comparison : -comparison;
+            }
+        });
+
+        return sorted;
     };
 
-    const filteredIncomeData = useMemo(() => filterData(incomeData), [incomeData, searchTerm, selectedCategory, selectedMonth, selectedYear]);
-    const filteredExpenseData = useMemo(() => filterData(expenseData), [expenseData, searchTerm, selectedCategory, selectedMonth, selectedYear]);
+    const filteredIncomeData = useMemo(() => filterData(incomeData), [
+        incomeData, searchTerm, selectedCategory,
+        selectedMonth, selectedYear, sortBy, sortOrder
+    ]);
 
-    // Form states
+    const filteredExpenseData = useMemo(() => filterData(expenseData), [
+        expenseData, searchTerm, selectedCategory,
+        selectedMonth, selectedYear, sortBy, sortOrder
+    ]);
+    const handleSort = (column: 'id' | 'tanggal' | 'jumlah') => {
+        if (sortBy === column) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(column);
+            setSortOrder('asc');
+        }
+    };
     const [newEntry, setNewEntry] = useState({
         tanggal: '',
         unit: '',
@@ -120,7 +167,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         }
     };
 
-    const handleDelete = async (id: number, type: 'income' | 'expense') => {
+    const handleDelete = async (id: number) => {
         try {
             await axios.delete(`http://localhost:8080/finance/${id}`);
             fetchData();
@@ -262,7 +309,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 ✏️
                             </button>
                             <button
-                                onClick={() => handleDelete(item.id, type)}
+                                onClick={() => handleDelete(item.id)}
                                 className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                             >
                                 🗑
@@ -448,11 +495,27 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         <table className="w-full">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="border px-4 py-2 w-12">No</th>
-                                    <th className="border px-4 py-2">Tanggal</th>
+
+                                    <th
+                                        className="border px-4 py-2 w-12 cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleSort('id')}
+                                    >
+                                        No {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                    </th>
+                                    <th
+                                        className="border px-4 py-2 cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleSort('tanggal')}
+                                    >
+                                        Tanggal {sortBy === 'tanggal' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                    </th>
                                     <th className="border px-4 py-2">Unit</th>
                                     <th className="border px-4 py-2">Harga/Unit</th>
-                                    <th className="border px-4 py-2">Jumlah</th>
+                                    <th
+                                        className="border px-4 py-2 cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleSort('jumlah')}
+                                    >
+                                        Jumlah {sortBy === 'jumlah' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                    </th>
                                     <th className="border px-4 py-2">Keterangan</th>
                                     <th className="border px-4 py-2">Kategori</th>
                                     <th className="border px-4 py-2 w-32">Aksi</th>

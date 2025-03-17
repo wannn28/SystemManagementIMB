@@ -163,10 +163,6 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
         <Tooltip content={({ active, payload }) => {
           if (active && payload && payload.length) {
             const data = payload[0].payload;
-            // const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
-            // const totalPercentage = ((data.volume / data.totalVolume) * 100).toFixed(2);
-            // const remainingToTotal = data.totalVolume - data.volume;
-
             return (
               <div className="bg-white p-3 border rounded-lg shadow-sm">
                 <p className="font-semibold">
@@ -236,11 +232,8 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
         <Tooltip content={({ active, payload }) => {
           if (active && payload && payload.length) {
             const data = payload[0].payload;
-            // const aktualPercentage = ((data.aktual / data.plan) * 100).toFixed(2);
             const volumePercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
-            // const remainingAktual = data.plan - data.aktual;
             const remainingVolume = data.targetVolume - data.volume;
-            // const targetPercentage = ((data.volume / data.targetVolume) * 100).toFixed(2);
             const totalPercentage = ((data.volume / data.totalVolume) * 100).toFixed(2);
             const remainingToTotal = data.totalVolume - data.volume;
             return (
@@ -269,14 +262,9 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
                   <div className="text-[#ffc658]">
                     <div className="mt-2">
                       <p className="text-[#8884d8]">Total Volume: {data.totalVolume?.toLocaleString()}</p>
-                      {/* <p>Capai Target: {targetPercentage}%</p> */}
                       <p>Progress Total: {totalPercentage}%</p>
                       <p>Sisa ke Total: {remainingToTotal?.toLocaleString()}</p>
                     </div>
-                    {/* <p>Plan: {data.plan} (Target: {data.targetPlan})</p>
-                    <p>Deviasi Plan: {data.plan - data.targetPlan}</p>
-                    <p>Aktual: {data.aktual} (Target: {data.targetAktual})</p>
-                    <p>Deviasi Aktual: {data.aktual - data.targetAktual}</p> */}
                   </div>
                 </div>
               </div>
@@ -302,23 +290,6 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
           dot={{ r: 4 }}
           connectNulls={false}
         />
-        {/* <Line
-          type="monotone"
-          dataKey="plan"
-          stroke="#8884d8"
-          name="Plan"
-          strokeWidth={2}
-          strokeDasharray="5 5"
-          dot={{ r: 4 }}
-        />
-        <Line
-          type="monotone"
-          dataKey="aktual"
-          stroke="#ffc658"
-          name="Aktual"
-          strokeWidth={2}
-          dot={{ r: 4 }}
-        /> */}
       </LineChart>
     </ResponsiveContainer>
   );
@@ -327,134 +298,12 @@ interface ApiResponse {
   data: Project[];
   status: number;
 }
-// const groupByWeek = (dailyData: any[], weeklyTargets: any[]) => {
-//   // Pastikan data terurut berdasarkan tanggal
-//   const sortedData = [...dailyData].sort((a, b) =>
-//     new Date(a.date).getTime() - new Date(b.date).getTime()
-//   );
 
-//   // Cari tanggal mulai pertama
-//   const firstDate = new Date(sortedData[0].date);
-
-//   const weeklyData: any[] = [];
-//   let currentWeek: any = null;
-//   let daysInWeek = 0;
-
-//   sortedData.forEach((item) => {
-//     const date = new Date(item.date);
-
-//     // Hitung hari sejak tanggal pertama
-//     const diffTime = date.getTime() - firstDate.getTime();
-//     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-//     // Jika hari ke-7 atau belum ada minggu saat ini
-//     if (diffDays % 7 === 0 || !currentWeek) {
-//       // Akhiri minggu sebelumnya jika ada
-//       if (currentWeek && daysInWeek > 0) {
-//         currentWeek.weekEnd = new Date(date);
-//       }
-
-//       // Mulai minggu baru
-//       currentWeek = {
-//         weekStart: new Date(date),
-//         weekEnd: new Date(date),
-//         revenue: 0,
-//         paid: 0,
-//         volume: 0,
-//         targetVolume: null,
-//         plan: 0,
-//         aktual: 0,
-//         days: 0
-//       };
-//       weeklyData.push(currentWeek);
-//       daysInWeek = 0;
-//     }
-
-//     // Tambahkan data ke minggu saat ini
-//     currentWeek.revenue += item.revenue;
-//     currentWeek.paid += item.paid;
-//     currentWeek.volume += item.volume;
-//     currentWeek.targetVolume += item.targetVolume;
-//     currentWeek.plan += item.plan;
-//     currentWeek.aktual += item.aktual;
-//     currentWeek.days++;
-//     daysInWeek++;
-
-//     // Update akhir minggu
-//     currentWeek.weekEnd = new Date(date);
-//   });
-
-//   // Hapus minggu terakhir jika tidak penuh 7 hari
-//   if (currentWeek && currentWeek.days < 7) {
-//     weeklyData.pop();
-//   }
-
-
-//   weeklyData.forEach((week, index) => {
-//     const weekData = weeklyTargets[index] || {};
-//     week.targetPlan = weekData.targetPlan;
-//     week.targetAktual = weekData.targetAktual;
-//     week.targetVolume = weekData.targetVolume;
-//   });
-
-
-//   return weeklyData;
-// };
-
-// const groupByMonth = (dailyData: any[], monthlyTargets: any[]) => {
-//   const monthlyData: any[] = [];
-//   let currentMonth: any = null;
-
-//   dailyData.forEach((item) => {
-//     const date = new Date(item.date);
-//     const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-
-//     if (!currentMonth || currentMonth.monthStart.getTime() !== monthStart.getTime()) {
-//       currentMonth = {
-//         monthStart: monthStart,
-//         monthEnd: new Date(date.getFullYear(), date.getMonth() + 1, 0),
-//         revenue: 0,
-//         paid: 0,
-//         target: 0,
-//         volume: 0,
-//         targetVolume: null,
-//         plan: 0,
-//         akumulasiPlan: 0,
-//         aktual: 0,
-//         akumulasiAktual: 0,
-//       };
-//       monthlyData.push(currentMonth);
-//     }
-
-//     currentMonth.revenue += item.revenue;
-//     currentMonth.paid += item.paid;
-//     currentMonth.target += item.target;
-//     currentMonth.volume += item.volume;
-//     currentMonth.targetVolume += item.targetVolume;
-//     currentMonth.plan += item.plan;
-//     currentMonth.akumulasiPlan += item.akumulasiPlan;
-//     currentMonth.aktual += item.aktual;
-//     currentMonth.akumulasiAktual += item.akumulasiAktual;
-//   });
-
-
-//   monthlyData.forEach((month, index) => {
-//     const monthData = monthlyTargets[index] || {};
-//     month.targetPlan = monthData.targetPlan;
-//     month.targetAktual = monthData.targetAktual;
-//     month.targetVolume = monthData.targetVolume;
-//   });
-
-
-//   return monthlyData;
-// };
 const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null); // State for editing project
   const [projects, setProjects] = useState<Project[]>([]);
-  // const [loading, setLoading] = useState(true);
-  // const [error, setError] = useState('');
   const [fullscreenChart, setFullscreenChart] = useState<{ projectId: number; chartType: string } | null>(null);
   const groupDataByTimeRange = (project: Project, timeRange: 'daily' | 'weekly' | 'monthly') => {
     const dailyData = project.reports.daily;

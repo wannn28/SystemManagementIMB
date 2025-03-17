@@ -1,7 +1,7 @@
 package server
 
 import (
-	"dashboardadminimb/config"
+	"dashboardadminimb/config" // Import dengan alias
 	"dashboardadminimb/internal/repository"
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/database"
@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
 )
 
 func StartServer() {
@@ -19,11 +19,12 @@ func StartServer() {
 		panic(err)
 	}
 	e := echo.New()
-	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 		AllowOrigins: []string{"http://localhost:5173"},
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 	}))
+
 	db, err := database.NewMySQLDB(&cfg)
 	if err != nil {
 		panic(err)
@@ -31,15 +32,20 @@ func StartServer() {
 	if err := os.MkdirAll(cfg.UploadDir, os.ModePerm); err != nil {
 		panic(err)
 	}
-	// Initialize Repositories & Services
+
+	e.Use(echoMiddleware.Logger())
+	e.Use(echoMiddleware.Recover())
+
+	// Inisialisasi user service terlebih dahulu
+	userRepo := repository.NewUserRepository(db)
+	userService := service.NewUserService(userRepo)
+
+	// Inisialisasi service lainnya
 	projectRepo := repository.NewProjectRepository(db)
 	projectService := service.NewProjectService(projectRepo)
 
 	memberRepo := repository.NewMemberRepository(db)
 	memberService := service.NewMemberService(memberRepo)
-
-	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo)
 
 	kasbonRepo := repository.NewKasbonRepository(db)
 	kasbonService := service.NewKasbonService(kasbonRepo)
@@ -50,9 +56,9 @@ func StartServer() {
 	salaryRepo := repository.NewSalaryRepository(db)
 	salaryService := service.NewSalaryService(salaryRepo, memberRepo, salaryDetailService, kasbonService)
 
-	// Register Routes
-	route.RegisterProjectRoutes(e, projectService)
-	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService)
+	// Registrasi route
+	route.RegisterProjectRoutes(e, projectService, cfg)
+	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService) // Perbaiki typo
 
 	financeRepo := repository.NewFinanceRepository(db)
 	financeService := service.NewFinanceService(financeRepo)
@@ -60,10 +66,9 @@ func StartServer() {
 	inventoryRepo := repository.NewInventoryRepository(db)
 	inventoryService := service.NewInventoryService(inventoryRepo)
 	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL)
-	// Register routes
-	route.RegisterFinanceRoutes(e, financeService)
 
-	route.RegisterRoutes(e, userService)
+	route.RegisterFinanceRoutes(e, financeService)
+	route.RegisterRoutes(e, userService, cfg)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

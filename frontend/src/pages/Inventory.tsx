@@ -187,9 +187,9 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
       // Step 1: Update data values
       const response = await axios.put(
         `${API_BASE_URL}/data/${editingData.id}`,
-        payload // Gunakan payload yang sudah diperbaiki
+        payload 
       );
-  
+      console.log(response.data)
       // Step 2: Upload new images
       if (newImages.length > 0) {
         for (const file of newImages) {

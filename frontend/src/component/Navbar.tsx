@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiHelpCircle, FiLogOut, FiChevronLeft } from 'react-icons/fi';
+import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiHelpCircle, FiLogOut, FiChevronLeft, FiCreditCard } from 'react-icons/fi';
 import Logo from '../assets/images/logo.png';
 
 interface NavbarProps {
@@ -16,21 +16,23 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
     { name: 'Inventory', icon: <FiBox />, path: '/inventory' },
     { name: 'Team', icon: <FiUsers />, path: '/team' },
     { name: 'Reports', icon: <FiFlag />, path: '/reports' },
-    { name: 'Finance', icon: <FiFlag />, path: '/finance' },
+    { name: 'Finance', icon: <FiCreditCard />, path: '/finance' },
     { name: 'Settings', icon: <FiSettings />, path: '/settings' },
   ];
-
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  };
   return (
     <nav
-      className={`fixed top-0 left-0 h-full bg-white border-r border-gray-100 shadow-sm transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-64'
-      }`}
+      className={`fixed top-0 left-0 h-full bg-white border-r border-gray-100 shadow-sm transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'
+        }`}
     >
       {/* Logo Section */}
       <div className="flex items-center justify-center p-5 mb-6">
-        <img 
-          src={Logo} 
-          alt="Logo" 
+        <img
+          src={Logo}
+          alt="Logo"
           className={`transition-all ${isCollapsed ? 'w-10 h-10' : 'w-12 h-12 mr-2'}`}
         />
         {!isCollapsed && (
@@ -46,11 +48,10 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
           <li
             key={item.name}
             onClick={() => setActiveMenu(item.name)}
-            className={`group flex items-center rounded-lg p-3 cursor-pointer transition-all ${
-              activeMenu === item.name
+            className={`group flex items-center rounded-lg p-3 cursor-pointer transition-all ${activeMenu === item.name
                 ? 'bg-indigo-50 text-indigo-600'
                 : 'text-gray-600 hover:bg-gray-50'
-            } ${isCollapsed ? 'justify-center' : ''}`}
+              } ${isCollapsed ? 'justify-center' : ''}`}
           >
             <Link to={item.path} className="flex items-center w-full">
               <span className={`text-lg ${!isCollapsed && 'mr-3'}`}>
@@ -107,9 +108,14 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
           onClick={toggleSidebar}
           className="w-full mt-4 p-2 hover:bg-gray-50 rounded-lg text-gray-500 transition-colors"
         >
-          <FiChevronLeft className={`mx-auto transform transition-transform ${
-            isCollapsed ? 'rotate-180' : ''
-          }`} />
+          <FiChevronLeft className={`mx-auto transform transition-transform ${isCollapsed ? 'rotate-180' : ''
+            }`} />
+        </button>
+        <button
+          onClick={handleLogout}
+          className="p-2 text-gray-500 hover:bg-gray-50 rounded-lg transition-colors"
+        >
+          <FiLogOut className="text-lg" />
         </button>
       </div>
     </nav>

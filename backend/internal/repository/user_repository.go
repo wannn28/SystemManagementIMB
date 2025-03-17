@@ -10,6 +10,7 @@ type UserRepository interface {
 	Create(user *entity.User) error
 	FindAll() ([]entity.User, error)
 	FindByID(id uint) (*entity.User, error)
+	FindByEmail(email string) (*entity.User, error) // Tambahkan method baru
 	Update(user *entity.User) error
 	Delete(user *entity.User) error
 }
@@ -44,4 +45,9 @@ func (r *userRepository) Update(user *entity.User) error {
 
 func (r *userRepository) Delete(user *entity.User) error {
 	return r.db.Delete(user).Error
+}
+func (r *userRepository) FindByEmail(email string) (*entity.User, error) {
+	var user entity.User
+	err := r.db.Where("email = ?", email).First(&user).Error
+	return &user, err
 }

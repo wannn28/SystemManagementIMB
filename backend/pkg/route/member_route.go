@@ -8,33 +8,33 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, salaryService service.SalaryService, config config.Config, DetailService service.SalaryDetailService, kasbonService service.KasbonService) {
+func RegisterMemberRoutes(g *echo.Echo, memberService service.MemberService, salaryService service.SalaryService, config config.Config, DetailService service.SalaryDetailService, kasbonService service.KasbonService) {
 	handler := http.NewMemberHandler(memberService, "uploads")
 	salaryHandler := http.NewSalaryHandler(salaryService, config.UploadDir, DetailService)
 	kasbonHandler := http.NewKasbonHandler(kasbonService, salaryService)
 
 	// Member Routes
-	e.POST("/members", handler.CreateMember)
-	e.POST("/members/:id/profile", handler.UploadProfileImage)
-	e.POST("/members/:id/documents", handler.AddDocument)
-	e.DELETE("/members/:id/documents/:fileName", handler.DeleteDocument)
-	e.GET("/members", handler.GetAllMembers)
-	e.GET("/members/:id", handler.GetMemberByID)
-	e.PUT("/members/:id", handler.UpdateMember)
-	e.DELETE("/members/:id", handler.DeleteMember)
+	g.POST("/members", handler.CreateMember)
+	g.POST("/members/:id/profile", handler.UploadProfileImage)
+	g.POST("/members/:id/documents", handler.AddDocument)
+	g.DELETE("/members/:id/documents/:fileName", handler.DeleteDocument)
+	g.GET("/members", handler.GetAllMembers)
+	g.GET("/members/:id", handler.GetMemberByID)
+	g.PUT("/members/:id", handler.UpdateMember)
+	g.DELETE("/members/:id", handler.DeleteMember)
 
 	// Salary Routes under Member
-	e.POST("/members/:id/salaries", salaryHandler.CreateSalary)
-	e.GET("/members/:id/salaries", salaryHandler.GetSalaries)
-	e.PUT("/members/:id/salaries/:salaryId", salaryHandler.UpdateSalary)
-	e.DELETE("/members/:id/salaries/:salaryId", salaryHandler.DeleteSalary)
+	g.POST("/members/:id/salaries", salaryHandler.CreateSalary)
+	g.GET("/members/:id/salaries", salaryHandler.GetSalaries)
+	g.PUT("/members/:id/salaries/:salaryId", salaryHandler.UpdateSalary)
+	g.DELETE("/members/:id/salaries/:salaryId", salaryHandler.DeleteSalary)
 
 	// Salary Document Routes
-	e.POST("/salaries/:id/documents", salaryHandler.UploadDocuments)
-	e.DELETE("/salaries/:id/documents/:fileName", salaryHandler.DeleteDocument)
+	g.POST("/salaries/:id/documents", salaryHandler.UploadDocuments)
+	g.DELETE("/salaries/:id/documents/:fileName", salaryHandler.DeleteDocument)
 
 	// Serve uploaded files
-	e.GET("/uploads/*", func(c echo.Context) error {
+	g.GET("/uploads/*", func(c echo.Context) error {
 		filePath := c.Param("*")
 		staticDir := "uploads/"
 		fullPath := staticDir + filePath
@@ -42,13 +42,13 @@ func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, sal
 	})
 
 	// Salary Detail Routes
-	e.POST("/salaries/:id/details", salaryHandler.CreateSalaryDetail)
-	e.PUT("/salaries/:id/details/:detailId", salaryHandler.UpdateSalaryDetail)
-	e.DELETE("/salaries/:id/details/:detailId", salaryHandler.DeleteSalaryDetail)
-	e.GET("/salaries/:id/details", salaryHandler.GetSalaryDetail)
+	g.POST("/salaries/:id/details", salaryHandler.CreateSalaryDetail)
+	g.PUT("/salaries/:id/details/:detailId", salaryHandler.UpdateSalaryDetail)
+	g.DELETE("/salaries/:id/details/:detailId", salaryHandler.DeleteSalaryDetail)
+	g.GET("/salaries/:id/details", salaryHandler.GetSalaryDetail)
 
-	e.POST("/salaries/:salaryId/kasbons", kasbonHandler.CreateKasbon)
-	e.GET("/salaries/:salaryId/kasbons", kasbonHandler.GetKasbonsBySalary)
-	e.PUT("/kasbons/:id", kasbonHandler.UpdateKasbon)
-	e.DELETE("/kasbons/:id", kasbonHandler.DeleteKasbon)
+	g.POST("/salaries/:salaryId/kasbons", kasbonHandler.CreateKasbon)
+	g.GET("/salaries/:salaryId/kasbons", kasbonHandler.GetKasbonsBySalary)
+	g.PUT("/kasbons/:id", kasbonHandler.UpdateKasbon)
+	g.DELETE("/kasbons/:id", kasbonHandler.DeleteKasbon)
 }

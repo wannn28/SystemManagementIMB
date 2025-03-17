@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// config/config.go
 type Config struct {
 	DBHost     string `mapstructure:"DB_HOST"`
 	DBPort     string `mapstructure:"DB_PORT"`
@@ -13,6 +14,8 @@ type Config struct {
 	Port       string `mapstructure:"PORT"`
 	UploadDir  string `mapstructure:"UPLOAD_DIR"`
 	BaseURL    string `mapstructure:"BASE_URL"`
+	JWTSecret  string `mapstructure:"JWT_SECRET"`
+	JWTExpiry  string `mapstructure:"JWT_EXPIRY"`
 }
 
 func LoadConfig() (config Config, err error) {
