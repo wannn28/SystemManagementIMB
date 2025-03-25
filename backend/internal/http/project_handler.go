@@ -13,11 +13,12 @@ import (
 )
 
 type ProjectHandler struct {
-	service service.ProjectService
+	service         service.ProjectService
+	activityService service.ActivityService
 }
 
-func NewProjectHandler(service service.ProjectService) *ProjectHandler {
-	return &ProjectHandler{service}
+func NewProjectHandler(service service.ProjectService, activityService service.ActivityService) *ProjectHandler {
+	return &ProjectHandler{service, activityService}
 }
 
 func (h *ProjectHandler) CreateProject(c echo.Context) error {
@@ -33,7 +34,15 @@ func (h *ProjectHandler) CreateProject(c echo.Context) error {
 		fmt.Println("Error creating project:", err) // Log error dari service
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	err := h.activityService.LogActivity(
+		entity.ActivityIncome,
+		"Proyek Baru",
+		fmt.Sprintf("Proyek %s dimulai", project.Name),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusCreated, project)
 }
 
@@ -66,14 +75,43 @@ func (h *ProjectHandler) UpdateProject(c echo.Context) error {
 	if err := h.service.UpdateProject(&project); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	err := h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Update Project",
+		fmt.Sprintf("Update Project : %s", project.Name),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusOK, project)
 }
 
 func (h *ProjectHandler) DeleteProject(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
+	project, err := h.service.GetProjectByID(uint(id))
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
 	if err := h.service.DeleteProject(uint(id)); err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
+	err = h.activityService.LogActivity(
+		entity.ActivityExpense,
+		"Delete Project",
+		fmt.Sprintf("Delete Project : %s", project.Name),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusNoContent, nil)
+}
+
+func (h *ProjectHandler) GetProjectCount(c echo.Context) error {
+	count, err := h.service.GetProjectCount()
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusOK, map[string]int64{"count": count})
 }

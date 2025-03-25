@@ -12,7 +12,7 @@ interface SalaryDetailsTableProps {
 
 export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
   type,
-  data,
+  data = [],
   onAdd,
   onEdit,
   onDelete
@@ -159,7 +159,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
             </thead>
             <tbody>
               {data.map((item, index) => (
-                <tr key={item.id}>
+                 <tr key={item.id || `temp-${index}`}>
                   <td className="py-2 px-4 border-b text-center">{index + 1}</td>
                   <td className="py-2 px-4 border-b">
                     {new Date(item.tanggal).toLocaleDateString()}

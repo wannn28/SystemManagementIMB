@@ -19,15 +19,24 @@ import (
 )
 
 type MemberHandler struct {
-	service   service.MemberService
-	uploadDir string
+	service         service.MemberService
+	uploadDir       string
+	activityService service.ActivityService
 }
 
-func NewMemberHandler(service service.MemberService, uploadDir string) *MemberHandler {
+func NewMemberHandler(service service.MemberService, uploadDir string, activityService service.ActivityService) *MemberHandler {
 	return &MemberHandler{
-		service:   service,
-		uploadDir: uploadDir,
+		service:         service,
+		uploadDir:       uploadDir,
+		activityService: activityService, // Add this line
 	}
+}
+func (h *MemberHandler) GetMemberCount(c echo.Context) error {
+	count, err := h.service.GetMemberCount()
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusOK, map[string]int64{"count": count})
 }
 
 func (h *MemberHandler) CreateMember(c echo.Context) error {
@@ -46,6 +55,16 @@ func (h *MemberHandler) CreateMember(c echo.Context) error {
 
 	if err := h.service.CreateMember(&member); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	// Log activity
+	err := h.activityService.LogActivity(
+		entity.ActivityMember,
+		"Member Baru",
+		fmt.Sprintf("%s bergabung sebagai %s", member.FullName, member.Role),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusCreated, member)
 }
@@ -66,6 +85,15 @@ func (h *MemberHandler) UpdateMember(c echo.Context) error {
 	// Update member
 	if err := h.service.UpdateMember(member); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	err = h.activityService.LogActivity(
+		entity.ActivityMember,
+		"Update Member",
+		fmt.Sprintf("berhasil update member %s", member.FullName),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusOK, member)
 }
@@ -117,8 +145,21 @@ func (h *MemberHandler) GetMemberByID(c echo.Context) error {
 
 func (h *MemberHandler) DeleteMember(c echo.Context) error {
 	id := c.Param("id")
+	member, err := h.service.GetMemberByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
 	if err := h.service.DeleteMember(id); err != nil {
 		return response.Error(c, http.StatusNotFound, err)
+	}
+	err = h.activityService.LogActivity(
+		entity.ActivityMember,
+		"Delete Member",
+		fmt.Sprintf("berhasil Delete member %s", member.FullName),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)
 }

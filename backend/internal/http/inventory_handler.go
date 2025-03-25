@@ -5,6 +5,7 @@ import (
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/response"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -16,9 +17,10 @@ import (
 )
 
 type InventoryHandler struct {
-	service   service.InventoryService
-	uploadDir string
-	baseURL   string
+	service         service.InventoryService
+	uploadDir       string
+	baseURL         string
+	activityService service.ActivityService
 }
 type InventoryDataResponse struct {
 	ID         string         `json:"id"`
@@ -35,11 +37,12 @@ type InventoryHeader struct {
 	Optional bool   `json:"optional"`
 }
 
-func NewInventoryHandler(service service.InventoryService, uploadDir string, baseURL string) *InventoryHandler {
+func NewInventoryHandler(service service.InventoryService, uploadDir string, baseURL string, activityService service.ActivityService) *InventoryHandler {
 	return &InventoryHandler{
-		service:   service,
-		uploadDir: uploadDir,
-		baseURL:   baseURL,
+		service:         service,
+		uploadDir:       uploadDir,
+		baseURL:         baseURL,
+		activityService: activityService,
 	}
 }
 
@@ -53,7 +56,15 @@ func (h *InventoryHandler) CreateCategory(c echo.Context) error {
 	if err := h.service.CreateCategory(&category); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	err := h.activityService.LogActivity(
+		entity.ActivityIncome,
+		"Create Category Baru",
+		fmt.Sprintf("Berhasil membuat category baru dengan judul: %s", category.Title),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusCreated, category)
 }
 
@@ -86,14 +97,35 @@ func (h *InventoryHandler) UpdateCategory(c echo.Context) error {
 	if err := h.service.UpdateCategory(&category); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	err := h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Berhasil mengupdate category",
+		fmt.Sprintf("Berhasil mengupdate category dengan judul: %s", category.Title),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusOK, category)
 }
 
 func (h *InventoryHandler) DeleteCategory(c echo.Context) error {
 	id := c.Param("id")
+	category, err := h.service.GetCategoryByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
 	if err := h.service.DeleteCategory(id); err != nil {
 		return response.Error(c, http.StatusNotFound, err)
+	}
+	err = h.activityService.LogActivity(
+		entity.ActivityExpense,
+		"Berhasil menghapus category",
+		fmt.Sprintf("Berhasil menghapus category dengan judul: %s", category.Title),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)
 }
@@ -141,7 +173,15 @@ func (h *InventoryHandler) CreateData(c echo.Context) error {
 	if err := h.service.CreateData(&data); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	err = h.activityService.LogActivity(
+		entity.ActivityIncome,
+		"Create Data Baru",
+		fmt.Sprintf("Berhasil membuat Data baru dengan category : %s", category.Title),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusCreated, data)
 }
 func (h *InventoryHandler) GetCategoryData(c echo.Context) error {
@@ -184,14 +224,43 @@ func (h *InventoryHandler) UpdateData(c echo.Context) error {
 	if err := h.service.UpdateData(&data); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	category, err := h.service.GetCategoryByID(data.CategoryID)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+	err = h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Update Data",
+		fmt.Sprintf("Berhasil Update Data di category : %s", category.Title),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusOK, data)
 }
 
 func (h *InventoryHandler) DeleteData(c echo.Context) error {
 	id := c.Param("id")
+	data, err := h.service.GetDataByID(id)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+	category, err := h.service.GetCategoryByID(data.CategoryID)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
 	if err := h.service.DeleteData(id); err != nil {
 		return response.Error(c, http.StatusNotFound, err)
+	}
+	err = h.activityService.LogActivity(
+		entity.ActivityExpense,
+		"Berhasil menghapus category",
+		fmt.Sprintf("Berhasil menghapus data di category : %s", category.Title),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)
 }

@@ -1,26 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
+import { InventoryCategory, InventoryData } from '../types/BasicTypes';
+import InventoryPDFExporter from '../component/InventoryPDFExporter'
 interface TableHeader {
   id: string;
   name: string;
   type: 'string' | 'integer' | 'float' | 'image';
   optional: boolean;
-}
-
-interface InventoryCategory {
-  id: string;
-  title: string;
-  description: string;
-  headers: TableHeader[];
-  data: InventoryData[];
-}
-
-interface InventoryData {
-  id: string;
-  categoryID: string;
-  values: { [key: string]: any };
-  images: string[];
 }
 
 const API_BASE_URL = 'http://localhost:8080/api/inventory';
@@ -45,7 +31,11 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/categories`);
+      const response = await axios.get(`${API_BASE_URL}/categories`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       // Perbaikan: Ambil data dari properti data response
       setCategories(response.data.data);
     } catch (error) {
@@ -55,7 +45,11 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const fetchCategoryData = async (categoryId: string) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/categories/${categoryId}/data`);
+      const response = await axios.get(`${API_BASE_URL}/categories/${categoryId}/data`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       // Perbaikan: Ambil data dari properti data response
       return response.data.data;
     } catch (error) {
@@ -87,7 +81,11 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         headers: newHeaders
       };
 
-      const response = await axios.post(`${API_BASE_URL}/categories`, newCategoryData);
+      const response = await axios.post(`${API_BASE_URL}/categories`, newCategoryData, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       setCategories([...categories, response.data.data]);
       setShowAddModal(false);
       resetFormState();
@@ -107,7 +105,11 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         headers: newHeaders
       };
 
-      await axios.put(`${API_BASE_URL}/categories/${editingCategory.id}`, updatedCategory);
+      await axios.put(`${API_BASE_URL}/categories/${editingCategory.id}`, updatedCategory, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       setCategories(categories.map(cat => cat.id === editingCategory.id ? updatedCategory : cat));
       setEditingCategory(null);
       setShowAddModal(false);
@@ -119,7 +121,11 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const handleDeleteCategory = async (categoryId: string) => {
     try {
-      await axios.delete(`${API_BASE_URL}/categories/${categoryId}`);
+      await axios.delete(`${API_BASE_URL}/categories/${categoryId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       setCategories(categories.filter(cat => cat.id !== categoryId));
     } catch (error) {
       console.error('Error deleting category:', error);
@@ -128,42 +134,55 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const handleCreateData = async () => {
     if (!selectedCategory) return;
-  
+
     try {
       // Step 1: Create data with values
       const response = await axios.post(
         `${API_BASE_URL}/categories/${selectedCategory.id}/data`,
-        { values: newDataValues }
+        { values: newDataValues }, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      }
       );
-  
+
       const createdData = response.data.data;
       const dataId = createdData.id;
-  
+
       // Step 2: Upload images one by one
       if (newImages.length > 0) {
         for (const file of newImages) {
           const imageFormData = new FormData();
           imageFormData.append('file', file);
-          
+
           await axios.post(
             `${API_BASE_URL}/data/${dataId}/images`,
             imageFormData,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data',
+                'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+              }
+            }
           );
         }
       }
-  
+
       // Step 3: Refresh category data
       const categoryDataResponse = await axios.get(
         `${API_BASE_URL}/categories/${selectedCategory.id}/data`
-      );
-      
+        , {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          }
+        });
+
       const updatedCategory = {
         ...selectedCategory,
         data: categoryDataResponse.data.data
       };
-  
-      setCategories(categories.map(cat => 
+
+      setCategories(categories.map(cat =>
         cat.id === selectedCategory.id ? updatedCategory : cat
       ));
       setSelectedCategory(updatedCategory);
@@ -173,21 +192,25 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
       console.error('Error creating data:', error);
     }
   };
-  
+
   const handleUpdateData = async () => {
     if (!selectedCategory || !editingData) return;
-  
+
     try {
       // Pastikan menyertakan categoryID dalam payload
       const payload = {
         values: editingData.values,
         category_id: selectedCategory.id // Tambahkan ini
       };
-  
+
       // Step 1: Update data values
       const response = await axios.put(
         `${API_BASE_URL}/data/${editingData.id}`,
-        payload 
+        payload, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      }
       );
       console.log(response.data)
       // Step 2: Upload new images
@@ -195,26 +218,35 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         for (const file of newImages) {
           const imageFormData = new FormData();
           imageFormData.append('file', file);
-          
+
           await axios.post(
             `${API_BASE_URL}/data/${editingData.id}/images`,
             imageFormData,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data',
+                'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+              }
+            }
           );
         }
       }
-  
+
       // Step 3: Refresh category data
       const categoryDataResponse = await axios.get(
-        `${API_BASE_URL}/categories/${selectedCategory.id}/data`
+        `${API_BASE_URL}/categories/${selectedCategory.id}/data`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      }
       );
-      
+
       const updatedCategory = {
         ...selectedCategory,
         data: categoryDataResponse.data.data
       };
-  
-      setCategories(categories.map(cat => 
+
+      setCategories(categories.map(cat =>
         cat.id === selectedCategory.id ? updatedCategory : cat
       ));
       setSelectedCategory(updatedCategory);
@@ -227,12 +259,16 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const handleDeleteData = async (dataId: string) => {
     if (!selectedCategory) return;
-  
+
     try {
-      await axios.delete(`${API_BASE_URL}/data/${dataId}`);
+      await axios.delete(`${API_BASE_URL}/data/${dataId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       const updatedData = selectedCategory.data.filter(data => data.id !== dataId);
       const updatedCategory = { ...selectedCategory, data: updatedData };
-      setCategories(categories.map(cat => 
+      setCategories(categories.map(cat =>
         cat.id === selectedCategory.id ? updatedCategory : cat
       ));
       setSelectedCategory(updatedCategory);
@@ -250,11 +286,15 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const handleDeleteImage = async (dataId: string, imageName: string) => {
     try {
-      await axios.delete(`${API_BASE_URL}/data/${dataId}/images/${imageName}`);
+      await axios.delete(`${API_BASE_URL}/data/${dataId}/images/${imageName}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       if (selectedCategory) {
         const updatedData = await fetchCategoryData(selectedCategory.id);
         const updatedCategory = { ...selectedCategory, data: updatedData };
-        setCategories(categories.map(cat => 
+        setCategories(categories.map(cat =>
           cat.id === selectedCategory.id ? updatedCategory : cat
         ));
         setSelectedCategory(updatedCategory);
@@ -346,7 +386,14 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
               ← Kembali
             </button>
             <h2 className="text-2xl font-bold mb-4">{selectedCategory.title}</h2>
-
+            {selectedCategory && (
+              <div className="mb-4">
+                <InventoryPDFExporter
+                  selectedCategory={selectedCategory}
+                  data={filteredData}
+                />
+              </div>
+            )}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex justify-between items-center mb-4">
                 <div className="flex-1 mr-4">
@@ -372,6 +419,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                     <tr>
                       <th className="p-2 border-b bg-gray-50 text-gray-600 text-center w-48">ID</th>
                       {selectedCategory.headers.map(header => (
+
                         <th
                           key={header.id}
                           className="p-2 border-b bg-gray-50 text-gray-600 font-medium text-center"
@@ -398,7 +446,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                               <div className="flex flex-wrap gap-2 justify-center items-center">
                                 {data.images.map((image, index) => (
                                   <div key={index} className="relative">
-                                 
+
                                     <img
                                       src={image}
                                       alt="Preview"

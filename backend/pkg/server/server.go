@@ -47,6 +47,9 @@ func StartServer() {
 	memberRepo := repository.NewMemberRepository(db)
 	memberService := service.NewMemberService(memberRepo)
 
+	activityRepo := repository.NewActivityRepository(db)
+	activityService := service.NewActivityService(activityRepo)
+
 	kasbonRepo := repository.NewKasbonRepository(db)
 	kasbonService := service.NewKasbonService(kasbonRepo)
 
@@ -57,17 +60,17 @@ func StartServer() {
 	salaryService := service.NewSalaryService(salaryRepo, memberRepo, salaryDetailService, kasbonService)
 
 	// Registrasi route
-	route.RegisterProjectRoutes(e, projectService, cfg)
-	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService) // Perbaiki typo
+	route.RegisterProjectRoutes(e, projectService, cfg, activityService)
+	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService, activityService) // Perbaiki typo
 
 	financeRepo := repository.NewFinanceRepository(db)
 	financeService := service.NewFinanceService(financeRepo)
 
 	inventoryRepo := repository.NewInventoryRepository(db)
 	inventoryService := service.NewInventoryService(inventoryRepo)
-	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL)
+	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL, cfg, activityService)
 
-	route.RegisterFinanceRoutes(e, financeService)
+	route.RegisterFinanceRoutes(e, financeService, cfg, activityService)
 	route.RegisterRoutes(e, userService, cfg)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))

@@ -15,6 +15,11 @@ const (
 	CategoryOther         FinanceCategory = "Other"
 )
 
+type MonthlyComparison struct {
+	Month   string  `json:"month"`
+	Income  float64 `json:"income"`
+	Expense float64 `json:"expense"`
+}
 type Finance struct {
 	ID           uint            `gorm:"primaryKey" json:"id"`
 	Tanggal      string          `json:"tanggal"`
@@ -23,5 +28,6 @@ type Finance struct {
 	HargaPerUnit float64         `json:"hargaPerUnit"`
 	Keterangan   string          `json:"keterangan"`
 	Type         FinanceType     `gorm:"type:ENUM('income','expense')" json:"type"`
-	Category     FinanceCategory `gorm:"type:ENUM('Barang','Jasa','Sewa Alat Berat','Other')" json:"category"` // Tambahkan field category
+	Category     FinanceCategory `gorm:"type:ENUM('Barang','Jasa','Sewa Alat Berat','Gaji','Uang Makan','Kasbon','Other')" json:"category"`
+	Status       string          `gorm:"type:ENUM('Paid','Unpaid')" json:"status"`
 }

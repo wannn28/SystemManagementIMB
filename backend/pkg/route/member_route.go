@@ -4,37 +4,51 @@ import (
 	"dashboardadminimb/config"
 	"dashboardadminimb/internal/http"
 	"dashboardadminimb/internal/service"
+	"dashboardadminimb/pkg/middleware"
 
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterMemberRoutes(g *echo.Echo, memberService service.MemberService, salaryService service.SalaryService, config config.Config, DetailService service.SalaryDetailService, kasbonService service.KasbonService) {
-	handler := http.NewMemberHandler(memberService, "uploads")
-	salaryHandler := http.NewSalaryHandler(salaryService, config.UploadDir, DetailService)
-	kasbonHandler := http.NewKasbonHandler(kasbonService, salaryService)
+func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, salaryService service.SalaryService, config config.Config, DetailService service.SalaryDetailService, kasbonService service.KasbonService, activityService service.ActivityService) {
+	handler := http.NewMemberHandler(memberService, "uploads", activityService)
+	salaryHandler := http.NewSalaryHandler(salaryService, memberService, config.UploadDir, DetailService, activityService)
+	kasbonHandler := http.NewKasbonHandler(kasbonService, salaryService, activityService)
+	activityHandler := http.NewActivityHandler(activityService)
+	g := e.Group("/members")
+	a := e.Group("/activities")
+	j := e.Group("/uploads")
+	h := e.Group("/salaries")
+	i := e.Group("/kasbons")
 
+	a.Use(middleware.AdminAuth(config))
+	g.Use(middleware.AdminAuth(config))
+	h.Use(middleware.AdminAuth(config))
+	i.Use(middleware.AdminAuth(config))
+	// j.Use(middleware.AdminAuth(config))
 	// Member Routes
-	g.POST("/members", handler.CreateMember)
-	g.POST("/members/:id/profile", handler.UploadProfileImage)
-	g.POST("/members/:id/documents", handler.AddDocument)
-	g.DELETE("/members/:id/documents/:fileName", handler.DeleteDocument)
-	g.GET("/members", handler.GetAllMembers)
-	g.GET("/members/:id", handler.GetMemberByID)
-	g.PUT("/members/:id", handler.UpdateMember)
-	g.DELETE("/members/:id", handler.DeleteMember)
+	a.GET("", activityHandler.GetRecentActivities)
+	g.POST("", handler.CreateMember)
+	g.POST("/:id/profile", handler.UploadProfileImage)
+	g.POST("/:id/documents", handler.AddDocument)
+	g.DELETE("/:id/documents/:fileName", handler.DeleteDocument)
+	g.GET("", handler.GetAllMembers)
+	g.GET("/count", handler.GetMemberCount)
+	g.GET("/:id", handler.GetMemberByID)
+	g.PUT("/:id", handler.UpdateMember)
+	g.DELETE("/:id", handler.DeleteMember)
 
 	// Salary Routes under Member
-	g.POST("/members/:id/salaries", salaryHandler.CreateSalary)
-	g.GET("/members/:id/salaries", salaryHandler.GetSalaries)
-	g.PUT("/members/:id/salaries/:salaryId", salaryHandler.UpdateSalary)
-	g.DELETE("/members/:id/salaries/:salaryId", salaryHandler.DeleteSalary)
+	g.POST("/:id/salaries", salaryHandler.CreateSalary)
+	g.GET("/:id/salaries", salaryHandler.GetSalaries)
+	g.PUT("/:id/salaries/:salaryId", salaryHandler.UpdateSalary)
+	g.DELETE("/:id/salaries/:salaryId", salaryHandler.DeleteSalary)
 
 	// Salary Document Routes
-	g.POST("/salaries/:id/documents", salaryHandler.UploadDocuments)
-	g.DELETE("/salaries/:id/documents/:fileName", salaryHandler.DeleteDocument)
+	h.POST("/:id/documents", salaryHandler.UploadDocuments)
+	h.DELETE("/:id/documents/:fileName", salaryHandler.DeleteDocument)
 
 	// Serve uploaded files
-	g.GET("/uploads/*", func(c echo.Context) error {
+	j.GET("/*", func(c echo.Context) error {
 		filePath := c.Param("*")
 		staticDir := "uploads/"
 		fullPath := staticDir + filePath
@@ -42,13 +56,14 @@ func RegisterMemberRoutes(g *echo.Echo, memberService service.MemberService, sal
 	})
 
 	// Salary Detail Routes
-	g.POST("/salaries/:id/details", salaryHandler.CreateSalaryDetail)
-	g.PUT("/salaries/:id/details/:detailId", salaryHandler.UpdateSalaryDetail)
-	g.DELETE("/salaries/:id/details/:detailId", salaryHandler.DeleteSalaryDetail)
-	g.GET("/salaries/:id/details", salaryHandler.GetSalaryDetail)
+	h.POST("/:id/details", salaryHandler.CreateSalaryDetail)
+	h.PUT("/:id/details/:detailId", salaryHandler.UpdateSalaryDetail)
+	h.DELETE("/:id/details/:detailId", salaryHandler.DeleteSalaryDetail)
+	h.GET("/:id/details", salaryHandler.GetSalaryDetail)
 
-	g.POST("/salaries/:salaryId/kasbons", kasbonHandler.CreateKasbon)
-	g.GET("/salaries/:salaryId/kasbons", kasbonHandler.GetKasbonsBySalary)
-	g.PUT("/kasbons/:id", kasbonHandler.UpdateKasbon)
-	g.DELETE("/kasbons/:id", kasbonHandler.DeleteKasbon)
+	h.POST("/:salaryId/kasbons", kasbonHandler.CreateKasbon)
+	h.GET("/:salaryId/kasbons", kasbonHandler.GetKasbonsBySalary)
+
+	i.PUT("/:id", kasbonHandler.UpdateKasbon)
+	i.DELETE("/:id", kasbonHandler.DeleteKasbon)
 }

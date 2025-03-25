@@ -11,10 +11,15 @@ type ProjectService interface {
 	GetProjectByID(id uint) (*entity.Project, error)
 	UpdateProject(project *entity.Project) error
 	DeleteProject(id uint) error
+	GetProjectCount() (int64, error)
 }
 
 type projectService struct {
 	repo repository.ProjectRepository
+}
+
+func (s *projectService) GetProjectCount() (int64, error) {
+	return s.repo.Count()
 }
 
 func NewProjectService(repo repository.ProjectRepository) ProjectService {

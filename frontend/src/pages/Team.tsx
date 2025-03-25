@@ -21,7 +21,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editFormData, setEditFormData] = useState<Member | null>(null);
-  const [newDocumentName, setNewDocumentName] = useState('');
+  // const [newDocumentName, setNewDocumentName] = useState('');
   const [isAddMemberModal, setIsAddMemberModal] = useState(false);
   const [newMemberData, setNewMemberData] = useState({
     fullName: '',
@@ -43,12 +43,16 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [editModalSalary, setEditModalSalary] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   // const [salaryDetails, setSalaryDetails] = useState<SalaryDetail[]>([]);
-  const [kasbonDetails, setKasbonDetails] = useState<Kasbon[]>([]);
+  // const [kasbonDetails, setKasbonDetails] = useState<Kasbon[]>([]);
   // Di dalam komponen Team.tsx
   // Di fungsi fetchSalaryDetails:
   const fetchSalaryDetails = async (salaryId: string) => {
     try {
-      const response = await axios.get(`http://localhost:8080/salaries/${salaryId}/details`);
+      const response = await axios.get(`http://localhost:8080/salaries/${salaryId}/details`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       return response.data.data || [];
     } catch (error) {
       console.error("Error fetching salary details:", error);
@@ -58,79 +62,96 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   const fetchKasbons = async (salaryId: string) => {
     try {
-      const response = await axios.get(`http://localhost:8080/salaries/${salaryId}/kasbons`);
+      const response = await axios.get(`http://localhost:8080/salaries/${salaryId}/kasbons`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       return response.data.data || [];
     } catch (error) {
       console.error("Error fetching kasbons:", error);
       return [];
     }
   };
-  const handleAddSalaryDetail = async (salaryId: string, newData: SalaryDetail) => {
-    try {
-
-      const formattedData = {
-        jam_trip: newData.jam_trip,       // Gunakan snake_case
-        harga_per_jam: newData.harga_per_jam, // Gunakan snake_case
-        tanggal: new Date(newData.tanggal).toISOString(),
-        keterangan: newData.keterangan
+  const handleAddSalaryDetail = async (salaryId: number, newData: SalaryDetail) => {
+    const tempId = Date.now().toString(); // ID sementara
+    setSelectedMember(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        salaries: prev.salaries.map(salary =>
+          salary.id === Number(salaryId) ? {
+            ...salary,
+            details: [...(salary.details || []), { ...newData, id: tempId }]
+          } : salary
+        )
       };
-
+    });
+    try {
+      // Kirim permintaan POST ke backend
       const response = await axios.post(
         `http://localhost:8080/salaries/${salaryId}/details`,
-        formattedData,
+        { ...newData, tanggal: new Date(newData.tanggal).toISOString() },
         {
           headers: {
-            "Content-Type": "application/json" // Pastikan header ini ada
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('token')}`
           }
         }
       );
 
-      // Update state
-      if (selectedMember) {
-        const updatedSalaries = selectedMember.salaries.map(salary => {
-          if (salary.id === salaryId) {
-            return {
+      // Fetch ulang detail salary dari backend
+      setSelectedMember(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          salaries: prev.salaries.map(salary =>
+            salary.id === salaryId ? {
               ...salary,
-              details: [...salary.details, response.data]
-            }
-          }
-          return salary
-        });
+              details: salary.details?.map(detail =>
+                detail.id === tempId ? response.data.data : detail
+              )
+            } : salary
+          )
+        };
+      });
 
-        setSelectedMember(prev => ({
-          ...prev!,
-          salaries: updatedSalaries
-        }));
-      }
     } catch (error) {
       console.error("Error adding detail:", error);
     }
   };
-  const handleAddKasbon = async (salaryId: string, newData: Kasbon) => {
-    newData.tanggal = new Date(newData.tanggal).toISOString();
+  const handleAddKasbon = async (salaryId: number, newData: Kasbon) => {
     try {
-      const response = await axios.post(
+      // Kirim permintaan POST ke backend
+      await axios.post(
         `http://localhost:8080/salaries/${salaryId}/kasbons`,
-        newData
+        {
+          ...newData,
+          tanggal: new Date(newData.tanggal).toISOString()
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
       );
 
-      // Update state
-      if (selectedMember) {
-        const updatedSalaries = selectedMember.salaries.map(salary => {
-          if (salary.id === salaryId) {
-            return {
-              ...salary,
-              kasbons: [...salary.kasbons, response.data]
-            }
-          }
-          return salary
-        });
+      // Fetch ulang kasbon dari backend
+      const updatedKasbons = await fetchKasbons(String(salaryId));
 
-        setSelectedMember(prev => ({
-          ...prev!,
-          salaries: updatedSalaries
-        }));
-      }
+      // Perbarui state dengan data terbaru
+      setSelectedMember(prev => {
+        if (!prev) return prev;
+        const updatedSalaries = prev.salaries.map(salary => {
+          console.log(salary.id, salaryId)
+          if (salary.id === salaryId) {
+            return { ...salary, kasbons: updatedKasbons };
+          }
+          return salary;
+        });
+        return { ...prev, salaries: updatedSalaries };
+      });
+
     } catch (error) {
       console.error("Error adding kasbon:", error);
     }
@@ -138,26 +159,47 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Team.tsx - Pastikan mengirim data dengan format yang benar
   const handleUpdateSalaryDetail = async (salaryId: string, id: string, updatedData: SalaryDetail) => {
     try {
-      await axios.put(`http://localhost:8080/salaries/${salaryId}/details/${id}`, {
-        ...updatedData,
-        tanggal: new Date(updatedData.tanggal).toISOString(),
-      });
-
-      // Update state
-      setSelectedMember(prev => {
-        const updatedSalaries = prev?.salaries.map(salary => {
-          if (salary.id === salaryId) {
-            return {
-              ...salary,
-              details: salary.details.map(detail =>
-                detail.id === id ? { ...detail, ...updatedData } : detail
-              )
-            }
+      // 1. Kirim PUT request
+      const response = await axios.put(
+        `http://localhost:8080/salaries/${salaryId}/details/${id}`,
+        {
+          ...updatedData,
+          tanggal: new Date(updatedData.tanggal).toISOString(),
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
-          return salary;
-        });
-        return { ...prev!, salaries: updatedSalaries || [] };
+        }
+      );
+  
+      // 2. Konversi ID ke string dan format tanggal
+      const updatedDetail = {
+        ...response.data.data,
+        id: String(response.data.data.id), // Konversi ID number ke string
+        tanggal: new Date(response.data.data.tanggal).toISOString() // Pastikan format tanggal konsisten
+      };
+      console.log(updatedDetail)
+      // 3. Update state dengan data yang sudah dikonversi
+      setSelectedMember(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          salaries: prev.salaries.map(salary => {
+            const salaryId2 = Number(salaryId)
+            if (salary.id === salaryId2) {
+              return {
+                ...salary,
+                details: salary.details?.map(detail => 
+                  detail.id === id ? updatedDetail : detail
+                ) || [] // Handle undefined details
+              };
+            }
+            return salary;
+          })
+        };
       });
+  
     } catch (error) {
       console.error("Error updating detail:", error);
     }
@@ -166,22 +208,29 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Team.tsx - Pastikan menghapus berdasarkan ID yang benar
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     try {
-      // console.log(salaryId, id)
-      await axios.delete(`http://localhost:8080/salaries/${salaryId}/details/${id}`);
+      // Kirim permintaan DELETE ke backend
+      await axios.delete(`http://localhost:8080/salaries/${salaryId}/details/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
-      // Update state
+      // Fetch ulang detail salary dari backend
+      const updatedDetails = await fetchSalaryDetails(salaryId);
+
+      // Perbarui state dengan data terbaru
       setSelectedMember(prev => {
-        const updatedSalaries = prev?.salaries.map(salary => {
-          if (salary.id === salaryId) {
-            return {
-              ...salary,
-              details: salary.details.filter(detail => detail.id !== id)
-            }
+        if (!prev) return prev;
+        const updatedSalaries = prev.salaries.map(salary => {
+          const salaryId2 = Number(salaryId)
+          if (salary.id === salaryId2) {
+            return { ...salary, details: updatedDetails };
           }
           return salary;
         });
-        return { ...prev!, salaries: updatedSalaries || [] };
+        return { ...prev, salaries: updatedSalaries };
       });
+
     } catch (error) {
       console.error("Error deleting detail:", error);
     }
@@ -189,17 +238,58 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
 
 
-  const handleEditKasbon = (id: string, updatedData: Kasbon) => {
-    setKasbonDetails(kasbonDetails.map(item =>
-      item.id === id ? { ...updatedData, id } : item
-    ));
+  const handleEditKasbon = async (salaryId: string, id: string, updatedData: Kasbon) => {
+    try {
+      // Kirim permintaan PUT ke backend
+      await axios.put(
+        `http://localhost:8080/kasbons/${id}`,
+        {
+          ...updatedData,
+          tanggal: new Date(updatedData.tanggal).toISOString()
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      // Jika ada salaryId, fetch ulang kasbon
+      if (selectedMember) {
+        const updatedSalaries = await Promise.all(
+          selectedMember.salaries.map(async (salary) => ({
+            ...salary,
+            kasbons: await fetchKasbons(salaryId)
+          }))
+        );
+        setSelectedMember({ ...selectedMember, salaries: updatedSalaries });
+      }
+    } catch (error) {
+      console.error("Error updating kasbon:", error);
+    }
   };
 
-  const handleDeleteKasbon = async (id: string) => {
+  const handleDeleteKasbon = async (salaryId: string, id: string) => {
     try {
-      await axios.delete(`http://localhost:8080/kasbons/${id}`);
+      // Kirim permintaan DELETE ke backend
+      await axios.delete(`http://localhost:8080/kasbons/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      // Jika ada salaryId, fetch ulang kasbon
+      if (selectedMember) {
+        const updatedSalaries = await Promise.all(
+          selectedMember.salaries.map(async (salary) => ({
+            ...salary,
+            kasbons: await fetchKasbons(salaryId)
+          }))
+        );
+        setSelectedMember({ ...selectedMember, salaries: updatedSalaries });
+      }
     } catch (error) {
-      setKasbonDetails(kasbonDetails.filter(item => item.id !== id));
+      console.error("Error deleting kasbon:", error);
     }
   };
 
@@ -210,9 +300,22 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [editingSalaryIndex, setEditingSalaryIndex] = useState<number | null>(null);
   const [newSalaryImages, setNewSalaryImages] = useState<File[]>([]);
   useEffect(() => {
+    if (selectedMember) {
+      setTeamMembersData(prevMembers =>
+        prevMembers.map(member =>
+          member.id === selectedMember.id ? selectedMember : member
+        )
+      );
+    }
+  }, [selectedMember]);
+  useEffect(() => {
     const fetchTeamMembers = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/members');
+        const response = await axios.get('http://localhost:8080/members', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          }
+        });
         const membersWithSalaries = response.data.data.map((member: any) => ({
           ...member,
           // Pastikan salaries selalu array
@@ -230,7 +333,11 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleCreateMember = async (memberData: Omit<Member, 'id' | 'profileImage'>, profileImageFile?: File) => {
     try {
       // 1. Create member tanpa gambar
-      const response = await axios.post('http://localhost:8080/members', memberData);
+      const response = await axios.post('http://localhost:8080/members', memberData, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       const newMember = response.data.data;
 
       // 2. Upload gambar profil jika ada
@@ -241,12 +348,17 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         await axios.post(
           `http://localhost:8080/members/${newMember.id}/profile`,
           formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+            }
+          }
         );
       }
 
-      // 3. Update state dengan data member baru
       setTeamMembersData(prev => [...prev, newMember]);
+      setIsAddMemberModal(false); // Tutup modal
     } catch (error) {
       console.error('Error creating member:', error);
     }
@@ -257,11 +369,25 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // 1. Update data member (tanpa file)
       const memberResponse = await axios.put(
         `http://localhost:8080/members/${updatedMember.id}`,
-        updatedMember
+        updatedMember,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          }
+        }
+      );
+      const newData = memberResponse.data.data;
+      // 2. Jika ada gambar profil baru, upload terpisah
+      // Update main state
+      setTeamMembersData(prev =>
+        prev.map(member => member.id === newData.id ? newData : member)
       );
 
-      // 2. Jika ada gambar profil baru, upload terpisah
-
+      // Update selected member jika sedang dipilih
+      if (selectedMember?.id === newData.id) {
+        setSelectedMember(newData);
+        setEditFormData(newData);
+      }
 
       // 3. Perbarui state dengan data terbaru
       setTeamMembersData(prev =>
@@ -269,6 +395,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           member.id === updatedMember.id ? memberResponse.data.data : member
         )
       );
+      setIsEditMode(false);
     } catch (error) {
       console.error("Error updating member:", error);
     }
@@ -276,18 +403,28 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleProfileImageChange = async (memberId: string, file: File) => {
     try {
       const formData = new FormData();
-      formData.append("file", file); // Gunakan key "file"
-
+      formData.append("file", file);
+  
       const response = await axios.post(
         `http://localhost:8080/members/${memberId}/profile`,
         formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
       );
-
-      // Refresh data member setelah upload
-      const updatedMember = { ...selectedMember!, profileImage: response.data.fileName };
+  
+      // Perbarui kedua state
+      const updatedMember = { 
+        ...selectedMember!, 
+        profileImage: response.data.fileName 
+      };
+      
       setSelectedMember(updatedMember);
-
+      setEditFormData(updatedMember); // <-- Tambahkan ini
+  
       return response.data;
     } catch (error) {
       console.error("Error uploading profile image:", error);
@@ -304,9 +441,25 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       const response = await axios.post(
         `http://localhost:8080/members/${memberId}/documents`,
         formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          }
+        }
+      );
+      setTeamMembersData(prev =>
+        prev.map(member =>
+          member.id === memberId
+            ? { ...member, documents: [...member.documents, ...response.data] }
+            : member
+        )
       );
 
+      if (selectedMember?.id === memberId) {
+        setSelectedMember(prev => prev !== null ? { ...prev, documents: [...prev.documents, ...response.data] } : prev);
+      }
+      // const newDocuments = response.data;
       return response.data; // Pastikan backend mengembalikan array nama file
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -320,8 +473,19 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Fungsi untuk menghapus anggota
   const handleDeleteMember = async (id: string) => {
     try {
-      await axios.delete(`http://localhost:8080/members/${id}`);
-      setTeamMembersData((prev) => prev.filter((member) => member.id !== id));
+      await axios.delete(`http://localhost:8080/members/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
+      // Perbarui state dengan menghapus member
+      setTeamMembersData(prev => prev.filter(member => member.id !== id));
+
+      // Jika member yang dihapus sedang dipilih, reset selectedMember
+      if (selectedMember?.id === id) {
+        setSelectedMember(null);
+      }
+
       setIsDeleteModalOpen(false);
     } catch (error) {
       console.error('Error deleting member:', error);
@@ -355,15 +519,23 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     setEditModalSalary(true);
   };
 
-  // Fungsi untuk menyimpan perubahan salary
   const handleUpdateSalary = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingSalaryIndex === null || !selectedMember) return;
 
     try {
       const salaryToUpdate = selectedMember.salaries[editingSalaryIndex];
+      const salaryId = salaryToUpdate.id;
 
-      // Update dokumen jika ada
+      // 1. Update data gaji
+      const updatedSalary = {
+        month: newSalaryMonth,
+        salary: newSalaryAmount,
+        loan: newLoanAmount,
+        net_salary: newSalaryAmount - newLoanAmount,
+        gross_salary: newSalaryAmount,
+        status: newStatus
+      };
       if (newSalaryImages.length > 0) {
         const formData = new FormData();
         newSalaryImages.forEach(file => formData.append("files", file));
@@ -373,24 +545,29 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         );
       }
 
-      // Update data gaji
-      const updatedSalary = {
-        month: newSalaryMonth,
-        salary: newSalaryAmount,
-        loan: newLoanAmount,
-        net_salary: newSalaryAmount - newLoanAmount,
-        gross_salary: newSalaryAmount,
-        status: newStatus
-      };
-
-      const response = await axios.put(
-        `http://localhost:8080/members/${selectedMember.id}/salaries/${salaryToUpdate.id}`,
-        updatedSalary
+      // 2. Kirim PUT request dan dapatkan respons langsung
+      const putResponse = await axios.put(
+        `http://localhost:8080/members/${selectedMember.id}/salaries/${salaryId}`,
+        updatedSalary,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
       );
 
-      // Update state
+      // 3. Dapatkan data terupdate dari respons PUT
+      const updatedSalaryData = putResponse.data.data;
+
+      const existingSalary = selectedMember.salaries[editingSalaryIndex];
+      const mergedSalary = {
+        ...updatedSalaryData,
+        details: existingSalary.details || [],
+        kasbons: existingSalary.kasbons || []
+      };
+      // 4. Update state dengan data yang baru
       const updatedSalaries = [...selectedMember.salaries];
-      updatedSalaries[editingSalaryIndex] = response.data.data;
+      updatedSalaries[editingSalaryIndex] = mergedSalary;
 
       setTeamMembersData(prev =>
         prev.map(member =>
@@ -399,14 +576,20 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         )
       );
 
-      // Reset form
+      setSelectedMember(prev => ({
+        ...prev!,
+        salaries: updatedSalaries
+      }));
+
+      // 5. Tutup modal dan reset state
       setEditModalSalary(false);
       setEditingSalaryIndex(null);
+      setNewSalaryImages([]);
+
     } catch (error) {
       console.error("Error updating salary:", error);
     }
   };
-
   // const handleAddSalary = (newSalary: SalaryRecord) => {
   //   if (selectedMember) {
   //     setEditFormData((prev) => {
@@ -425,10 +608,21 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   const handleDeleteSalary = async (salaryId: string) => {
     if (!selectedMember) return;
-
+    const prevState = [...teamMembersData];
+    setTeamMembersData(prev =>
+      prev.map(member =>
+        member.id === selectedMember?.id ?
+          { ...member, salaries: member.salaries.filter(s => s.id !== salaryId) } :
+          member
+      )
+    );
     try {
       await axios.delete(
-        `http://localhost:8080/members/${selectedMember.id}/salaries/${salaryId}`
+        `http://localhost:8080/members/${selectedMember.id}/salaries/${salaryId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      }
       );
 
       // Update state
@@ -448,6 +642,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         salaries: prev!.salaries.filter(s => s.id !== salaryId)
       }));
     } catch (error) {
+      setTeamMembersData(prevState);
       console.error("Error deleting salary:", error);
     }
   };
@@ -475,6 +670,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // };
 
   const handleNewSalarySubmit = async (e: React.FormEvent) => {
+    // console.log('tesadas')
     e.preventDefault();
     if (!selectedMember) return;
 
@@ -492,9 +688,15 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // 2. POST to create salary
       const salaryResponse = await axios.post(
         `http://localhost:8080/members/${selectedMember.id}/salaries`,
-        newSalaryData
+        newSalaryData, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      }
       );
+      const newSalary = salaryResponse.data.data;
 
+      // console.log(newSalaryImages)
       // 3. Jika ada dokumen, upload setelah salary dibuat
       if (newSalaryImages.length > 0) {
         const salaryId = salaryResponse.data.data.id;
@@ -504,11 +706,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         await axios.post(
           `http://localhost:8080/salaries/${salaryId}/documents`,
           formData,
-          { headers: { "Content-Type": "multipart/form-data" } }
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+              'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+            }
+          }
         );
       }
-
-      // 4. Update state dengan salary baru
       setTeamMembersData(prev =>
         prev.map(member =>
           member.id === selectedMember.id
@@ -516,6 +721,12 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             : member
         )
       );
+
+      // Update selected member
+      setSelectedMember(prev => ({
+        ...prev!,
+        salaries: [...prev!.salaries, newSalary]
+      }));
 
       // Reset form
       setNewModalSalary(false);
@@ -530,9 +741,19 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
 
   const handleMemberClick = async (member: Member) => {
+    const localMember = teamMembersData.find(m => m.id === member.id);
+    if (localMember) {
+      setSelectedMember(localMember);
+      setEditFormData(localMember);
+    }
+
     try {
       // Ambil data gaji member
-      const salariesResponse = await axios.get(`http://localhost:8080/members/${member.id}/salaries`);
+      const salariesResponse = await axios.get(`http://localhost:8080/members/${member.id}/salaries`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       const salaries = salariesResponse.data.data || [];
 
       // Ambil details dan kasbon untuk setiap salary
@@ -544,51 +765,81 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         }))
       );
 
-      const memberWithData = {
+      const updatedMember = {
         ...member,
         salaries: salariesWithDetails
       };
 
-      setSelectedMember(memberWithData);
-      setEditFormData(memberWithData);
+      setSelectedMember(updatedMember);
+      setTeamMembersData(prev =>
+        prev.map(m => m.id === member.id ? updatedMember : m)
+      );
     } catch (error) {
       console.error('Error fetching member data:', error);
     }
   };
   const handleDeleteDocument = async (fileName: string) => {
     if (!selectedMember) return;
-
+  
     try {
-      await axios.delete(`http://localhost:8080/members/${selectedMember.id}/documents/${fileName}`);
-
+      await axios.delete(`http://localhost:8080/members/${selectedMember.id}/documents/${fileName}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+  
       // Update state
       const updatedDocuments = selectedMember.documents.filter(name => name !== fileName);
       const updatedMember = { ...selectedMember, documents: updatedDocuments };
-
+      
+      // Perbarui kedua state
       setTeamMembersData(prev =>
         prev.map(member =>
           member.id === selectedMember.id ? updatedMember : member
         )
       );
+      
+      // Tambahkan ini untuk memperbarui member yang sedang dipilih
+      setSelectedMember(updatedMember);
     } catch (error) {
       console.error("Error deleting document:", error);
     }
   };
   const HandleDeleteDocumentSalary = async (fileName: string, salaryId: string) => {
     if (!selectedMember) return;
-    console.log(fileName)
+  
     try {
-      await axios.delete(`http://localhost:8080/salaries/${salaryId}/documents/${fileName}`);
-
-      // // Update state
-      // const updatedDocuments = selectedMember.documents.filter(name => name !== fileName);
-      // const updatedMember = { ...selectedMember, documents: updatedDocuments };
-
-      // setTeamMembersData(prev =>
-      //   prev.map(member =>
-      //     member.id === selectedMember.id ? updatedMember : member
-      //   )
-      // );
+      await axios.delete(`http://localhost:8080/salaries/${salaryId}/documents/${fileName}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+  
+      // Update state dengan benar
+      const updatedSalaries = selectedMember.salaries.map(salary => {
+        if (String(salary.id) === salaryId) {
+          return {
+            ...salary,
+            documents: salary.documents.filter(doc => doc !== fileName)
+          };
+        }
+        return salary;
+      });
+  
+      const updatedMember = { 
+        ...selectedMember, 
+        salaries: updatedSalaries 
+      };
+  
+      // Perbarui kedua state
+      setTeamMembersData(prev =>
+        prev.map(member =>
+          member.id === selectedMember.id ? updatedMember : member
+        )
+      );
+      
+      setSelectedMember(updatedMember);
+  
     } catch (error) {
       console.error("Error deleting document:", error);
     }
@@ -600,7 +851,11 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       const fileName = selectedMember.documents[docIndex][fileIndex];
       await axios.delete(
-        `http://localhost:8080/members/${selectedMember.id}/documents/${fileName}`
+        `http://localhost:8080/members/${selectedMember.id}/documents/${fileName}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      }
       );
 
       // Update state
@@ -680,7 +935,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // Reset form
       setNewDocumentFiles([]);
       setIsAddingDocument(false);
-      setNewDocumentName(""); // Reset nama dokumen jika ada
+      // setNewDocumentName(""); // Reset nama dokumen jika ada
     } catch (error) {
       console.error("Error adding document:", error);
     }
@@ -997,19 +1252,18 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                           {/* Tampilkan detail gaji */}
                           <SalaryDetailsTable
                             type="salary"
-                            data={salary.details}
-                            onAdd={(newData) => handleAddSalaryDetail(String(salary.id), newData)}
+                            data={salary.details || []} // Fallback ke array kosong
+                            onAdd={(newData) => handleAddSalaryDetail(Number(salary.id), newData)}
                             onEdit={(id, data) => handleUpdateSalaryDetail(String(salary.id), id, data)}
                             onDelete={(id) => handleDeleteSalaryDetail(String(salary.id), id)}
                           />
 
-                          {/* Kasbon Table */}
                           <SalaryDetailsTable
                             type="kasbon"
-                            data={salary.kasbons}
-                            onAdd={(newData) => handleAddKasbon(String(salary.id), newData)}
-                            onEdit={(id, data) => handleEditKasbon(id, data)}
-                            onDelete={(id) => handleDeleteKasbon(id)}
+                            data={salary.kasbons || []} // Fallback ke array kosong
+                            onAdd={(newData) => handleAddKasbon(Number(salary.id), newData)}
+                            onEdit={(id, data) => handleEditKasbon(String(salary.id), id, data)}
+                            onDelete={(id) => handleDeleteKasbon(String(salary.id), id)}
                           />
                           <p>Id : {salary.id}</p>
                           <p>Jumlah Gaji : {salary.salary}</p>
@@ -1019,7 +1273,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                           <p>Status : {salary.status}</p>
                           {salary.documents && salary.documents.length > 0 && (
                             <div className="mt-2">
-                              <h5 className="font-medium">Bukti Pembayaran dan Kasbon :</h5>
+                              <h5 className="font-medium">Bukti Pembayaran dan Kasbon : </h5>
                               <div
                                 className="grid grid-cols-4 gap-8"
                                 key={Number(salary.id)}
@@ -1328,14 +1582,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                     <form onSubmit={handleNewDocumentSubmit} className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Document Title</label>
-                        <input
+                        {/* <input
                           type="text"
                           value={newDocumentName}
                           onChange={(e) => setNewDocumentName(e.target.value)}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           placeholder="e.g. Project Contract"
                           required
-                        />
+                        /> */}
                       </div>
 
                       <div>

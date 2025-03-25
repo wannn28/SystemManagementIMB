@@ -20,16 +20,20 @@ import (
 )
 
 type SalaryHandler struct {
-	service       service.SalaryService
-	uploadDir     string
-	detailService service.SalaryDetailService
+	service         service.SalaryService
+	memberService   service.MemberService
+	uploadDir       string
+	detailService   service.SalaryDetailService
+	activityService service.ActivityService
 }
 
-func NewSalaryHandler(service service.SalaryService, uploadDir string, detailService service.SalaryDetailService) *SalaryHandler {
+func NewSalaryHandler(service service.SalaryService, memberService service.MemberService, uploadDir string, detailService service.SalaryDetailService, activityService service.ActivityService) *SalaryHandler {
 	return &SalaryHandler{
-		service:       service,
-		uploadDir:     uploadDir,
-		detailService: detailService,
+		service:         service,
+		memberService:   memberService,
+		uploadDir:       uploadDir,
+		detailService:   detailService,
+		activityService: activityService,
 	}
 }
 
@@ -40,12 +44,23 @@ func (h *SalaryHandler) CreateSalary(c echo.Context) error {
 	if err := c.Bind(&salary); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
-
+	member, err := h.memberService.GetMemberByID(memberID)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
 	salary.MemberID = memberID
 	if err := h.service.CreateSalary(&salary); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-
+	err = h.activityService.LogActivity(
+		entity.ActivityIncome,
+		"Update Gaji",
+		fmt.Sprintf("Update gaji untuk %s", member.FullName),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, http.StatusCreated, salary)
 }
 
@@ -65,23 +80,36 @@ func (h *SalaryHandler) UpdateSalary(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, errors.New("invalid salary ID"))
 	}
 
-	// Dapatkan salary yang sudah ada
 	existingSalary, err := h.service.GetSalaryByID(uint(salaryID))
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 
-	// Bind data baru ke existing salary
+	originalMemberID := existingSalary.MemberID
+
 	if err := c.Bind(existingSalary); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 
-	// Pastikan ID tetap sama
+	existingSalary.MemberID = originalMemberID
 	existingSalary.ID = uint(salaryID)
 
-	// Update salary
 	if err := h.service.UpdateSalary(existingSalary); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	member, err := h.memberService.GetMemberByID(originalMemberID)
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+
+	err = h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Update Gaji",
+		fmt.Sprintf("Update gaji untuk %s", member.FullName),
+	)
+	if err != nil {
+		fmt.Println("Gagal log activity:", err)
 	}
 
 	return response.Success(c, http.StatusOK, existingSalary)
@@ -89,8 +117,21 @@ func (h *SalaryHandler) UpdateSalary(c echo.Context) error {
 
 func (h *SalaryHandler) DeleteSalary(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("salaryId"))
+	existingSalary, err := h.service.GetSalaryByID(uint(id))
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
 	if err := h.service.DeleteSalary(uint(id)); err != nil {
 		return response.Error(c, http.StatusNotFound, err)
+	}
+	err = h.activityService.LogActivity(
+		entity.ActivityExpense,
+		"Hapus Gaji",
+		fmt.Sprintf("Hapus gaji untuk %s", existingSalary.Member.FullName),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)
 }
@@ -175,6 +216,20 @@ func (h *SalaryHandler) DeleteDocument(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
+	member, err := h.memberService.GetMemberByID(salary.MemberID)
+	if err != nil {
+		fmt.Printf("Gagal mendapatkan member: %v\n", err)
+	} else {
+		err = h.activityService.LogActivity(
+			entity.ActivityUpdate,
+			"Hapus Dokumen Gaji",
+			fmt.Sprintf("Hapus dokumen %s dari gaji %s - %s", fileName, member.FullName, salary.Month),
+		)
+		if err != nil {
+			fmt.Printf("Gagal log activity: %v\n", err)
+		}
+	}
+
 	return response.Success(c, http.StatusOK, salary)
 }
 
@@ -220,6 +275,17 @@ func (h *SalaryHandler) CreateSalaryDetail(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
+	salary, err := h.service.GetSalaryByID(detail.SalaryID)
+	if err == nil {
+		member, err := h.memberService.GetMemberByID(salary.MemberID)
+		if err == nil {
+			h.activityService.LogActivity(
+				entity.ActivityIncome,
+				"Tambah Detail Gaji",
+				fmt.Sprintf("Tambah detail gaji untuk %s - %s: %s", member.FullName, salary.Month, detail.Keterangan),
+			)
+		}
+	}
 	return response.Success(c, http.StatusCreated, detail)
 }
 
@@ -256,6 +322,18 @@ func (h *SalaryHandler) UpdateSalaryDetail(c echo.Context) error {
 	if err := h.service.RecalculateSalary(detail.SalaryID); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
+
+	salary, err := h.service.GetSalaryByID(detail.SalaryID)
+	if err == nil {
+		member, err := h.memberService.GetMemberByID(salary.MemberID)
+		if err == nil {
+			h.activityService.LogActivity(
+				entity.ActivityUpdate,
+				"Ubah Detail Gaji",
+				fmt.Sprintf("Ubah detail gaji untuk %s - %s: %s", member.FullName, salary.Month, detail.Keterangan),
+			)
+		}
+	}
 	return response.Success(c, http.StatusOK, detail)
 }
 
@@ -276,10 +354,20 @@ func (h *SalaryHandler) DeleteSalaryDetail(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
-	// Recalculate Salary
 	if err := h.service.RecalculateSalary(detail.SalaryID); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
+	salary, err := h.service.GetSalaryByID(detail.SalaryID)
+	if err == nil {
+		member, err := h.memberService.GetMemberByID(salary.MemberID)
+		if err == nil {
+			h.activityService.LogActivity(
+				entity.ActivityExpense,
+				"Hapus Detail Gaji",
+				fmt.Sprintf("Hapus detail gaji untuk %s - %s: %s", member.FullName, salary.Month, detail.Keterangan),
+			)
+		}
+	}
 	return response.Success(c, http.StatusNoContent, nil)
 }

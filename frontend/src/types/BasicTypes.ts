@@ -47,15 +47,7 @@ export interface Kasbon {
   jumlah: number;
   keterangan: string;
 }
-export interface FinanceEntry {
-  id: number;
-  tanggal: string;
-  unit: number;
-  hargaPerUnit: number;
-  keterangan: string;
-  type: 'income' | 'expense';
-  category: 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other';
-}
+
 export interface Member {
   id: string;
   fullName: string;
@@ -86,4 +78,30 @@ export interface Project {
     weekly: { targetPlan: number; targetAktual: number; week: string; volume: number; targetVolume: number; }[];
     monthly: { targetPlan: number; targetAktual: number; month: string; volume: number; targetVolume: number }[];
   };
+}
+
+export interface InventoryCategory {
+  id: string;
+  title: string;
+  description: string;
+  headers: TableHeader[];
+  data: InventoryData[];
+}
+
+export interface InventoryData {
+  id: string;
+  categoryID: string;
+  values: { [key: string]: any };
+  images: string[];
+}
+
+export interface FinanceEntry {
+  id: number;
+  tanggal: string;
+  unit: number;
+  hargaPerUnit: number;
+  keterangan: string;
+  type: 'income' | 'expense';
+  status : 'Paid' | 'Unpaid';
+  category: 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon';
 }

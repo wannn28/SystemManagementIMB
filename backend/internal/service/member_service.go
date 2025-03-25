@@ -11,10 +11,15 @@ type MemberService interface {
 	GetMemberByID(id string) (*entity.Member, error)
 	UpdateMember(member *entity.Member) error
 	DeleteMember(id string) error
+	GetMemberCount() (int64, error)
 }
 
 type memberService struct {
 	repo repository.MemberRepository
+}
+
+func (s *memberService) GetMemberCount() (int64, error) {
+	return s.repo.Count()
 }
 
 func NewMemberService(repo repository.MemberRepository) MemberService {

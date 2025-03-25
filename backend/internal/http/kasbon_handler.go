@@ -4,20 +4,23 @@ import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/response"
+	"fmt"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
 )
 
 type KasbonHandler struct {
-	kasbonService service.KasbonService
-	salaryService service.SalaryService
+	kasbonService   service.KasbonService
+	salaryService   service.SalaryService
+	activityService service.ActivityService
 }
 
-func NewKasbonHandler(kasbonService service.KasbonService, salaryService service.SalaryService) *KasbonHandler {
+func NewKasbonHandler(kasbonService service.KasbonService, salaryService service.SalaryService, activityService service.ActivityService) *KasbonHandler {
 	return &KasbonHandler{
-		kasbonService: kasbonService,
-		salaryService: salaryService,
+		kasbonService:   kasbonService,
+		salaryService:   salaryService,
+		activityService: activityService,
 	}
 }
 
@@ -26,7 +29,10 @@ func (h *KasbonHandler) CreateKasbon(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, 400, err)
 	}
-
+	salary, err := h.salaryService.GetSalaryByID(uint(salaryID))
+	if err != nil {
+		return response.Error(c, 500, err)
+	}
 	var kasbon entity.Kasbon
 	if err := c.Bind(&kasbon); err != nil {
 		return response.Error(c, 400, err)
@@ -41,7 +47,15 @@ func (h *KasbonHandler) CreateKasbon(c echo.Context) error {
 	if err := h.salaryService.RecalculateSalary(uint(salaryID)); err != nil {
 		return response.Error(c, 500, err)
 	}
-
+	err = h.activityService.LogActivity(
+		entity.ActivityIncome,
+		"Create Kasbon",
+		fmt.Sprintf("Create Kasbon untuk %s", salary.Member.FullName),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, 201, kasbon)
 }
 
@@ -60,7 +74,15 @@ func (h *KasbonHandler) UpdateKasbon(c echo.Context) error {
 	if err := h.salaryService.RecalculateSalary(kasbon.SalaryID); err != nil {
 		return response.Error(c, 500, err)
 	}
-
+	err := h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Update Kasbon",
+		fmt.Sprintf("Update Kasbon dengan id : %d", id),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, 200, kasbon)
 }
 
@@ -85,7 +107,15 @@ func (h *KasbonHandler) DeleteKasbon(c echo.Context) error {
 	if err := h.salaryService.RecalculateSalary(kasbon.SalaryID); err != nil {
 		return response.Error(c, 500, err)
 	}
-
+	err = h.activityService.LogActivity(
+		entity.ActivityExpense,
+		"Delete Kasbon",
+		fmt.Sprintf("Delete Kasbon dengan id :  %d", kasbonID),
+	)
+	if err != nil {
+		// Handle error logging, maybe just log to console
+		fmt.Println("Gagal log activity:", err)
+	}
 	return response.Success(c, 204, nil)
 }
 

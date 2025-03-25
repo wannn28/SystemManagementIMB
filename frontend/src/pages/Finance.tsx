@@ -22,20 +22,22 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
-    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah'>('id');
+    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status'>('id');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [selectedStatus, setSelectedStatus] = useState('');
     // Filter configuration
     const filterData = (data: FinanceEntry[]) => {
         const filtered = data.filter((entry) => {
             const matchesSearch = entry.keterangan.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCategory = !selectedCategory || entry.category === selectedCategory;
+            const matchesStatus = !selectedStatus || entry.status === selectedStatus;
             const entryDate = new Date(entry.tanggal);
             const entryMonth = String(entryDate.getMonth() + 1).padStart(2, '0');
             const entryYear = String(entryDate.getFullYear());
             const matchesMonth = !selectedMonth || entryMonth === selectedMonth;
             const matchesYear = !selectedYear || entryYear === selectedYear;
 
-            return matchesSearch && matchesCategory && matchesMonth && matchesYear;
+            return matchesSearch && matchesCategory && matchesMonth && matchesYear && matchesStatus;
         });
         const sorted = [...filtered].sort((a, b) => {
             let valueA: number | string | Date;
@@ -54,6 +56,10 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     valueA = a.unit * a.hargaPerUnit;
                     valueB = b.unit * b.hargaPerUnit;
                     break;
+                case 'status':
+                    valueA = a.status;
+                    valueB = b.status;
+                    break;
                 default:
                     valueA = a[sortBy];
                     valueB = b[sortBy];
@@ -62,10 +68,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
             if (typeof valueA === 'number' && typeof valueB === 'number') {
                 return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
             } else {
-                const strA = valueA.toString().toLowerCase();
-                const strB = valueB.toString().toLowerCase();
-                const comparison = strA.localeCompare(strB);
+                // const strA = valueA.toString().toLowerCase();
+                // const strB = valueB.toString().toLowerCase();
+                const comparison = valueA.toString().localeCompare(valueB.toString());
                 return sortOrder === 'asc' ? comparison : -comparison;
+                // return sortOrder === 'asc' ? comparison : -comparison;
             }
         });
 
@@ -74,14 +81,15 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
     const filteredIncomeData = useMemo(() => filterData(incomeData), [
         incomeData, searchTerm, selectedCategory,
-        selectedMonth, selectedYear, sortBy, sortOrder
-    ]);
-
-    const filteredExpenseData = useMemo(() => filterData(expenseData), [
+        selectedMonth, selectedYear, selectedStatus, // Pastikan ini ada
+        sortBy, sortOrder
+      ]);
+      const filteredExpenseData = useMemo(() => filterData(expenseData), [
         expenseData, searchTerm, selectedCategory,
-        selectedMonth, selectedYear, sortBy, sortOrder
-    ]);
-    const handleSort = (column: 'id' | 'tanggal' | 'jumlah') => {
+        selectedMonth, selectedYear, selectedStatus, // Pastikan ini ada
+        sortBy, sortOrder
+      ]);
+    const handleSort = (column: 'id' | 'tanggal' | 'jumlah' | 'status') => {
         if (sortBy === column) {
             setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
         } else {
@@ -94,7 +102,8 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         unit: '',
         hargaPerUnit: '',
         keterangan: '',
-        category: 'Other'
+        category: 'Other',
+        status: 'Paid' as 'Unpaid' | 'Paid'
     });
 
     const [editMode, setEditMode] = useState<EditMode>({
@@ -121,8 +130,18 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const fetchData = async () => {
         try {
             const [incomeRes, expenseRes] = await Promise.all([
-                axios.get('http://localhost:8080/finance?type=income'),
-                axios.get('http://localhost:8080/finance?type=expense')
+                axios.get('http://localhost:8080/finance?type=income', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+                    }
+                }),
+                axios.get('http://localhost:8080/finance?type=expense',
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+                        }
+                    }
+                )
             ]);
 
             setIncomeData(incomeRes.data?.data || []);
@@ -135,7 +154,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     // Edit handlers
     const handleEdit = async (id: number, type: 'income' | 'expense') => {
         try {
-            const response = await axios.get(`http://localhost:8080/finance/${id}`);
+            const response = await axios.get(`http://localhost:8080/finance/${id}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+                }
+            });
             const rawDate = response.data.data.tanggal;
             const formattedDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
 
@@ -157,7 +180,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
             try {
                 await axios.put(`http://localhost:8080/finance/${editMode.id}`, {
                     ...editMode.data,
-                    type: editMode.type
+                    type: editMode.type,
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+                    }
                 });
                 fetchData();
                 setEditMode({ id: null, type: null, data: {} });
@@ -169,7 +196,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
     const handleDelete = async (id: number) => {
         try {
-            await axios.delete(`http://localhost:8080/finance/${id}`);
+            await axios.delete(`http://localhost:8080/finance/${id}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+                }
+            });
             fetchData();
         } catch (error) {
             console.error('Error deleting entry:', error);
@@ -187,8 +218,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 type: type
             };
 
-            await axios.post('http://localhost:8080/finance', newEntryData);
-            setNewEntry({ tanggal: '', unit: '', hargaPerUnit: '', keterangan: '', category: 'Other' });
+            await axios.post('http://localhost:8080/finance', newEntryData, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+                }
+            });
+            setNewEntry({ tanggal: '', unit: '', hargaPerUnit: '', keterangan: '', category: 'Other', status: 'Paid' });
             fetchData();
         } catch (error) {
             console.error(`Error adding ${type}:`, error);
@@ -278,10 +313,34 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <option value="Barang">Barang</option>
                             <option value="Jasa">Jasa</option>
                             <option value="Sewa Alat Berat">Sewa Alat Berat</option>
+                            <option value="Gaji">Gaji</option>
+                            <option value="Kasbon">Kasbon</option>
+                            <option value="Uang Makan">Uang Makan</option>
                             <option value="Other">Lainnya</option>
                         </select>
                     ) : (
                         item.category
+                    )}
+                </td>
+                {/* Di dalam EditableRow */}
+                <td className="border px-4 py-2">
+                    {isEditing ? (
+                        <select
+                            value={editMode.data.status || item.status}
+                            onChange={(e) => setEditMode(prev => ({
+                                ...prev,
+                                data: { ...prev.data, status: e.target.value as 'Paid' | 'Unpaid' }
+                            }))}
+                            className="border p-1 rounded w-full"
+                        >
+                            <option value="Paid">Paid</option>
+                            <option value="Unpaid">Unpaid</option>
+                        </select>
+                    ) : (
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${item.status === 'Paid' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                            }`}>
+                            {item.status}
+                        </span>
                     )}
                 </td>
                 <td className="border px-4 py-2 space-x-2">
@@ -345,6 +404,9 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <option value="Barang">Barang</option>
                             <option value="Jasa">Jasa</option>
                             <option value="Sewa Alat Berat">Sewa Alat Berat</option>
+                            <option value="Gaji">Gaji</option>
+                            <option value="Kasbon">Kasbon</option>
+                            <option value="Uang Makan">Uang Makan</option>
                             <option value="Other">Lainnya</option>
                         </select>
                         <select
@@ -368,6 +430,15 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             min="2000"
                             max="2100"
                         />
+                        <select
+                            value={selectedStatus}
+                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            className="border p-2 rounded"
+                        >
+                            <option value="">Semua Status</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Unpaid">Unpaid</option>
+                        </select>
                         <button
                             onClick={() => {
                                 setSelectedCategory('');
@@ -479,7 +550,19 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 <option value="Barang">Barang</option>
                                 <option value="Jasa">Jasa</option>
                                 <option value="Sewa Alat Berat">Sewa Alat Berat</option>
+                                <option value="Gaji">Gaji</option>
+                                <option value="Kasbon">Kasbon</option>
+                                <option value="Uang Makan">Uang Makan</option>
                                 <option value="Other">Lainnya</option>
+                            </select>
+                            <select
+                                value={newEntry.status}
+                                onChange={(e) => setNewEntry({ ...newEntry, status: e.target.value as 'Paid' | 'Unpaid' })}
+                                className="border p-2 rounded"
+                                required
+                            >
+                                <option value="Unpaid">Unpaid</option>
+                                <option value="Paid">Paid</option>
                             </select>
                             <button
                                 type="submit"
@@ -516,8 +599,15 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     >
                                         Jumlah {sortBy === 'jumlah' && (sortOrder === 'asc' ? '↑' : '↓')}
                                     </th>
+
                                     <th className="border px-4 py-2">Keterangan</th>
                                     <th className="border px-4 py-2">Kategori</th>
+                                    <th
+                                        className="border px-4 py-2 cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleSort('status')}
+                                    >
+                                        Status {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                    </th>
                                     <th className="border px-4 py-2 w-32">Aksi</th>
                                 </tr>
                             </thead>

@@ -12,10 +12,16 @@ type FinanceService interface {
 	GetAllFinance() ([]entity.Finance, error)
 	GetFinanceByID(id uint) (*entity.Finance, error)
 	GetFinanceByType(fType entity.FinanceType) ([]entity.Finance, error)
+	GetFinancialSummary() (income float64, expense float64, err error)
+	GetMonthlyComparison() ([]entity.MonthlyComparison, error)
 }
 
 type financeService struct {
 	repo repository.FinanceRepository
+}
+
+func (s *financeService) GetMonthlyComparison() ([]entity.MonthlyComparison, error) {
+	return s.repo.GetMonthlyComparison()
 }
 
 func NewFinanceService(repo repository.FinanceRepository) FinanceService {
@@ -46,4 +52,8 @@ func (s *financeService) GetFinanceByID(id uint) (*entity.Finance, error) {
 
 func (s *financeService) GetFinanceByType(fType entity.FinanceType) ([]entity.Finance, error) {
 	return s.repo.FindByType(fType)
+}
+
+func (s *financeService) GetFinancialSummary() (income float64, expense float64, err error) {
+	return s.repo.GetFinancialSummary()
 }

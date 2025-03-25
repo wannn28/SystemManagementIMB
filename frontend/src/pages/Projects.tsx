@@ -26,7 +26,12 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch('http://localhost:8080/projects');
+        const token = localStorage.getItem('token')
+        const response = await fetch('http://localhost:8080/projects', {
+          headers: {
+            'Authorization': `Bearer ${token}` // Tambahkan header Authorization
+          }
+        });
         const data = await response.json();
         if (data.status === 200) {
           setProjects(data.data);
@@ -51,12 +56,19 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
       console.log(formattedProject)
       const response = await fetch('http://localhost:8080/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify(formattedProject),
       });
 
       if (response.ok) {
-        const updatedData = await fetch('http://localhost:8080/projects');
+        const updatedData = await fetch('http://localhost:8080/projects', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          }
+        });
         const updatedProjects = await updatedData.json();
         setProjects(updatedProjects.data);
         setIsAddingProject(false);
@@ -85,6 +97,9 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
     try {
       const response = await fetch(`http://localhost:8080/projects/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
       });
       if (response.ok) {
         setProjects(projects.filter(project => project.id !== id));
@@ -113,12 +128,21 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         console.log(formattedProject)
         const response = await fetch(`http://localhost:8080/projects/${editingProject.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          },
           body: JSON.stringify(formattedProject),
         });
 
         if (response.ok) {
-          const updatedData = await fetch('http://localhost:8080/projects');
+          const updatedData = await fetch('http://localhost:8080/projects',
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+              }
+            }
+          );
           const updatedProjects = await updatedData.json();
           setProjects(updatedProjects.data);
           setEditingProject(null);

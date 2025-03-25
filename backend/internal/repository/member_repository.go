@@ -12,6 +12,7 @@ type MemberRepository interface {
 	FindByID(id string) (*entity.Member, error)
 	Update(member *entity.Member) error
 	Delete(member *entity.Member) error
+	Count() (int64, error)
 }
 
 type memberRepository struct {
@@ -45,4 +46,10 @@ func (r *memberRepository) Update(member *entity.Member) error {
 
 func (r *memberRepository) Delete(member *entity.Member) error {
 	return r.db.Delete(member).Error
+}
+
+func (r *memberRepository) Count() (int64, error) {
+	var count int64
+	err := r.db.Model(&entity.Member{}).Count(&count).Error
+	return count, err
 }

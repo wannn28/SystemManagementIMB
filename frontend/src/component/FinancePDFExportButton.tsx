@@ -58,7 +58,7 @@ const FinancePDFExportButton: React.FC<FinancePDFExportButtonProps> = ({
     // Tabel Data
     autoTable(doc, {
       startY: 40,
-      head: [['No', 'Tanggal', 'Unit', 'Harga/Unit', 'Jumlah', 'Keterangan', 'Kategori']],
+      head: [['No', 'Tanggal', 'Unit', 'Harga/Unit', 'Jumlah', 'Keterangan', 'Kategori', 'Status']],
       body: data.map((entry, index) => [
         index + 1,
         entry.tanggal.split('T')[0],
@@ -67,6 +67,7 @@ const FinancePDFExportButton: React.FC<FinancePDFExportButtonProps> = ({
         `Rp ${(entry.unit * entry.hargaPerUnit).toLocaleString('id-ID')}`,
         entry.keterangan,
         entry.category,
+        entry.status,
       ]),
       theme: 'grid',
       headStyles: { fillColor: [41, 128, 185], textColor: 255 },

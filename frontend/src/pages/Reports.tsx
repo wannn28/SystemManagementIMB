@@ -190,7 +190,7 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
         <Line
           type="monotone"
           dataKey="plan"
-          stroke="#ff7300" 
+          stroke="#ff7300"
           name="Plan"
           strokeWidth={2}
           dot={{ r: 4 }}
@@ -401,7 +401,11 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get<ApiResponse>('http://localhost:8080/projects');
+        const response = await axios.get<ApiResponse>('http://localhost:8080/projects', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+          }
+        });
         if (response.data.status === 200) {
           setProjects(response.data.data);
         }
@@ -417,7 +421,11 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const handleSaveProject = async (updatedProject: Project) => {
     console.log(updatedProject)
     try {
-      await axios.put(`http://localhost:8080/projects/${updatedProject.id}`, updatedProject);
+      await axios.put(`http://localhost:8080/projects/${updatedProject.id}`, updatedProject, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
+        }
+      });
       setProjects(prev =>
         prev.map(p => p.id === updatedProject.id ? updatedProject : p)
       );

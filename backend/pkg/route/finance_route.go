@@ -1,18 +1,23 @@
 package route
 
 import (
+	"dashboardadminimb/config"
 	"dashboardadminimb/internal/http"
 	"dashboardadminimb/internal/service"
+	"dashboardadminimb/pkg/middleware"
 
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterFinanceRoutes(g *echo.Echo, financeService service.FinanceService) {
-	handler := http.NewFinanceHandler(financeService)
-
-	g.POST("/finance", handler.CreateFinance)
-	g.GET("/finance", handler.GetAllFinance)
-	g.GET("/finance/:id", handler.GetFinanceByID)
-	g.PUT("/finance/:id", handler.UpdateFinance)
-	g.DELETE("/finance/:id", handler.DeleteFinance)
+func RegisterFinanceRoutes(e *echo.Echo, financeService service.FinanceService, config config.Config, activityService service.ActivityService) {
+	handler := http.NewFinanceHandler(financeService, activityService)
+	g := e.Group("/finance")
+	g.Use(middleware.AdminAuth(config))
+	g.POST("", handler.CreateFinance)
+	g.GET("", handler.GetAllFinance)
+	g.GET("/:id", handler.GetFinanceByID)
+	g.PUT("/:id", handler.UpdateFinance)
+	g.DELETE("/:id", handler.DeleteFinance)
+	g.GET("/summary", handler.GetFinancialSummary)
+	g.GET("/monthly", handler.GetMonthlyComparison)
 }

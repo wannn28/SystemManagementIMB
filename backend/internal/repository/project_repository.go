@@ -12,6 +12,7 @@ type ProjectRepository interface {
 	FindByID(id uint) (*entity.Project, error)
 	Update(project *entity.Project) error
 	Delete(project *entity.Project) error
+	Count() (int64, error)
 }
 
 type projectRepository struct {
@@ -20,6 +21,12 @@ type projectRepository struct {
 
 func NewProjectRepository(db *gorm.DB) ProjectRepository {
 	return &projectRepository{db}
+}
+
+func (r *projectRepository) Count() (int64, error) {
+	var count int64
+	err := r.db.Model(&entity.Project{}).Count(&count).Error
+	return count, err
 }
 
 func (r *projectRepository) Create(project *entity.Project) error {
