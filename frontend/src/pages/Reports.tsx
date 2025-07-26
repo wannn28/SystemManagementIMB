@@ -401,7 +401,7 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get<ApiResponse>('http://localhost:8080/projects', {
+        const response = await axios.get<ApiResponse>(`${import.meta.env.VITE_API_URL}/projects`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
           }
@@ -421,7 +421,7 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const handleSaveProject = async (updatedProject: Project) => {
     console.log(updatedProject)
     try {
-      await axios.put(`http://localhost:8080/projects/${updatedProject.id}`, updatedProject, {
+      await axios.put(`${import.meta.env.VITE_API_URL}/projects/${updatedProject.id}`, updatedProject, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }

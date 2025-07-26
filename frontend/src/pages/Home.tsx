@@ -59,24 +59,24 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
     const fetchData = async () => {
       try {
         // Fetch financial summary
-        const summaryRes = await axios.get('http://localhost:8080/finance/summary');
+        const summaryRes = await axios.get(`${import.meta.env.VITE_API_URL}/finance/summary`);
         console.log(summaryRes.data.data)
         setFinancialSummary(summaryRes.data.data);
         
         // // Fetch member count
-        const membersRes = await axios.get('http://localhost:8080/members/count');
+        const membersRes = await axios.get(`${import.meta.env.VITE_API_URL}/members/count`);
         setMemberCount(membersRes.data.data.count);
         
         // // Fetch project count
-        const projectsRes = await axios.get('http://localhost:8080/projects/count');
+        const projectsRes = await axios.get(`${import.meta.env.VITE_API_URL}/projects/count`);
         setProjectCount(projectsRes.data.data.count);
         
         // // Fetch monthly comparison
-        const monthlyRes = await axios.get('http://localhost:8080/finance/monthly');
+        const monthlyRes = await axios.get(`${import.meta.env.VITE_API_URL}/finance/monthly`);
         setMonthlyData(monthlyRes.data.data);
         
         // Fetch recent activities (contoh implementasi)
-        const activitiesRes = await axios.get('http://localhost:8080/activities');
+        const activitiesRes = await axios.get(`${import.meta.env.VITE_API_URL}/activities`);
         setActivities(activitiesRes.data.data);
       } catch (error) {
         console.error('Error fetching data:', error);

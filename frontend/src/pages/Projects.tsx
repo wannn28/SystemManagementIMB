@@ -27,7 +27,7 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
     const fetchProjects = async () => {
       try {
         const token = localStorage.getItem('token')
-        const response = await fetch('http://localhost:8080/projects', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
           headers: {
             'Authorization': `Bearer ${token}` // Tambahkan header Authorization
           }
@@ -54,7 +54,7 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         // amountPaid: Number(newProject.amountPaid),
       };
       console.log(formattedProject)
-      const response = await fetch('http://localhost:8080/projects', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -64,7 +64,7 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
       });
 
       if (response.ok) {
-        const updatedData = await fetch('http://localhost:8080/projects', {
+        const updatedData = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
           }
@@ -95,7 +95,7 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const deleteProject = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:8080/projects/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/projects/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
@@ -126,7 +126,7 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
           // amountPaid: Number(newProject.amountPaid),
         };
         console.log(formattedProject)
-        const response = await fetch(`http://localhost:8080/projects/${editingProject.id}`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/projects/${editingProject.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         });
 
         if (response.ok) {
-          const updatedData = await fetch('http://localhost:8080/projects',
+          const updatedData = await fetch(`${import.meta.env.VITE_API_URL}/projects`,
             {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization

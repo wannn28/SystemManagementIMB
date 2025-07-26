@@ -9,7 +9,8 @@ interface TableHeader {
   optional: boolean;
 }
 
-const API_BASE_URL = 'http://localhost:8080/api/inventory';
+// ambil dari env
+const API_BASE_URL = import.meta.env.VITE_API_URL + '/api/inventory';
 
 const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   const [categories, setCategories] = useState<InventoryCategory[]>([]);

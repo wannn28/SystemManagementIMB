@@ -112,8 +112,8 @@ func (h *MemberHandler) GetMemberByID(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
-
-	baseURL := "http://localhost:8080/uploads/"
+	// ambil dari env
+	baseURL := os.Getenv("BASE_URL") + "/uploads/"
 
 	// Konversi ke response object dengan URL lengkap
 	responseData := struct {

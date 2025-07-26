@@ -48,7 +48,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Di fungsi fetchSalaryDetails:
   const fetchSalaryDetails = async (salaryId: string) => {
     try {
-      const response = await axios.get(`http://localhost:8080/salaries/${salaryId}/details`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -62,7 +62,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   const fetchKasbons = async (salaryId: string) => {
     try {
-      const response = await axios.get(`http://localhost:8080/salaries/${salaryId}/kasbons`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }
@@ -90,7 +90,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       // Kirim permintaan POST ke backend
       const response = await axios.post(
-        `http://localhost:8080/salaries/${salaryId}/details`,
+        `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details`,
         { ...newData, tanggal: new Date(newData.tanggal).toISOString() },
         {
           headers: {
@@ -124,7 +124,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       // Kirim permintaan POST ke backend
       await axios.post(
-        `http://localhost:8080/salaries/${salaryId}/kasbons`,
+        `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`,
         {
           ...newData,
           tanggal: new Date(newData.tanggal).toISOString()
@@ -161,7 +161,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       // 1. Kirim PUT request
       const response = await axios.put(
-        `http://localhost:8080/salaries/${salaryId}/details/${id}`,
+        `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details/${id}`,
         {
           ...updatedData,
           tanggal: new Date(updatedData.tanggal).toISOString(),
@@ -209,7 +209,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     try {
       // Kirim permintaan DELETE ke backend
-      await axios.delete(`http://localhost:8080/salaries/${salaryId}/details/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -242,7 +242,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       // Kirim permintaan PUT ke backend
       await axios.put(
-        `http://localhost:8080/kasbons/${id}`,
+        `${import.meta.env.VITE_API_URL}/kasbons/${id}`,
         {
           ...updatedData,
           tanggal: new Date(updatedData.tanggal).toISOString()
@@ -272,7 +272,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDeleteKasbon = async (salaryId: string, id: string) => {
     try {
       // Kirim permintaan DELETE ke backend
-      await axios.delete(`http://localhost:8080/kasbons/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/kasbons/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -311,7 +311,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchTeamMembers = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/members', {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/members`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
           }
@@ -333,7 +333,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleCreateMember = async (memberData: Omit<Member, 'id' | 'profileImage'>, profileImageFile?: File) => {
     try {
       // 1. Create member tanpa gambar
-      const response = await axios.post('http://localhost:8080/members', memberData, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/members`, memberData, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }
@@ -346,7 +346,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         formData.append('file', profileImageFile);
 
         await axios.post(
-          `http://localhost:8080/members/${newMember.id}/profile`,
+            `${import.meta.env.VITE_API_URL}/members/${newMember.id}/profile`,
           formData,
           {
             headers: {
@@ -368,7 +368,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       // 1. Update data member (tanpa file)
       const memberResponse = await axios.put(
-        `http://localhost:8080/members/${updatedMember.id}`,
+        `${import.meta.env.VITE_API_URL}/members/${updatedMember.id}`,
         updatedMember,
         {
           headers: {
@@ -406,7 +406,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       formData.append("file", file);
   
       const response = await axios.post(
-        `http://localhost:8080/members/${memberId}/profile`,
+        `${import.meta.env.VITE_API_URL}/members/${memberId}/profile`,
         formData,
         {
           headers: {
@@ -439,7 +439,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       });
 
       const response = await axios.post(
-        `http://localhost:8080/members/${memberId}/documents`,
+        `${import.meta.env.VITE_API_URL}/members/${memberId}/documents`,
         formData,
         {
           headers: {
@@ -473,7 +473,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Fungsi untuk menghapus anggota
   const handleDeleteMember = async (id: string) => {
     try {
-      await axios.delete(`http://localhost:8080/members/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/members/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }
@@ -540,14 +540,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         const formData = new FormData();
         newSalaryImages.forEach(file => formData.append("files", file));
         await axios.post(
-          `http://localhost:8080/salaries/${salaryToUpdate.id}/documents`,
+          `${import.meta.env.VITE_API_URL}/salaries/${salaryToUpdate.id}/documents`,
           formData
         );
       }
 
       // 2. Kirim PUT request dan dapatkan respons langsung
       const putResponse = await axios.put(
-        `http://localhost:8080/members/${selectedMember.id}/salaries/${salaryId}`,
+        `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/salaries/${salaryId}`,
         updatedSalary,
         {
           headers: {
@@ -618,7 +618,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     );
     try {
       await axios.delete(
-        `http://localhost:8080/members/${selectedMember.id}/salaries/${salaryId}`, {
+          `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/salaries/${salaryId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }
@@ -687,7 +687,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
       // 2. POST to create salary
       const salaryResponse = await axios.post(
-        `http://localhost:8080/members/${selectedMember.id}/salaries`,
+        `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/salaries`,
         newSalaryData, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
@@ -704,7 +704,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         newSalaryImages.forEach(file => formData.append("files", file));
 
         await axios.post(
-          `http://localhost:8080/salaries/${salaryId}/documents`,
+          `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/documents`,
           formData,
           {
             headers: {
@@ -749,7 +749,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
     try {
       // Ambil data gaji member
-      const salariesResponse = await axios.get(`http://localhost:8080/members/${member.id}/salaries`, {
+      const salariesResponse = await axios.get(`${import.meta.env.VITE_API_URL}/members/${member.id}/salaries`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }
@@ -782,7 +782,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     if (!selectedMember) return;
   
     try {
-      await axios.delete(`http://localhost:8080/members/${selectedMember.id}/documents/${fileName}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/documents/${fileName}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -809,7 +809,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     if (!selectedMember) return;
   
     try {
-      await axios.delete(`http://localhost:8080/salaries/${salaryId}/documents/${fileName}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/documents/${fileName}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -851,7 +851,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     try {
       const fileName = selectedMember.documents[docIndex][fileIndex];
       await axios.delete(
-        `http://localhost:8080/members/${selectedMember.id}/documents/${fileName}`, {
+              `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/documents/${fileName}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
         }
@@ -1139,11 +1139,12 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             {selectedTab === 'Personal' && (
               <form className="space-y-4" onSubmit={handleEditSubmit}>
                 <div className="mt-4">
-                  <img
-                    src={'http://localhost:8080/uploads/' + selectedMember.profileImage}
+                  <img  
+                    // ambil dari env
+                    src={`${import.meta.env.VITE_API_URL}/uploads/${selectedMember.profileImage}`}
                     alt="Profile"
                     className="w-24 h-24 rounded-full cursor-pointer"
-                    onClick={() => handleImageClick('http://localhost:8080/uploads/' + selectedMember.profileImage)}
+                    onClick={() => handleImageClick(`${import.meta.env.VITE_API_URL}/uploads/${selectedMember.profileImage}`)}
                   />
                 </div>
                 {isEditMode && (
@@ -1295,10 +1296,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                                     )}
                                     <img
                                       key={urlIndex}
-                                      src={`http://localhost:8080/uploads/${fileName}`}
+                                        src={`${import.meta.env.VITE_API_URL}/uploads/${fileName}`}
                                       alt={`Bukti ${urlIndex}`}
                                       className="w-full h-48 object-cover rounded cursor-pointer"
-                                      onClick={() => handleImageClick(`http://localhost:8080/uploads/${fileName}`)}
+                                      onClick={() => handleImageClick(`${import.meta.env.VITE_API_URL}/uploads/${fileName}`)}
                                     />
                                   </div>
                                 ))}
@@ -1407,10 +1408,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                                 (fileName, idx) => (
                                   <img
                                     key={idx}
-                                    src={`http://localhost:8080/uploads/${fileName}`}
+                                      src={`${import.meta.env.VITE_API_URL}/uploads/${fileName}`}
                                     alt={`Document ${idx}`}
                                     className="w-full h-24 object-cover rounded cursor-pointer"
-                                    onClick={() => handleImageClick(`http://localhost:8080/uploads/${fileName}`)}
+                                    onClick={() => handleImageClick(`${import.meta.env.VITE_API_URL}/uploads/${fileName}`)}
                                   />
                                 )
                               )}
@@ -1520,10 +1521,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                                 (fileName, idx) => (
                                   <img
                                     key={idx}
-                                    src={`http://localhost:8080/uploads/${fileName}`}
+                                      src={`${import.meta.env.VITE_API_URL}/uploads/${fileName}`}
                                     alt={`Document ${idx}`}
                                     className="w-full h-24 object-cover rounded cursor-pointer"
-                                    onClick={() => handleImageClick(`http://localhost:8080/uploads/${fileName}`)}
+                                    onClick={() => handleImageClick(`${import.meta.env.VITE_API_URL}/uploads/${fileName}`)}
                                   />
                                 )
                               )}
@@ -1654,7 +1655,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                             {/* Pastikan document adalah array string */}
                             {Array.isArray(document) &&
                               document.map((fileName: string, fileIndex: number) => {
-                                const fileUrl = `http://localhost:8080/uploads/${fileName}`; // Bangun URL lengkap
+                                  const fileUrl = `${import.meta.env.VITE_API_URL}/uploads/${fileName}`; // Bangun URL lengkap
                                 const isImage = fileName.match(/\.(jpe?g|png|gif)$/i); // Cek apakah file adalah gambar
 
                                 return (
@@ -1748,7 +1749,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                   ))}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-5">
                     {selectedMember.documents.map((fileName, index) => {
-                      const fileUrl = `http://localhost:8080/uploads/${fileName}`;
+                        const fileUrl = `${import.meta.env.VITE_API_URL}/uploads/${fileName}`;
                       const isImage = fileName.match(/.(jpg|jpeg|png|gif)$/i);
 
                       return (

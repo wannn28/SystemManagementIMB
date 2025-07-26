@@ -130,12 +130,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const fetchData = async () => {
         try {
             const [incomeRes, expenseRes] = await Promise.all([
-                axios.get('http://localhost:8080/finance?type=income', {
+                axios.get(`${import.meta.env.VITE_API_URL}/finance?type=income`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
                     }
                 }),
-                axios.get('http://localhost:8080/finance?type=expense',
+                axios.get(`${import.meta.env.VITE_API_URL}/finance?type=expense`,
                     {
                         headers: {
                             'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
@@ -154,7 +154,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     // Edit handlers
     const handleEdit = async (id: number, type: 'income' | 'expense') => {
         try {
-            const response = await axios.get(`http://localhost:8080/finance/${id}`, {
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/finance/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
                 }
@@ -178,7 +178,8 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const handleSaveEdit = async () => {
         if (editMode.id && editMode.type) {
             try {
-                await axios.put(`http://localhost:8080/finance/${editMode.id}`, {
+                // ambil dari env
+                await axios.put(`${import.meta.env.VITE_API_URL}/finance/${editMode.id}`, {
                     ...editMode.data,
                     type: editMode.type,
                 }, {
@@ -196,7 +197,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
     const handleDelete = async (id: number) => {
         try {
-            await axios.delete(`http://localhost:8080/finance/${id}`, {
+            await axios.delete(`${import.meta.env.VITE_API_URL}/finance/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
                 }
@@ -218,7 +219,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 type: type
             };
 
-            await axios.post('http://localhost:8080/finance', newEntryData, {
+            await axios.post(`${import.meta.env.VITE_API_URL}/finance`, newEntryData, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
                 }

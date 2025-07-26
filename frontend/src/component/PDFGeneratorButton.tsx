@@ -82,7 +82,7 @@ export const PDFGeneratorButton: React.FC<PDFGeneratorButtonProps> = ({ member, 
         const y = 40 + Math.floor((idx % 4)/2) * (imgHeight + margin);
         
         doc.addImage(
-          `http://localhost:8080/uploads/${img}`,
+          `${import.meta.env.VITE_API_URL}/uploads/${img}`,
           'JPEG',
           x,
           y,

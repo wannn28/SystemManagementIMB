@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { TableHeader } from '../types/BasicTypes';
-
-const API_URL = 'http://localhost:8080/inventory';
+// ambil dari env
+const API_URL = import.meta.env.VITE_API_URL + '/inventory';
 
 interface InventoryCategory {
   id: string;

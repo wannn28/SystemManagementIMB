@@ -31,7 +31,7 @@ export const IDCardGeneratorButton: React.FC<IDCardGeneratorButtonProps> = ({ me
 
     // Profile Image
     const img = new Image();
-    img.src = `http://localhost:8080/uploads/${member.profileImage}`;
+    img.src = `${import.meta.env.VITE_API_URL}/uploads/${member.profileImage}`;
     doc.addImage(img, 'JPEG', 14, 15, 25, 25);
     doc.setTextColor(75, 75, 75);
 
