@@ -4,7 +4,7 @@
 	"values": [
 		{
 			"key": "base_url",
-			"value": "http://localhost:8080",
+			"value": "http://151.106.120.69:8001/api",	
 			"type": "default",
 			"enabled": true
 		},

@@ -9,7 +9,7 @@ type SalaryDetail struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	SalaryID    uint      `json:"salary_id"`
 	Tanggal     time.Time `json:"tanggal" time_format:"2006-01-02"`
-	JamTrip     int       `json:"jam_trip"`      // Pastikan tag json benar
+	JamTrip     float32       `json:"jam_trip"`      // Pastikan tag json benar
 	HargaPerJam float64   `json:"harga_per_jam"` // Pastikan tag json benar
 	Keterangan  string    `json:"keterangan"`
 }
