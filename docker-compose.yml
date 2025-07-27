@@ -25,7 +25,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: project-frontend
+    container_name: project-frontend2
     ports:
       - "3000:80"
     depends_on:
@@ -33,7 +33,7 @@ services:
 
   db:
     image: mysql:8.0
-    container_name: project-db
+    container_name: project-db2
     restart: always
     ports:
       - "3307:3306"
