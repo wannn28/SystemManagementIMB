@@ -4,12 +4,14 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 	"time"
 )
 
 type ActivityService interface {
 	LogActivity(activityType entity.ActivityType, title, description string) error
 	GetRecentActivities(limit int) ([]entity.Activity, error)
+	GetAllActivitiesWithPagination(params response.QueryParams) ([]entity.Activity, int, error)
 }
 
 type activityService struct {
@@ -32,4 +34,8 @@ func (s *activityService) LogActivity(activityType entity.ActivityType, title, d
 
 func (s *activityService) GetRecentActivities(limit int) ([]entity.Activity, error) {
 	return s.repo.GetRecent(limit)
+}
+
+func (s *activityService) GetAllActivitiesWithPagination(params response.QueryParams) ([]entity.Activity, int, error) {
+	return s.repo.FindAllWithPagination(params)
 }

@@ -24,3 +24,14 @@ func (h *ActivityHandler) GetRecentActivities(c echo.Context) error {
 	}
 	return response.Success(c, http.StatusOK, activities)
 }
+
+func (h *ActivityHandler) GetAllActivitiesWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	activities, total, err := h.service.GetAllActivitiesWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, activities, pagination)
+}

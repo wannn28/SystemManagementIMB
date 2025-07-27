@@ -39,6 +39,17 @@ func (h *MemberHandler) GetMemberCount(c echo.Context) error {
 	return response.Success(c, http.StatusOK, map[string]int64{"count": count})
 }
 
+func (h *MemberHandler) GetAllMembersWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	members, total, err := h.service.GetAllMembersWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, members, pagination)
+}
+
 func (h *MemberHandler) CreateMember(c echo.Context) error {
 	var member entity.Member
 	if err := c.Bind(&member); err != nil {

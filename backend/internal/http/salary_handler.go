@@ -73,6 +73,17 @@ func (h *SalaryHandler) GetSalaries(c echo.Context) error {
 	return response.Success(c, http.StatusOK, salaries)
 }
 
+func (h *SalaryHandler) GetAllSalariesWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	salaries, total, err := h.service.GetAllSalariesWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, salaries, pagination)
+}
+
 // Di internal/http/salary_handler.go
 func (h *SalaryHandler) UpdateSalary(c echo.Context) error {
 	salaryID, err := strconv.Atoi(c.Param("salaryId"))

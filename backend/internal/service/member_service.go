@@ -3,11 +3,13 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 )
 
 type MemberService interface {
 	CreateMember(member *entity.Member) error
 	GetAllMembers() ([]entity.Member, error)
+	GetAllMembersWithPagination(params response.QueryParams) ([]entity.Member, int, error)
 	GetMemberByID(id string) (*entity.Member, error)
 	UpdateMember(member *entity.Member) error
 	DeleteMember(id string) error
@@ -48,4 +50,8 @@ func (s *memberService) DeleteMember(id string) error {
 		return err
 	}
 	return s.repo.Delete(member)
+}
+
+func (s *memberService) GetAllMembersWithPagination(params response.QueryParams) ([]entity.Member, int, error) {
+	return s.repo.FindAllWithPagination(params)
 }

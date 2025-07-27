@@ -3,6 +3,8 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/pkg/database"
+	"dashboardadminimb/pkg/response"
 
 	"gorm.io/gorm"
 )
@@ -13,6 +15,7 @@ type SalaryRepository interface {
 	Delete(salary *entity.Salary) error
 	FindByMemberID(memberID string) ([]entity.Salary, error)
 	FindByID(id uint) (*entity.Salary, error)
+	FindAllWithPagination(params response.QueryParams) ([]entity.Salary, int, error)
 }
 
 type salaryRepository struct {
@@ -45,4 +48,18 @@ func (r *salaryRepository) FindByID(id uint) (*entity.Salary, error) {
 	var salary entity.Salary
 	err := r.db.First(&salary, id).Error
 	return &salary, err
+}
+
+func (r *salaryRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Salary, int, error) {
+	var salaries []entity.Salary
+
+	queryBuilder := database.NewQueryBuilder(r.db)
+	query := queryBuilder.BuildSalaryQuery(params)
+
+	total, err := queryBuilder.Paginate(query, params, &salaries)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return salaries, total, nil
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 )
 
 type SalaryService interface {
@@ -10,6 +11,7 @@ type SalaryService interface {
 	UpdateSalary(salary *entity.Salary) error
 	DeleteSalary(salaryID uint) error
 	GetSalariesByMember(memberID string) ([]entity.Salary, error)
+	GetAllSalariesWithPagination(params response.QueryParams) ([]entity.Salary, int, error)
 	GetSalaryByID(id uint) (*entity.Salary, error)
 	RecalculateSalary(salaryID uint) error // Tambahkan method ini
 }
@@ -95,4 +97,8 @@ func (s *salaryService) RecalculateSalary(salaryID uint) error {
 	salary.NetSalary = gross - loan
 	salary.Salary = gross
 	return s.salaryRepo.Update(salary)
+}
+
+func (s *salaryService) GetAllSalariesWithPagination(params response.QueryParams) ([]entity.Salary, int, error) {
+	return s.salaryRepo.FindAllWithPagination(params)
 }

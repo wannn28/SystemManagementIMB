@@ -2,6 +2,8 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/pkg/database"
+	"dashboardadminimb/pkg/response"
 
 	"gorm.io/gorm"
 )
@@ -12,6 +14,7 @@ type KasbonRepository interface {
 	Delete(id uint) error
 	FindByID(id uint) (*entity.Kasbon, error)
 	FindBySalaryID(salaryID uint) ([]entity.Kasbon, error)
+	FindAllWithPagination(params response.QueryParams) ([]entity.Kasbon, int, error)
 }
 
 type kasbonRepository struct {
@@ -44,4 +47,18 @@ func (r *kasbonRepository) FindByID(id uint) (*entity.Kasbon, error) {
 	var kasbon entity.Kasbon
 	err := r.db.First(&kasbon, id).Error
 	return &kasbon, err
+}
+
+func (r *kasbonRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Kasbon, int, error) {
+	var kasbons []entity.Kasbon
+
+	queryBuilder := database.NewQueryBuilder(r.db)
+	query := queryBuilder.BuildKasbonQuery(params)
+
+	total, err := queryBuilder.Paginate(query, params, &kasbons)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return kasbons, total, nil
 }

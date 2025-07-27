@@ -3,6 +3,7 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 )
 
 type FinanceService interface {
@@ -10,6 +11,7 @@ type FinanceService interface {
 	UpdateFinance(finance *entity.Finance) error
 	DeleteFinance(id uint) error
 	GetAllFinance() ([]entity.Finance, error)
+	GetAllFinanceWithPagination(params response.QueryParams) ([]entity.Finance, int, error)
 	GetFinanceByID(id uint) (*entity.Finance, error)
 	GetFinanceByType(fType entity.FinanceType) ([]entity.Finance, error)
 	GetFinancialSummary() (income float64, expense float64, err error)
@@ -56,4 +58,8 @@ func (s *financeService) GetFinanceByType(fType entity.FinanceType) ([]entity.Fi
 
 func (s *financeService) GetFinancialSummary() (income float64, expense float64, err error) {
 	return s.repo.GetFinancialSummary()
+}
+
+func (s *financeService) GetAllFinanceWithPagination(params response.QueryParams) ([]entity.Finance, int, error) {
+	return s.repo.FindAllWithPagination(params)
 }

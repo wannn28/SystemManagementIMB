@@ -109,21 +109,22 @@ func (h *FinanceHandler) DeleteFinance(c echo.Context) error {
 }
 
 func (h *FinanceHandler) GetAllFinance(c echo.Context) error {
-	fType := c.QueryParam("type")
-
-	if fType != "" {
-		finances, err := h.service.GetFinanceByType(entity.FinanceType(fType))
-		if err != nil {
-			return response.Error(c, http.StatusInternalServerError, err)
-		}
-		return response.Success(c, http.StatusOK, finances)
-	}
-
 	finances, err := h.service.GetAllFinance()
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusOK, finances)
+}
+
+func (h *FinanceHandler) GetAllFinanceWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	finances, total, err := h.service.GetAllFinanceWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, finances, pagination)
 }
 
 func (h *FinanceHandler) GetFinanceByID(c echo.Context) error {

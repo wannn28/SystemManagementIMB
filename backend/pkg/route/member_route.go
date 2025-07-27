@@ -32,6 +32,7 @@ func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, sal
 	g.POST("/:id/documents", handler.AddDocument)
 	g.DELETE("/:id/documents/:fileName", handler.DeleteDocument)
 	g.GET("", handler.GetAllMembers)
+	g.GET("/paginated", handler.GetAllMembersWithPagination)
 	g.GET("/count", handler.GetMemberCount)
 	g.GET("/:id", handler.GetMemberByID)
 	g.PUT("/:id", handler.UpdateMember)
@@ -40,6 +41,7 @@ func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, sal
 	// Salary Routes under Member
 	g.POST("/:id/salaries", salaryHandler.CreateSalary)
 	g.GET("/:id/salaries", salaryHandler.GetSalaries)
+	g.GET("/salaries/paginated", salaryHandler.GetAllSalariesWithPagination)
 	g.PUT("/:id/salaries/:salaryId", salaryHandler.UpdateSalary)
 	g.DELETE("/:id/salaries/:salaryId", salaryHandler.DeleteSalary)
 
@@ -63,7 +65,12 @@ func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, sal
 
 	h.POST("/:salaryId/kasbons", kasbonHandler.CreateKasbon)
 	h.GET("/:salaryId/kasbons", kasbonHandler.GetKasbonsBySalary)
+	h.GET("/kasbons/paginated", kasbonHandler.GetAllKasbonsWithPagination)
 
 	i.PUT("/:id", kasbonHandler.UpdateKasbon)
 	i.DELETE("/:id", kasbonHandler.DeleteKasbon)
+
+	// Activity Routes
+	a.GET("", activityHandler.GetRecentActivities)
+	a.GET("/paginated", activityHandler.GetAllActivitiesWithPagination)
 }

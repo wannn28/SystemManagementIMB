@@ -3,6 +3,7 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 )
 
 type KasbonService interface {
@@ -11,6 +12,7 @@ type KasbonService interface {
 	DeleteKasbon(id uint) error
 	GetKasbonByID(id uint) (*entity.Kasbon, error)
 	GetKasbonsBySalary(salaryID uint) ([]entity.Kasbon, error)
+	GetAllKasbonsWithPagination(params response.QueryParams) ([]entity.Kasbon, int, error)
 }
 
 type kasbonService struct {
@@ -38,4 +40,8 @@ func (s *kasbonService) GetKasbonsBySalary(salaryID uint) ([]entity.Kasbon, erro
 }
 func (s *kasbonService) GetKasbonByID(id uint) (*entity.Kasbon, error) {
 	return s.repo.FindByID(id)
+}
+
+func (s *kasbonService) GetAllKasbonsWithPagination(params response.QueryParams) ([]entity.Kasbon, int, error) {
+	return s.repo.FindAllWithPagination(params)
 }

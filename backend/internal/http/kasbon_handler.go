@@ -5,6 +5,7 @@ import (
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/response"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -120,10 +121,24 @@ func (h *KasbonHandler) DeleteKasbon(c echo.Context) error {
 }
 
 func (h *KasbonHandler) GetKasbonsBySalary(c echo.Context) error {
-	salaryID, _ := strconv.Atoi(c.Param("salaryId"))
+	salaryID, err := strconv.Atoi(c.Param("salaryId"))
+	if err != nil {
+		return response.Error(c, 400, err)
+	}
 	kasbons, err := h.kasbonService.GetKasbonsBySalary(uint(salaryID))
 	if err != nil {
 		return response.Error(c, 500, err)
 	}
 	return response.Success(c, 200, kasbons)
+}
+
+func (h *KasbonHandler) GetAllKasbonsWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	kasbons, total, err := h.kasbonService.GetAllKasbonsWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, kasbons, pagination)
 }
