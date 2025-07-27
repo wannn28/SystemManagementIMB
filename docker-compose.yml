@@ -27,7 +27,7 @@ services:
       context: ./frontend
     container_name: project-frontend2
     ports:
-      - "3000:80"
+      - "3001:80"
     depends_on:
       - backend
 
