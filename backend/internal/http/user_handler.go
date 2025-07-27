@@ -40,6 +40,17 @@ func (h *UserHandler) GetAllUsers(c echo.Context) error {
 	return response.Success(c, http.StatusOK, users)
 }
 
+func (h *UserHandler) GetAllUsersWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	users, total, err := h.service.GetAllUsersWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, users, pagination)
+}
+
 func (h *UserHandler) GetUserByID(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
 	user, err := h.service.GetUserByID(uint(id))
@@ -51,22 +62,22 @@ func (h *UserHandler) GetUserByID(c echo.Context) error {
 
 func (h *UserHandler) UpdateUser(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	
+
 	var user entity.User
 	if err := c.Bind(&user); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	user.ID = uint(id)
-	if err := h.service.UpdateUser (&user); err != nil {
+	if err := h.service.UpdateUser(&user); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
 	return response.Success(c, http.StatusOK, user)
 }
 
-func (h *UserHandler) DeleteUser (c echo.Context) error {
+func (h *UserHandler) DeleteUser(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	if err := h.service.DeleteUser (uint(id)); err != nil {
+	if err := h.service.DeleteUser(uint(id)); err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)

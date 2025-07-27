@@ -3,11 +3,13 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 )
 
 type ProjectService interface {
 	CreateProject(project *entity.Project) error
 	GetAllProjects() ([]entity.Project, error)
+	GetAllProjectsWithPagination(params response.QueryParams) ([]entity.Project, int, error)
 	GetProjectByID(id uint) (*entity.Project, error)
 	UpdateProject(project *entity.Project) error
 	DeleteProject(id uint) error
@@ -48,4 +50,8 @@ func (s *projectService) DeleteProject(id uint) error {
 		return err
 	}
 	return s.repo.Delete(project)
+}
+
+func (s *projectService) GetAllProjectsWithPagination(params response.QueryParams) ([]entity.Project, int, error) {
+	return s.repo.FindAllWithPagination(params)
 }

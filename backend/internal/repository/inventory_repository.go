@@ -2,6 +2,8 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/pkg/database"
+	"dashboardadminimb/pkg/response"
 
 	"gorm.io/gorm"
 )
@@ -17,8 +19,9 @@ type InventoryRepository interface {
 	UpdateData(data *entity.InventoryData) error
 	DeleteData(id string) error
 	GetDataByCategory(categoryID string) ([]entity.InventoryData, error)
-
 	GetDataByID(id string) (*entity.InventoryData, error)
+
+	FindAllWithPagination(params response.QueryParams) ([]entity.InventoryData, int, error)
 }
 
 type inventoryRepository struct {
@@ -75,4 +78,18 @@ func (r *inventoryRepository) GetDataByID(id string) (*entity.InventoryData, err
 	var data entity.InventoryData
 	err := r.db.Where("id = ?", id).First(&data).Error
 	return &data, err
+}
+
+func (r *inventoryRepository) FindAllWithPagination(params response.QueryParams) ([]entity.InventoryData, int, error) {
+	var inventoryData []entity.InventoryData
+
+	queryBuilder := database.NewQueryBuilder(r.db)
+	query := queryBuilder.BuildInventoryQuery(params)
+
+	total, err := queryBuilder.Paginate(query, params, &inventoryData)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return inventoryData, total, nil
 }

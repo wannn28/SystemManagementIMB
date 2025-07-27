@@ -16,6 +16,7 @@ func RegisterProjectRoutes(e *echo.Echo, projectService service.ProjectService, 
 
 	g.POST("", handler.CreateProject)
 	g.GET("", handler.GetAllProjects)
+	g.GET("/paginated", handler.GetAllProjectsWithPagination)
 	g.GET("/:id", handler.GetProjectByID)
 	g.GET("/count", handler.GetProjectCount)
 	g.PUT("/:id", handler.UpdateProject)

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/pkg/database"
+	"dashboardadminimb/pkg/response"
 
 	"gorm.io/gorm"
 )
@@ -9,6 +11,7 @@ import (
 type MemberRepository interface {
 	Create(member *entity.Member) error
 	FindAll() ([]entity.Member, error)
+	FindAllWithPagination(params response.QueryParams) ([]entity.Member, int, error)
 	FindByID(id string) (*entity.Member, error)
 	Update(member *entity.Member) error
 	Delete(member *entity.Member) error
@@ -52,4 +55,18 @@ func (r *memberRepository) Count() (int64, error) {
 	var count int64
 	err := r.db.Model(&entity.Member{}).Count(&count).Error
 	return count, err
+}
+
+func (r *memberRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Member, int, error) {
+	var members []entity.Member
+
+	queryBuilder := database.NewQueryBuilder(r.db)
+	query := queryBuilder.BuildMemberQuery(params)
+
+	total, err := queryBuilder.Paginate(query, params, &members)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return members, total, nil
 }

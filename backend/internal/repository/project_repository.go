@@ -2,6 +2,8 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/pkg/database"
+	"dashboardadminimb/pkg/response"
 
 	"gorm.io/gorm"
 )
@@ -9,6 +11,7 @@ import (
 type ProjectRepository interface {
 	Create(project *entity.Project) error
 	FindAll() ([]entity.Project, error)
+	FindAllWithPagination(params response.QueryParams) ([]entity.Project, int, error)
 	FindByID(id uint) (*entity.Project, error)
 	Update(project *entity.Project) error
 	Delete(project *entity.Project) error
@@ -51,4 +54,18 @@ func (r *projectRepository) Update(project *entity.Project) error {
 
 func (r *projectRepository) Delete(project *entity.Project) error {
 	return r.db.Delete(project).Error
+}
+
+func (r *projectRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Project, int, error) {
+	var projects []entity.Project
+
+	queryBuilder := database.NewQueryBuilder(r.db)
+	query := queryBuilder.BuildProjectQuery(params)
+
+	total, err := queryBuilder.Paginate(query, params, &projects)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return projects, total, nil
 }

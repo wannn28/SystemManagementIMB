@@ -22,6 +22,7 @@ func RegisterRoutes(e *echo.Echo, userService service.UserService, config config
 
 	adminGroup.POST("/users", userHandler.CreateUser)
 	adminGroup.GET("/users", userHandler.GetAllUsers)
+	adminGroup.GET("/users/paginated", userHandler.GetAllUsersWithPagination)
 	adminGroup.GET("/users/:id", userHandler.GetUserByID)
 	adminGroup.PUT("/users/:id", userHandler.UpdateUser)
 	adminGroup.DELETE("/users/:id", userHandler.DeleteUser)

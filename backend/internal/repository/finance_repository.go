@@ -2,6 +2,8 @@ package repository
 
 import (
 	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/pkg/database"
+	"dashboardadminimb/pkg/response"
 
 	"gorm.io/gorm"
 )
@@ -11,6 +13,7 @@ type FinanceRepository interface {
 	Update(finance *entity.Finance) error
 	Delete(id uint) error
 	FindAll() ([]entity.Finance, error)
+	FindAllWithPagination(params response.QueryParams) ([]entity.Finance, int, error)
 	FindByID(id uint) (*entity.Finance, error)
 	FindByType(fType entity.FinanceType) ([]entity.Finance, error)
 	GetFinancialSummary() (income float64, expense float64, err error)
@@ -79,4 +82,18 @@ func (r *financeRepository) GetMonthlyComparison() ([]entity.MonthlyComparison, 
 		Order("month").
 		Find(&results).Error
 	return results, err
+}
+
+func (r *financeRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Finance, int, error) {
+	var finances []entity.Finance
+
+	queryBuilder := database.NewQueryBuilder(r.db)
+	query := queryBuilder.BuildFinanceQuery(params)
+
+	total, err := queryBuilder.Paginate(query, params, &finances)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return finances, total, nil
 }

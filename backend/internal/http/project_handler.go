@@ -54,6 +54,17 @@ func (h *ProjectHandler) GetAllProjects(c echo.Context) error {
 	return response.Success(c, http.StatusOK, projects)
 }
 
+func (h *ProjectHandler) GetAllProjectsWithPagination(c echo.Context) error {
+	params := response.ParseQueryParams(c)
+	projects, total, err := h.service.GetAllProjectsWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, projects, pagination)
+}
+
 func (h *ProjectHandler) GetProjectByID(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
 	project, err := h.service.GetProjectByID(uint(id))

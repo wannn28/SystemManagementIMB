@@ -3,12 +3,14 @@ package service
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
+	"dashboardadminimb/pkg/response"
 	"dashboardadminimb/utils"
 )
 
 type UserService interface {
 	CreateUser(user *entity.User) error
 	GetAllUsers() ([]entity.User, error)
+	GetAllUsersWithPagination(params response.QueryParams) ([]entity.User, int, error)
 	GetUserByID(id uint) (*entity.User, error)
 	UpdateUser(user *entity.User) error
 	DeleteUser(id uint) error
@@ -55,4 +57,8 @@ func (s *userService) DeleteUser(id uint) error {
 func (s *userService) GetUserByEmail(email string) (*entity.User, error) {
 	user, err := s.repo.FindByEmail(email)
 	return user, err
+}
+
+func (s *userService) GetAllUsersWithPagination(params response.QueryParams) ([]entity.User, int, error) {
+	return s.repo.FindAllWithPagination(params)
 }
