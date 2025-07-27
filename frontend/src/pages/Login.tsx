@@ -1,7 +1,7 @@
 // src/pages/Login.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { authAPI } from '../api';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -12,12 +12,9 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/login`, {
-        email,
-        password
-      });
+      const response = await authAPI.login(email, password);
       
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('token', response.token);
       navigate('/');
     } catch (err) {
       setError('Login failed. Please check your credentials.');

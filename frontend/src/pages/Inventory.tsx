@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { InventoryCategory, InventoryData } from '../types/BasicTypes';
 import InventoryPDFExporter from '../component/InventoryPDFExporter'
+import inventoryAPI from '../api/Inventory';
+
 interface TableHeader {
   id: string;
   name: string;
@@ -9,8 +10,7 @@ interface TableHeader {
   optional: boolean;
 }
 
-// ambil dari env
-const API_BASE_URL = import.meta.env.VITE_API_URL + '/api/inventory';
+// API sudah diimpor dari modul inventory
 
 const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
@@ -32,27 +32,24 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/categories`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      // Perbaikan: Ambil data dari properti data response
-      setCategories(response.data.data);
+      const response = await inventoryAPI.categories.getAll();
+      // Pastikan response adalah array
+      if (Array.isArray(response)) {
+        setCategories(response);
+      } else {
+        console.error('Error: categories response is not an array', response);
+        setCategories([]); // Set empty array as fallback
+      }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]); // Set empty array on error
     }
   };
 
   const fetchCategoryData = async (categoryId: string) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/categories/${categoryId}/data`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      // Perbaikan: Ambil data dari properti data response
-      return response.data.data;
+      const response = await inventoryAPI.data.getByCategory(categoryId);
+      return response;
     } catch (error) {
       console.error('Error fetching category data:', error);
       return [];
@@ -79,15 +76,12 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
       const newCategoryData = {
         title: newCategory.title,
         description: newCategory.description,
-        headers: newHeaders
+        headers: newHeaders,
+        data: [] // Menambahkan properti data yang kosong
       };
 
-      const response = await axios.post(`${API_BASE_URL}/categories`, newCategoryData, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      setCategories([...categories, response.data.data]);
+      const response = await inventoryAPI.categories.create(newCategoryData);
+      setCategories([...categories, response]);
       setShowAddModal(false);
       resetFormState();
     } catch (error) {
@@ -106,11 +100,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         headers: newHeaders
       };
 
-      await axios.put(`${API_BASE_URL}/categories/${editingCategory.id}`, updatedCategory, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
+      await inventoryAPI.categories.update(editingCategory.id, updatedCategory);
       setCategories(categories.map(cat => cat.id === editingCategory.id ? updatedCategory : cat));
       setEditingCategory(null);
       setShowAddModal(false);
@@ -122,11 +112,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const handleDeleteCategory = async (categoryId: string) => {
     try {
-      await axios.delete(`${API_BASE_URL}/categories/${categoryId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
+      await inventoryAPI.categories.delete(categoryId);
       setCategories(categories.filter(cat => cat.id !== categoryId));
     } catch (error) {
       console.error('Error deleting category:', error);
@@ -137,50 +123,29 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
     if (!selectedCategory) return;
 
     try {
-      // Step 1: Create data with values
-      const response = await axios.post(
-        `${API_BASE_URL}/categories/${selectedCategory.id}/data`,
-        { values: newDataValues }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      }
-      );
-
-      const createdData = response.data.data;
-      const dataId = createdData.id;
-
-      // Step 2: Upload images one by one
+      // Prepare form data with values and images
+      const formData = new FormData();
+      
+      // Add values as JSON string
+      formData.append('values', JSON.stringify(newDataValues));
+      formData.append('category_id', selectedCategory.id);
+      
+      // Add images
       if (newImages.length > 0) {
         for (const file of newImages) {
-          const imageFormData = new FormData();
-          imageFormData.append('file', file);
-
-          await axios.post(
-            `${API_BASE_URL}/data/${dataId}/images`,
-            imageFormData,
-            {
-              headers: {
-                'Content-Type': 'multipart/form-data',
-                'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-              }
-            }
-          );
+          formData.append('images', file);
         }
       }
 
-      // Step 3: Refresh category data
-      const categoryDataResponse = await axios.get(
-        `${API_BASE_URL}/categories/${selectedCategory.id}/data`
-        , {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          }
-        });
+      // Create data with all information at once
+      await inventoryAPI.data.create(formData);
+
+      // Refresh category data
+      const updatedData = await inventoryAPI.data.getByCategory(selectedCategory.id);
 
       const updatedCategory = {
         ...selectedCategory,
-        data: categoryDataResponse.data.data
+        data: updatedData
       };
 
       setCategories(categories.map(cat =>
@@ -198,53 +163,29 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
     if (!selectedCategory || !editingData) return;
 
     try {
-      // Pastikan menyertakan categoryID dalam payload
-      const payload = {
-        values: editingData.values,
-        category_id: selectedCategory.id // Tambahkan ini
-      };
-
-      // Step 1: Update data values
-      const response = await axios.put(
-        `${API_BASE_URL}/data/${editingData.id}`,
-        payload, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      }
-      );
-      console.log(response.data)
-      // Step 2: Upload new images
+      // Prepare form data with values and images
+      const formData = new FormData();
+      
+      // Add values as JSON string
+      formData.append('values', JSON.stringify(editingData.values));
+      formData.append('category_id', selectedCategory.id);
+      
+      // Add images
       if (newImages.length > 0) {
         for (const file of newImages) {
-          const imageFormData = new FormData();
-          imageFormData.append('file', file);
-
-          await axios.post(
-            `${API_BASE_URL}/data/${editingData.id}/images`,
-            imageFormData,
-            {
-              headers: {
-                'Content-Type': 'multipart/form-data',
-                'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-              }
-            }
-          );
+          formData.append('images', file);
         }
       }
 
-      // Step 3: Refresh category data
-      const categoryDataResponse = await axios.get(
-        `${API_BASE_URL}/categories/${selectedCategory.id}/data`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      }
-      );
+      // Update data with all information at once
+      await inventoryAPI.data.update(editingData.id, formData);
+
+      // Refresh category data
+      const updatedData = await inventoryAPI.data.getByCategory(selectedCategory.id);
 
       const updatedCategory = {
         ...selectedCategory,
-        data: categoryDataResponse.data.data
+        data: updatedData
       };
 
       setCategories(categories.map(cat =>
@@ -262,11 +203,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
     if (!selectedCategory) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/data/${dataId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
+      await inventoryAPI.data.delete(dataId);
       const updatedData = selectedCategory.data.filter(data => data.id !== dataId);
       const updatedCategory = { ...selectedCategory, data: updatedData };
       setCategories(categories.map(cat =>
@@ -287,13 +224,9 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const handleDeleteImage = async (dataId: string, imageName: string) => {
     try {
-      await axios.delete(`${API_BASE_URL}/data/${dataId}/images/${imageName}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
+      await inventoryAPI.images.deleteImage(dataId, imageName);
       if (selectedCategory) {
-        const updatedData = await fetchCategoryData(selectedCategory.id);
+        const updatedData = await inventoryAPI.data.getByCategory(selectedCategory.id);
         const updatedCategory = { ...selectedCategory, data: updatedData };
         setCategories(categories.map(cat =>
           cat.id === selectedCategory.id ? updatedCategory : cat

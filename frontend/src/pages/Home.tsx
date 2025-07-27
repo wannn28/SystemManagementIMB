@@ -13,7 +13,7 @@ import {
   Legend,
 } from 'chart.js';
 import { FiUsers, FiActivity, FiDollarSign, FiClock, FiPlus, FiMinus, FiRefreshCw} from 'react-icons/fi';
-import axios from 'axios';
+import { financeAPI, membersAPI, projectsAPI, activitiesAPI } from '../api';
 
 ChartJS.register(
   CategoryScale,
@@ -59,25 +59,25 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
     const fetchData = async () => {
       try {
         // Fetch financial summary
-        const summaryRes = await axios.get(`${import.meta.env.VITE_API_URL}/finance/summary`);
-        console.log(summaryRes.data.data)
-        setFinancialSummary(summaryRes.data.data);
+        const summaryRes = await financeAPI.getFinanceSummary();
+        console.log(summaryRes)
+        setFinancialSummary(summaryRes);
         
-        // // Fetch member count
-        const membersRes = await axios.get(`${import.meta.env.VITE_API_URL}/members/count`);
-        setMemberCount(membersRes.data.data.count);
+        // Fetch member count
+        const membersRes = await membersAPI.getMemberCount();
+        setMemberCount(membersRes.count);
         
-        // // Fetch project count
-        const projectsRes = await axios.get(`${import.meta.env.VITE_API_URL}/projects/count`);
-        setProjectCount(projectsRes.data.data.count);
+        // Fetch project count
+        const projectsRes = await projectsAPI.getProjectCount();
+        setProjectCount(projectsRes.count);
         
-        // // Fetch monthly comparison
-        const monthlyRes = await axios.get(`${import.meta.env.VITE_API_URL}/finance/monthly`);
-        setMonthlyData(monthlyRes.data.data);
+        // Fetch monthly comparison
+        const monthlyRes = await financeAPI.getMonthlyFinance();
+        setMonthlyData(monthlyRes);
         
-        // Fetch recent activities (contoh implementasi)
-        const activitiesRes = await axios.get(`${import.meta.env.VITE_API_URL}/activities`);
-        setActivities(activitiesRes.data.data);
+        // Fetch recent activities
+        const activitiesRes = await activitiesAPI.getAllActivities();
+        setActivities(activitiesRes);
       } catch (error) {
         console.error('Error fetching data:', error);
       }

@@ -3,6 +3,7 @@ import { FiPlus, FiEdit, FiTrash } from 'react-icons/fi';
 
 import { ProjectData } from '../types/Project';
 import { Project } from '../types/BasicTypes';
+import { projectsAPI } from '../api';
 const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   const [projects, setProjects] = useState<Project[]>((ProjectData));
 
@@ -26,16 +27,8 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const token = localStorage.getItem('token')
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
-          headers: {
-            'Authorization': `Bearer ${token}` // Tambahkan header Authorization
-          }
-        });
-        const data = await response.json();
-        if (data.status === 200) {
-          setProjects(data.data);
-        }
+        const projects = await projectsAPI.getAllProjects();
+        setProjects(projects);
       } catch (error) {
         console.error('Error fetching projects:', error);
       }
@@ -54,40 +47,28 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         // amountPaid: Number(newProject.amountPaid),
       };
       console.log(formattedProject)
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(formattedProject),
+      
+      await projectsAPI.createProject(formattedProject);
+      
+      // Refresh projects list
+      const updatedProjects = await projectsAPI.getAllProjects();
+      setProjects(updatedProjects);
+      setIsAddingProject(false);
+      setNewProject({
+        id: 0,
+        name: '',
+        description: '',
+        status: 'pending',
+        startDate: '2023-01-01',
+        endDate: '2023-03-31',
+        maxDuration: '3 months',
+        totalRevenue: 0,
+        amountPaid: 0,
+        unitPrice: 0,
+        unit: 'Pcs',
+        totalVolume: 0,
+        reports: { daily: [], weekly: [], monthly: [] },
       });
-
-      if (response.ok) {
-        const updatedData = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          }
-        });
-        const updatedProjects = await updatedData.json();
-        setProjects(updatedProjects.data);
-        setIsAddingProject(false);
-        setNewProject({
-          id: 0,
-          name: '',
-          description: '',
-          status: 'pending',
-          startDate: '2023-01-01',
-          endDate: '2023-03-31',
-          maxDuration: '3 months',
-          totalRevenue: 0,
-          amountPaid: 0,
-          unitPrice: 0,
-          unit: 'Pcs',
-          totalVolume: 0,
-          reports: { daily: [], weekly: [], monthly: [] },
-        });
-      }
     } catch (error) {
       console.error('Error adding project:', error);
     }
@@ -95,15 +76,8 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const deleteProject = async (id: number) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/projects/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      if (response.ok) {
-        setProjects(projects.filter(project => project.id !== id));
-      }
+      await projectsAPI.deleteProject(id);
+      setProjects(projects.filter(project => project.id !== id));
     } catch (error) {
       console.error('Error deleting project:', error);
     }
@@ -126,27 +100,12 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
           // amountPaid: Number(newProject.amountPaid),
         };
         console.log(formattedProject)
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/projects/${editingProject.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          },
-          body: JSON.stringify(formattedProject),
-        });
-
-        if (response.ok) {
-          const updatedData = await fetch(`${import.meta.env.VITE_API_URL}/projects`,
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-              }
-            }
-          );
-          const updatedProjects = await updatedData.json();
-          setProjects(updatedProjects.data);
-          setEditingProject(null);
-        }
+        await projectsAPI.updateProject(editingProject.id, formattedProject);
+        
+        // Refresh projects list
+        const updatedProjects = await projectsAPI.getAllProjects();
+        setProjects(updatedProjects);
+        setEditingProject(null);
       } catch (error) {
         console.error('Error updating project:', error);
       }

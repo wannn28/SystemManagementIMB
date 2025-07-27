@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom'; 
-import Navbar from './component/Navbar.tsx';
-import Home from './pages/Home.tsx';
-import Projects from './pages/Projects.tsx';
-import Inventory from './pages/Inventory.tsx';
-import Team from './pages/Team.tsx';
-import Reports from './pages/Reports.tsx';
-import Settings from './pages/Settings.tsx';
-import Finance from './pages/Finance.tsx';
+import Navbar from './component/Navbar';
+import Home from './pages/Home';
+import Projects from './pages/Projects';
+import Inventory from './pages/Inventory';
+import Team from './pages/Team';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
+import Finance from './pages/Finance';
 import Login from './pages/Login';
 import ProtectedRoute from './component/ProtectedRoute';
 

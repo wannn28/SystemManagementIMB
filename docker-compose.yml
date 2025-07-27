@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: project-backend2
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ridwan
+      DB_PASSWORD: Iwandila123.
+      DB_NAME: imbbackend
+      PORT: 8080
+      UPLOAD_DIR: ./uploads
+      BASE_URL: http://localhost:8080
+      JWT_SECRET: "In13dkofe31DAse"
+      JWT_EXPIRY: 24h
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: project-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  db:
+    image: mysql:8.0
+    container_name: project-db
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: imbbackend
+      MYSQL_ROOT_PASSWORD: Iwandila123
+      MYSQL_USER: ridwan
+      MYSQL_PASSWORD: Iwandila123.
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:

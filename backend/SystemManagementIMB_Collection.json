@@ -1,0 +1,1349 @@
+{
+	"info": {
+		"_postman_id": "system-management-imb-api",
+		"name": "System Management IMB API",
+		"description": "Complete API collection for System Management IMB backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "🔐 Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "👥 User Management",
+			"item": [
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/users",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/users",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/users/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Updated\",\n  \"email\": \"john.updated@example.com\",\n  \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/users/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/users/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"users",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "💰 Finance Management",
+			"item": [
+				{
+					"name": "Create Finance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"date\": \"2024-01-15\",\n  \"description\": \"Pembayaran proyek\",\n  \"amount\": 5000000,\n  \"type\": \"income\",\n  \"category\": \"project_payment\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/finance",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Finance",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Finance by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Finance",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"date\": \"2024-01-15\",\n  \"description\": \"Pembayaran proyek updated\",\n  \"amount\": 6000000,\n  \"type\": \"income\",\n  \"category\": \"project_payment\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/finance/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Finance",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Financial Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance",
+								"summary"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Monthly Comparison",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance/monthly",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"finance",
+								"monthly"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📦 Inventory Management",
+			"item": [
+				{
+					"name": "Categories",
+					"item": [
+						{
+							"name": "Get All Categories",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Category",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Elektronik\",\n  \"description\": \"Kategori untuk barang elektronik\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Category by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Category",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Elektronik Updated\",\n  \"description\": \"Kategori untuk barang elektronik updated\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Category",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Data",
+					"item": [
+						{
+							"name": "Get Category Data",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories/1/data",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories",
+										"1",
+										"data"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Data",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Laptop Dell\",\n  \"description\": \"Laptop Dell Inspiron\",\n  \"quantity\": 5,\n  \"price\": 8000000,\n  \"status\": \"available\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/inventory/categories/1/data",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"categories",
+										"1",
+										"data"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Data",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Laptop Dell Updated\",\n  \"description\": \"Laptop Dell Inspiron Updated\",\n  \"quantity\": 3,\n  \"price\": 7500000,\n  \"status\": \"available\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/inventory/data/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"data",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Data",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory/data/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"data",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Images",
+					"item": [
+						{
+							"name": "Upload Image",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "image",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/inventory/data/1/images",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"data",
+										"1",
+										"images"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Image",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory/data/1/images/image.jpg",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"inventory",
+										"data",
+										"1",
+										"images",
+										"image.jpg"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "👤 Member Management",
+			"item": [
+				{
+					"name": "Members",
+					"item": [
+						{
+							"name": "Create Member",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Ahmad Rizki\",\n  \"email\": \"ahmad@example.com\",\n  \"phone\": \"081234567890\",\n  \"address\": \"Jl. Sudirman No. 123\",\n  \"position\": \"Developer\",\n  \"join_date\": \"2024-01-01\",\n  \"salary\": 5000000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/members",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Members",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Member Count",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members/count",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"count"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Member by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Member",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Ahmad Rizki Updated\",\n  \"email\": \"ahmad.updated@example.com\",\n  \"phone\": \"081234567890\",\n  \"address\": \"Jl. Sudirman No. 123 Updated\",\n  \"position\": \"Senior Developer\",\n  \"join_date\": \"2024-01-01\",\n  \"salary\": 6000000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/members/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Member",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Profile Image",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "image",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/members/1/profile",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"profile"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add Document",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "document",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/members/1/documents",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"documents"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Document",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members/1/documents/document.pdf",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"documents",
+										"document.pdf"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Salaries",
+					"item": [
+						{
+							"name": "Create Salary",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"month\": \"2024-01\",\n  \"basic_salary\": 5000000,\n  \"bonus\": 500000,\n  \"deductions\": 200000,\n  \"total_salary\": 5300000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/members/1/salaries",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"salaries"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Salaries",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members/1/salaries",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"salaries"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Salary",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"month\": \"2024-01\",\n  \"basic_salary\": 5500000,\n  \"bonus\": 600000,\n  \"deductions\": 250000,\n  \"total_salary\": 5850000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/members/1/salaries/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"salaries",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Salary",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/members/1/salaries/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"members",
+										"1",
+										"salaries",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Salary Documents",
+					"item": [
+						{
+							"name": "Upload Documents",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "document",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/salaries/1/documents",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"documents"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Document",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/salaries/1/documents/document.pdf",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"documents",
+										"document.pdf"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Salary Details",
+					"item": [
+						{
+							"name": "Create Salary Detail",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"component_name\": \"Tunjangan Transport\",\n  \"amount\": 500000,\n  \"type\": \"addition\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/salaries/1/details",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"details"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Salary Detail",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/salaries/1/details",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"details"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Salary Detail",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"component_name\": \"Tunjangan Transport Updated\",\n  \"amount\": 600000,\n  \"type\": \"addition\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/salaries/1/details/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"details",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Salary Detail",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/salaries/1/details/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"details",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Kasbon",
+					"item": [
+						{
+							"name": "Create Kasbon",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 1000000,\n  \"description\": \"Pinjaman untuk keperluan keluarga\",\n  \"due_date\": \"2024-02-01\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/salaries/1/kasbons",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"kasbons"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Kasbons by Salary",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/salaries/1/kasbons",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"salaries",
+										"1",
+										"kasbons"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Kasbon",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 1200000,\n  \"description\": \"Pinjaman untuk keperluan keluarga updated\",\n  \"due_date\": \"2024-02-15\",\n  \"status\": \"paid\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/kasbons/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"kasbons",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Kasbon",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/kasbons/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"kasbons",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "📊 Activities",
+			"item": [
+				{
+					"name": "Get Recent Activities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🏗️ Project Management",
+			"item": [
+				{
+					"name": "Create Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Website E-Commerce\",\n  \"description\": \"Pengembangan website e-commerce untuk client\",\n  \"start_date\": \"2024-01-01\",\n  \"end_date\": \"2024-03-31\",\n  \"budget\": 50000000,\n  \"status\": \"in_progress\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/projects",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Projects",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/projects",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/projects/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project Count",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/projects/count",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"count"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Project",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Website E-Commerce Updated\",\n  \"description\": \"Pengembangan website e-commerce untuk client updated\",\n  \"start_date\": \"2024-01-01\",\n  \"end_date\": \"2024-04-30\",\n  \"budget\": 60000000,\n  \"status\": \"completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/projects/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Project",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/projects/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-extract token from login response",
+					"if (pm.response.code === 200) {",
+					"    const response = pm.response.json();",
+					"    if (response.data && response.data.token) {",
+					"        pm.environment.set('token', response.data.token);",
+					"        console.log('Token extracted and saved');",
+					"    }",
+					"}"
+				]
+			}
+		}
+	]
+} 

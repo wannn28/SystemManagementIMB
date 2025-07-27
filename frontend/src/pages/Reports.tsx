@@ -3,7 +3,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, Responsi
 
 import { Project } from '../types/BasicTypes';
 import EditReports from './EditReportForm';
-import axios from 'axios';
+import { projectsAPI } from '../api';
 interface ReportsProps {
   isCollapsed: boolean;
 }
@@ -294,10 +294,6 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
     </ResponsiveContainer>
   );
 };
-interface ApiResponse {
-  data: Project[];
-  status: number;
-}
 
 const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
@@ -401,18 +397,10 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get<ApiResponse>(`${import.meta.env.VITE_API_URL}/projects`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          }
-        });
-        if (response.data.status === 200) {
-          setProjects(response.data.data);
-        }
+        const data = await projectsAPI.getAllProjects();
+        setProjects(data);
       } catch (err) {
-        // setError('Gagal memuat data projek');
-      } finally {
-        // setLoading(false);
+        console.error('Gagal memuat data projek:', err);
       }
     };
 
@@ -421,11 +409,7 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const handleSaveProject = async (updatedProject: Project) => {
     console.log(updatedProject)
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/projects/${updatedProject.id}`, updatedProject, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
+      await projectsAPI.updateProject(updatedProject.id, updatedProject);
       setProjects(prev =>
         prev.map(p => p.id === updatedProject.id ? updatedProject : p)
       );

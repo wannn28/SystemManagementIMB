@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios'; // Import axios
+import { teamAPI } from '../api';
 import { teamMembers } from '../types/teamMembersData';
 
 import { Member, SalaryDetail, Kasbon } from '../types/BasicTypes';
@@ -44,35 +44,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   // const [salaryDetails, setSalaryDetails] = useState<SalaryDetail[]>([]);
   // const [kasbonDetails, setKasbonDetails] = useState<Kasbon[]>([]);
-  // Di dalam komponen Team.tsx
-  // Di fungsi fetchSalaryDetails:
-  const fetchSalaryDetails = async (salaryId: string) => {
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      return response.data.data || [];
-    } catch (error) {
-      console.error("Error fetching salary details:", error);
-      return [];
-    }
-  };
 
-  const fetchKasbons = async (salaryId: string) => {
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      return response.data.data || [];
-    } catch (error) {
-      console.error("Error fetching kasbons:", error);
-      return [];
-    }
-  };
   const handleAddSalaryDetail = async (salaryId: number, newData: SalaryDetail) => {
     const tempId = Date.now().toString(); // ID sementara
     setSelectedMember(prev => {
@@ -89,16 +61,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     });
     try {
       // Kirim permintaan POST ke backend
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details`,
-        { ...newData, tanggal: new Date(newData.tanggal).toISOString() },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
+      const response = await teamAPI.salaryDetails.create(salaryId.toString(), newData);
 
       // Fetch ulang detail salary dari backend
       setSelectedMember(prev => {
@@ -109,7 +72,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             salary.id === salaryId ? {
               ...salary,
               details: salary.details?.map(detail =>
-                detail.id === tempId ? response.data.data : detail
+                detail.id === tempId ? response : detail
               )
             } : salary
           )
@@ -123,21 +86,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleAddKasbon = async (salaryId: number, newData: Kasbon) => {
     try {
       // Kirim permintaan POST ke backend
-      await axios.post(
-        `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`,
-        {
-          ...newData,
-          tanggal: new Date(newData.tanggal).toISOString()
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
+      await teamAPI.kasbons.create(salaryId.toString(), newData);
 
       // Fetch ulang kasbon dari backend
-      const updatedKasbons = await fetchKasbons(String(salaryId));
+      const updatedKasbons = await teamAPI.kasbons.getBySalaryId(String(salaryId));
 
       // Perbarui state dengan data terbaru
       setSelectedMember(prev => {
@@ -160,24 +112,13 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleUpdateSalaryDetail = async (salaryId: string, id: string, updatedData: SalaryDetail) => {
     try {
       // 1. Kirim PUT request
-      const response = await axios.put(
-        `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details/${id}`,
-        {
-          ...updatedData,
-          tanggal: new Date(updatedData.tanggal).toISOString(),
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
+      const response = await teamAPI.salaryDetails.update(salaryId, id, updatedData);
   
       // 2. Konversi ID ke string dan format tanggal
       const updatedDetail = {
-        ...response.data.data,
-        id: String(response.data.data.id), // Konversi ID number ke string
-        tanggal: new Date(response.data.data.tanggal).toISOString() // Pastikan format tanggal konsisten
+        ...response,
+        id: String(response.id), // Konversi ID number ke string
+        tanggal: new Date(response.tanggal).toISOString() // Pastikan format tanggal konsisten
       };
       console.log(updatedDetail)
       // 3. Update state dengan data yang sudah dikonversi
@@ -209,14 +150,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     try {
       // Kirim permintaan DELETE ke backend
-      await axios.delete(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await teamAPI.salaryDetails.delete(salaryId, id);
 
       // Fetch ulang detail salary dari backend
-      const updatedDetails = await fetchSalaryDetails(salaryId);
+      const updatedDetails = await teamAPI.salaryDetails.getBySalaryId(salaryId);
 
       // Perbarui state dengan data terbaru
       setSelectedMember(prev => {
@@ -241,25 +178,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleEditKasbon = async (salaryId: string, id: string, updatedData: Kasbon) => {
     try {
       // Kirim permintaan PUT ke backend
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/kasbons/${id}`,
-        {
-          ...updatedData,
-          tanggal: new Date(updatedData.tanggal).toISOString()
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
+      await teamAPI.kasbons.update(id, updatedData);
 
       // Jika ada salaryId, fetch ulang kasbon
       if (selectedMember) {
         const updatedSalaries = await Promise.all(
           selectedMember.salaries.map(async (salary) => ({
             ...salary,
-            kasbons: await fetchKasbons(salaryId)
+            kasbons: await teamAPI.kasbons.getBySalaryId(salaryId)
           }))
         );
         setSelectedMember({ ...selectedMember, salaries: updatedSalaries });
@@ -272,18 +198,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDeleteKasbon = async (salaryId: string, id: string) => {
     try {
       // Kirim permintaan DELETE ke backend
-      await axios.delete(`${import.meta.env.VITE_API_URL}/kasbons/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await teamAPI.kasbons.delete(id);
 
       // Jika ada salaryId, fetch ulang kasbon
       if (selectedMember) {
         const updatedSalaries = await Promise.all(
           selectedMember.salaries.map(async (salary) => ({
             ...salary,
-            kasbons: await fetchKasbons(salaryId)
+            kasbons: await teamAPI.kasbons.getBySalaryId(salaryId)
           }))
         );
         setSelectedMember({ ...selectedMember, salaries: updatedSalaries });
@@ -311,12 +233,8 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchTeamMembers = async () => {
       try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/members`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          }
-        });
-        const membersWithSalaries = response.data.data.map((member: any) => ({
+        const members = await teamAPI.members.getAll();
+        const membersWithSalaries = members.map((member: any) => ({
           ...member,
           // Pastikan salaries selalu array
           salaries: Array.isArray(member.salaries) ? member.salaries : []
@@ -332,30 +250,8 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   const handleCreateMember = async (memberData: Omit<Member, 'id' | 'profileImage'>, profileImageFile?: File) => {
     try {
-      // 1. Create member tanpa gambar
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/members`, memberData, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      const newMember = response.data.data;
-
-      // 2. Upload gambar profil jika ada
-      if (profileImageFile) {
-        const formData = new FormData();
-        formData.append('file', profileImageFile);
-
-        await axios.post(
-            `${import.meta.env.VITE_API_URL}/members/${newMember.id}/profile`,
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-            }
-          }
-        );
-      }
+      // Create member dengan gambar profil jika ada
+      const newMember = await teamAPI.members.create(memberData, profileImageFile);
 
       setTeamMembersData(prev => [...prev, newMember]);
       setIsAddMemberModal(false); // Tutup modal
@@ -366,18 +262,9 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   const handleUpdateMember = async (updatedMember: Member) => {
     try {
-      // 1. Update data member (tanpa file)
-      const memberResponse = await axios.put(
-        `${import.meta.env.VITE_API_URL}/members/${updatedMember.id}`,
-        updatedMember,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          }
-        }
-      );
-      const newData = memberResponse.data.data;
-      // 2. Jika ada gambar profil baru, upload terpisah
+      // Update data member
+      const newData = await teamAPI.members.update(updatedMember.id, updatedMember);
+      
       // Update main state
       setTeamMembersData(prev =>
         prev.map(member => member.id === newData.id ? newData : member)
@@ -389,12 +276,6 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         setEditFormData(newData);
       }
 
-      // 3. Perbarui state dengan data terbaru
-      setTeamMembersData(prev =>
-        prev.map(member =>
-          member.id === updatedMember.id ? memberResponse.data.data : member
-        )
-      );
       setIsEditMode(false);
     } catch (error) {
       console.error("Error updating member:", error);
@@ -402,30 +283,18 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   };
   const handleProfileImageChange = async (memberId: string, file: File) => {
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-  
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/members/${memberId}/profile`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
+      const response = await teamAPI.members.uploadProfileImage(memberId, file);
   
       // Perbarui kedua state
       const updatedMember = { 
         ...selectedMember!, 
-        profileImage: response.data.fileName 
+        profileImage: response.fileName 
       };
       
       setSelectedMember(updatedMember);
       setEditFormData(updatedMember); // <-- Tambahkan ini
   
-      return response.data;
+      return response;
     } catch (error) {
       console.error("Error uploading profile image:", error);
     }
@@ -433,51 +302,31 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   const handleDocumentUpload = async (memberId: string, files: File[]) => {
     try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("files", file); // Gunakan key "files" untuk semua file
-      });
-
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/members/${memberId}/documents`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-          }
-        }
-      );
+      const uploadedFiles = await teamAPI.members.uploadDocuments(memberId, files);
+      
       setTeamMembersData(prev =>
         prev.map(member =>
           member.id === memberId
-            ? { ...member, documents: [...member.documents, ...response.data] }
+            ? { ...member, documents: [...member.documents, ...uploadedFiles] }
             : member
         )
       );
 
       if (selectedMember?.id === memberId) {
-        setSelectedMember(prev => prev !== null ? { ...prev, documents: [...prev.documents, ...response.data] } : prev);
+        setSelectedMember(prev => prev !== null ? { ...prev, documents: [...prev.documents, ...uploadedFiles] } : prev);
       }
-      // const newDocuments = response.data;
-      return response.data; // Pastikan backend mengembalikan array nama file
+      
+      return uploadedFiles; // Pastikan backend mengembalikan array nama file
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Axios Error:", error.response?.data); // Tampilkan detail error dari backend
-      } else {
-        console.error("Unexpected Error:", error);
-      }
+      console.error("Error uploading documents:", error);
       return [];
     }
   };
   // Fungsi untuk menghapus anggota
   const handleDeleteMember = async (id: string) => {
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/members/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
+      await teamAPI.members.delete(id);
+      
       // Perbarui state dengan menghapus member
       setTeamMembersData(prev => prev.filter(member => member.id !== id));
 
@@ -536,28 +385,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         gross_salary: newSalaryAmount,
         status: newStatus
       };
+      
+      // 2. Upload dokumen jika ada
       if (newSalaryImages.length > 0) {
-        const formData = new FormData();
-        newSalaryImages.forEach(file => formData.append("files", file));
-        await axios.post(
-          `${import.meta.env.VITE_API_URL}/salaries/${salaryToUpdate.id}/documents`,
-          formData
-        );
+        await teamAPI.salaries.uploadDocuments(String(salaryToUpdate.id), newSalaryImages);
       }
 
-      // 2. Kirim PUT request dan dapatkan respons langsung
-      const putResponse = await axios.put(
-        `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/salaries/${salaryId}`,
-        updatedSalary,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-
-      // 3. Dapatkan data terupdate dari respons PUT
-      const updatedSalaryData = putResponse.data.data;
+      // 3. Update data gaji
+      const updatedSalaryData = await teamAPI.salaries.update(selectedMember.id, String(salaryId), updatedSalary);
 
       const existingSalary = selectedMember.salaries[editingSalaryIndex];
       const mergedSalary = {
@@ -609,22 +444,11 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDeleteSalary = async (salaryId: string) => {
     if (!selectedMember) return;
     const prevState = [...teamMembersData];
-    setTeamMembersData(prev =>
-      prev.map(member =>
-        member.id === selectedMember?.id ?
-          { ...member, salaries: member.salaries.filter(s => s.id !== salaryId) } :
-          member
-      )
-    );
+    
     try {
-      await axios.delete(
-          `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/salaries/${salaryId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      }
-      );
-
+      // Delete salary using API
+      await teamAPI.salaries.delete(selectedMember.id, salaryId);
+      
       // Update state
       setTeamMembersData(prev =>
         prev.map(member =>
@@ -656,21 +480,9 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   //     const formData = new FormData();
   //     files.forEach(file => formData.append("files", file));
 
-  //     const response = await axios.post(
-  //       `http://localhost:8080/members/${memberId}/salaries`,
-  //       formData,
-  //       { headers: { "Content-Type": "multipart/form-data" } }
-  //     );
 
-  //     return response.data.files; // Return array nama file
-  //   } catch (error) {
-  //     console.error("Error uploading salary documents:", error);
-  //     return [];
-  //   }
-  // };
 
   const handleNewSalarySubmit = async (e: React.FormEvent) => {
-    // console.log('tesadas')
     e.preventDefault();
     if (!selectedMember) return;
 
@@ -686,38 +498,19 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       };
 
       // 2. POST to create salary
-      const salaryResponse = await axios.post(
-        `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/salaries`,
-        newSalaryData, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      }
-      );
-      const newSalary = salaryResponse.data.data;
+      const newSalary = await teamAPI.salaries.create(selectedMember.id, newSalaryData);
 
-      // console.log(newSalaryImages)
       // 3. Jika ada dokumen, upload setelah salary dibuat
       if (newSalaryImages.length > 0) {
-        const salaryId = salaryResponse.data.data.id;
-        const formData = new FormData();
-        newSalaryImages.forEach(file => formData.append("files", file));
-
-        await axios.post(
-          `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/documents`,
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-              'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-            }
-          }
-        );
+        const salaryId = newSalary.id;
+        await teamAPI.salaries.uploadDocuments(String(salaryId), newSalaryImages);
       }
+
+      // Update team members data
       setTeamMembersData(prev =>
         prev.map(member =>
           member.id === selectedMember.id
-            ? { ...member, salaries: [...member.salaries, salaryResponse.data.data] }
+            ? { ...member, salaries: [...member.salaries, newSalary] }
             : member
         )
       );
@@ -749,19 +542,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
     try {
       // Ambil data gaji member
-      const salariesResponse = await axios.get(`${import.meta.env.VITE_API_URL}/members/${member.id}/salaries`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      });
-      const salaries = salariesResponse.data.data || [];
+      const salaries = await teamAPI.salaries.getByMemberId(member.id);
 
       // Ambil details dan kasbon untuk setiap salary
       const salariesWithDetails = await Promise.all(
         salaries.map(async (salary: any) => ({
           ...salary,
-          details: await fetchSalaryDetails(salary.id),
-          kasbons: await fetchKasbons(salary.id)
+          details: await teamAPI.salaryDetails.getBySalaryId(salary.id),
+          kasbons: await teamAPI.kasbons.getBySalaryId(salary.id)
         }))
       );
 
@@ -782,11 +570,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     if (!selectedMember) return;
   
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/documents/${fileName}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await teamAPI.members.deleteDocument(selectedMember.id, fileName);
   
       // Update state
       const updatedDocuments = selectedMember.documents.filter(name => name !== fileName);
@@ -809,11 +593,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     if (!selectedMember) return;
   
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/documents/${fileName}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await teamAPI.salaries.deleteDocument(salaryId, fileName);
   
       // Update state dengan benar
       const updatedSalaries = selectedMember.salaries.map(salary => {
@@ -850,13 +630,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
     try {
       const fileName = selectedMember.documents[docIndex][fileIndex];
-      await axios.delete(
-              `${import.meta.env.VITE_API_URL}/members/${selectedMember.id}/documents/${fileName}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-        }
-      }
-      );
+      await teamAPI.members.deleteDocument(selectedMember.id, fileName);
 
       // Update state
       const updatedDocuments = [...selectedMember.documents];

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { financeAPI } from '../api';
 import React, { useState, useMemo, useEffect } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import FinancePDFExportButton from '../component/FinancePDFExportButton'
@@ -102,7 +102,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         unit: '',
         hargaPerUnit: '',
         keterangan: '',
-        category: 'Other',
+        category: 'Other' as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon',
         status: 'Paid' as 'Unpaid' | 'Paid'
     });
 
@@ -129,23 +129,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
     const fetchData = async () => {
         try {
-            const [incomeRes, expenseRes] = await Promise.all([
-                axios.get(`${import.meta.env.VITE_API_URL}/finance?type=income`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-                    }
-                }),
-                axios.get(`${import.meta.env.VITE_API_URL}/finance?type=expense`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-                        }
-                    }
-                )
+            const [incomeData, expenseData] = await Promise.all([
+                financeAPI.getFinanceByType('income'),
+                financeAPI.getFinanceByType('expense')
             ]);
 
-            setIncomeData(incomeRes.data?.data || []);
-            setExpenseData(expenseRes.data?.data || []);
+            setIncomeData(incomeData);
+            setExpenseData(expenseData);
         } catch (error) {
             console.error('Error fetching data:', error);
         }
@@ -154,19 +144,15 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     // Edit handlers
     const handleEdit = async (id: number, type: 'income' | 'expense') => {
         try {
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/finance/${id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-                }
-            });
-            const rawDate = response.data.data.tanggal;
+            const financeEntry = await financeAPI.getFinanceById(id);
+            const rawDate = financeEntry.tanggal;
             const formattedDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
 
             setEditMode({
                 id,
                 type,
                 data: {
-                    ...response.data.data,
+                    ...financeEntry,
                     tanggal: formattedDate,
                 }
             });
@@ -178,14 +164,9 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const handleSaveEdit = async () => {
         if (editMode.id && editMode.type) {
             try {
-                // ambil dari env
-                await axios.put(`${import.meta.env.VITE_API_URL}/finance/${editMode.id}`, {
+                await financeAPI.updateFinance(editMode.id, {
                     ...editMode.data,
                     type: editMode.type,
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-                    }
                 });
                 fetchData();
                 setEditMode({ id: null, type: null, data: {} });
@@ -197,11 +178,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
     const handleDelete = async (id: number) => {
         try {
-            await axios.delete(`${import.meta.env.VITE_API_URL}/finance/${id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-                }
-            });
+            await financeAPI.deleteFinance(id);
             fetchData();
         } catch (error) {
             console.error('Error deleting entry:', error);
@@ -212,19 +189,25 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const handleAddEntry = async (e: React.FormEvent, type: 'income' | 'expense') => {
         e.preventDefault();
         try {
-            const newEntryData = {
-                ...newEntry,
+            const newEntryData: Partial<FinanceEntry> = {
+                tanggal: newEntry.tanggal,
                 unit: Number(newEntry.unit),
                 hargaPerUnit: Number(newEntry.hargaPerUnit),
+                keterangan: newEntry.keterangan,
+                category: newEntry.category,
+                status: newEntry.status,
                 type: type
             };
 
-            await axios.post(`${import.meta.env.VITE_API_URL}/finance`, newEntryData, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Tambahkan header Authorization
-                }
+            await financeAPI.createFinance(newEntryData);
+            setNewEntry({ 
+                tanggal: '', 
+                unit: '', 
+                hargaPerUnit: '', 
+                keterangan: '', 
+                category: 'Other' as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon', 
+                status: 'Paid' as 'Unpaid' | 'Paid' 
             });
-            setNewEntry({ tanggal: '', unit: '', hargaPerUnit: '', keterangan: '', category: 'Other', status: 'Paid' });
             fetchData();
         } catch (error) {
             console.error(`Error adding ${type}:`, error);
@@ -543,7 +526,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             />
                             <select
                                 value={newEntry.category}
-                                onChange={(e) => setNewEntry({ ...newEntry, category: e.target.value })}
+                                onChange={(e) => setNewEntry({ ...newEntry, category: e.target.value as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon' })}
                                 className="border p-2 rounded"
                                 required
                             >

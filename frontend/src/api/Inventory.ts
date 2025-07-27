@@ -1,38 +1,104 @@
 import axios from 'axios';
-import { TableHeader } from '../types/BasicTypes';
-// ambil dari env
-const API_URL = import.meta.env.VITE_API_URL + '/inventory';
+import { InventoryCategory, InventoryData } from '../types/BasicTypes';
 
-interface InventoryCategory {
-  id: string;
-  title: string;
-  description: string;
-  headers: TableHeader[];
-}
-
-interface InventoryData {
-  id: string;
-  categoryId: string;
-  values: Record<string, any>;
-}
-
-export const inventoryAPI = {
-  // Kategori
-  getCategories: async (): Promise<InventoryCategory[]> => {
-    const response = await axios.get(`${API_URL}/categories`);
-    return response.data;
-  },
-
-  getCategory: async (id: string): Promise<InventoryCategory> => {
-    const response = await axios.get(`${API_URL}/categories/${id}`);
-    return response.data;
-  },
-
-  // Data
-  getCategoryData: async (categoryId: string): Promise<InventoryData[]> => {
-    const response = await axios.get(`${API_URL}/categories/${categoryId}/data`);
-    return response.data;
+const inventoryAPI = {
+  categories: {
+    getAll: async (): Promise<InventoryCategory[]> => {
+      const response = await axios.get('/api/inventory/categories', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      // Pastikan data yang dikembalikan adalah array
+      const data = response.data && Array.isArray(response.data) ? response.data : 
+                  (response.data && Array.isArray(response.data.data) ? response.data.data : []);
+      return data;
+    },
+    
+    create: async (categoryData: Omit<InventoryCategory, 'id'>): Promise<InventoryCategory> => {
+      const response = await axios.post('/api/inventory/categories', categoryData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    },
+    
+    update: async (id: string, categoryData: Partial<InventoryCategory>): Promise<InventoryCategory> => {
+      const response = await axios.put(`/api/inventory/categories/${id}`, categoryData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    },
+    
+    delete: async (id: string): Promise<void> => {
+      await axios.delete(`/api/inventory/categories/${id}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+    },
   },
   
-  // Fungsi lainnya untuk create/update/delete...
+  data: {
+    getAll: async (): Promise<InventoryData[]> => {
+      const response = await axios.get('/api/inventory/data', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    },
+    
+    getByCategory: async (categoryId: string): Promise<InventoryData[]> => {
+      const response = await axios.get(`/api/inventory/data/category/${categoryId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    },
+    
+    create: async (inventoryData: FormData): Promise<InventoryData> => {
+      const response = await axios.post('/api/inventory/data', inventoryData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+    
+    update: async (id: string, inventoryData: FormData): Promise<InventoryData> => {
+      const response = await axios.put(`/api/inventory/data/${id}`, inventoryData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+    
+    delete: async (id: string): Promise<void> => {
+      await axios.delete(`/api/inventory/data/${id}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+    },
+  },
+  
+  images: {
+    deleteImage: async (dataId: string, imageName: string): Promise<void> => {
+      await axios.delete(`/api/inventory/data/${dataId}/images/${imageName}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+    },
+  },
 };
+
+export default inventoryAPI;
