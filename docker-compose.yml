@@ -7,7 +7,7 @@ services:
     container_name: project-backend2
     restart: always
     ports:
-      - "8080:8080"
+      - "8001:8001"
     depends_on:
       - db
     environment:
@@ -16,9 +16,9 @@ services:
       DB_USER: ridwan
       DB_PASSWORD: Iwandila123.
       DB_NAME: imbbackend
-      PORT: 8080
+      PORT: 8001
       UPLOAD_DIR: ./uploads
-      BASE_URL: http://localhost:8080
+      BASE_URL: http://localhost:8001
       JWT_SECRET: "In13dkofe31DAse"
       JWT_EXPIRY: 24h
 
@@ -36,7 +36,7 @@ services:
     container_name: project-db
     restart: always
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       MYSQL_DATABASE: imbbackend
       MYSQL_ROOT_PASSWORD: Iwandila123
