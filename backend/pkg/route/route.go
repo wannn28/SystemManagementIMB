@@ -14,10 +14,10 @@ func RegisterRoutes(e *echo.Echo, userService service.UserService, config config
 	userHandler := http.NewUserHandler(userService)
 
 	// Public routes
-	e.POST("/login", authHandler.Login)
+	e.POST("/api/login", authHandler.Login)
 
 	// Admin protected routes
-	adminGroup := e.Group("/admin")
+	adminGroup := e.Group("/api/admin")
 	adminGroup.Use(middleware.AdminAuth(config))
 
 	adminGroup.POST("/users", userHandler.CreateUser)

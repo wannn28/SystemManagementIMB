@@ -46,11 +46,12 @@
 							"raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/login",
+							"raw": "{{base_url}}/api/login",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"login"
 							]
 						}
@@ -77,11 +78,12 @@
 							"raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"admin\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/admin/users",
+							"raw": "{{base_url}}/api/admin/users",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"admin",
 								"users"
 							]
@@ -95,11 +97,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/admin/users",
+							"raw": "{{base_url}}/api/admin/users",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"admin",
 								"users"
 							]
@@ -113,11 +116,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/admin/users/1",
+							"raw": "{{base_url}}/api/admin/users/1",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"admin",
 								"users",
 								"1"
@@ -193,11 +197,12 @@
 							"raw": "{\n  \"date\": \"2024-01-15\",\n  \"description\": \"Pembayaran proyek\",\n  \"amount\": 5000000,\n  \"type\": \"income\",\n  \"category\": \"project_payment\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/finance",
+							"raw": "{{base_url}}/api/finance",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"finance"
 							]
 						}
@@ -210,11 +215,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/finance",
+							"raw": "{{base_url}}/api/finance",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"finance"
 							]
 						}
@@ -227,11 +233,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/finance/1",
+							"raw": "{{base_url}}/api/finance/1",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"finance",
 								"1"
 							]
@@ -290,11 +297,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/finance/summary",
+							"raw": "{{base_url}}/api/finance/summary",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"finance",
 								"summary"
 							]
@@ -308,11 +316,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/finance/monthly",
+							"raw": "{{base_url}}/api/finance/monthly",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"finance",
 								"monthly"
 							]
@@ -632,11 +641,12 @@
 									"raw": "{\n  \"name\": \"Ahmad Rizki\",\n  \"email\": \"ahmad@example.com\",\n  \"phone\": \"081234567890\",\n  \"address\": \"Jl. Sudirman No. 123\",\n  \"position\": \"Developer\",\n  \"join_date\": \"2024-01-01\",\n  \"salary\": 5000000\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/members",
+									"raw": "{{base_url}}/api/members",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"members"
 									]
 								}
@@ -649,14 +659,15 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/members",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"members"
-									]
-								}
+								"raw": "{{base_url}}/api/members",
+								"host": [
+									"{{base_url}}"
+								],
+								"path": [
+									"api",
+									"members"
+								]
+							}
 							},
 							"response": []
 						},
@@ -666,15 +677,16 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/members/count",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"members",
-										"count"
-									]
-								}
+								"raw": "{{base_url}}/api/members/count",
+								"host": [
+									"{{base_url}}"
+								],
+								"path": [
+									"api",
+									"members",
+									"count"
+								]
+							}
 							},
 							"response": []
 						},
@@ -684,15 +696,16 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/members/1",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"members",
-										"1"
-									]
-								}
+								"raw": "{{base_url}}/api/members/1",
+								"host": [
+									"{{base_url}}"
+								],
+								"path": [
+									"api",
+									"members",
+									"1"
+								]
+							}
 							},
 							"response": []
 						},
@@ -757,11 +770,12 @@
 									]
 								},
 								"url": {
-									"raw": "{{base_url}}/members/1/profile",
+									"raw": "{{base_url}}/api/members/1/profile",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"members",
 										"1",
 										"profile"
@@ -786,11 +800,12 @@
 									]
 								},
 								"url": {
-									"raw": "{{base_url}}/members/1/documents",
+									"raw": "{{base_url}}/api/members/1/documents",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"members",
 										"1",
 										"documents"
@@ -805,11 +820,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/members/1/documents/document.pdf",
+									"raw": "{{base_url}}/api/members/1/documents/document.pdf",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"members",
 										"1",
 										"documents",
@@ -839,11 +855,12 @@
 									"raw": "{\n  \"month\": \"2024-01\",\n  \"basic_salary\": 5000000,\n  \"bonus\": 500000,\n  \"deductions\": 200000,\n  \"total_salary\": 5300000\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/members/1/salaries",
+									"raw": "{{base_url}}/api/members/1/salaries",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"members",
 										"1",
 										"salaries"
@@ -941,11 +958,12 @@
 									]
 								},
 								"url": {
-									"raw": "{{base_url}}/salaries/1/documents",
+									"raw": "{{base_url}}/api/salaries/1/documents",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"salaries",
 										"1",
 										"documents"
@@ -960,11 +978,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/salaries/1/documents/document.pdf",
+									"raw": "{{base_url}}/api/salaries/1/documents/document.pdf",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"salaries",
 										"1",
 										"documents",
@@ -994,11 +1013,12 @@
 									"raw": "{\n  \"component_name\": \"Tunjangan Transport\",\n  \"amount\": 500000,\n  \"type\": \"addition\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/salaries/1/details",
+									"raw": "{{base_url}}/api/salaries/1/details",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"salaries",
 										"1",
 										"details"
@@ -1041,11 +1061,12 @@
 									"raw": "{\n  \"component_name\": \"Tunjangan Transport Updated\",\n  \"amount\": 600000,\n  \"type\": \"addition\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/salaries/1/details/1",
+									"raw": "{{base_url}}/api/salaries/1/details/1",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"salaries",
 										"1",
 										"details",
@@ -1095,11 +1116,12 @@
 									"raw": "{\n  \"amount\": 1000000,\n  \"description\": \"Pinjaman untuk keperluan keluarga\",\n  \"due_date\": \"2024-02-01\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/salaries/1/kasbons",
+									"raw": "{{base_url}}/api/salaries/1/kasbons",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"salaries",
 										"1",
 										"kasbons"
@@ -1142,11 +1164,12 @@
 									"raw": "{\n  \"amount\": 1200000,\n  \"description\": \"Pinjaman untuk keperluan keluarga updated\",\n  \"due_date\": \"2024-02-15\",\n  \"status\": \"paid\"\n}"
 								},
 								"url": {
-									"raw": "{{base_url}}/kasbons/1",
+									"raw": "{{base_url}}/api/kasbons/1",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
+										"api",
 										"kasbons",
 										"1"
 									]
@@ -1185,11 +1208,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/activities",
+							"raw": "{{base_url}}/api/activities",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"activities"
 							]
 						}
@@ -1216,11 +1240,12 @@
 							"raw": "{\n  \"name\": \"Website E-Commerce\",\n  \"description\": \"Pengembangan website e-commerce untuk client\",\n  \"start_date\": \"2024-01-01\",\n  \"end_date\": \"2024-03-31\",\n  \"budget\": 50000000,\n  \"status\": \"in_progress\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/projects",
+							"raw": "{{base_url}}/api/projects",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"projects"
 							]
 						}
@@ -1250,11 +1275,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/projects/1",
+							"raw": "{{base_url}}/api/projects/1",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"projects",
 								"1"
 							]
@@ -1268,11 +1294,12 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/projects/count",
+							"raw": "{{base_url}}/api/projects/count",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
 								"projects",
 								"count"
 							]
@@ -1346,4 +1373,4 @@
 			}
 		}
 	]
-} 
+}

@@ -11,7 +11,7 @@ import (
 
 func RegisterFinanceRoutes(e *echo.Echo, financeService service.FinanceService, config config.Config, activityService service.ActivityService) {
 	handler := http.NewFinanceHandler(financeService, activityService)
-	g := e.Group("/finance")
+	g := e.Group("/api/finance")
 	g.Use(middleware.AdminAuth(config))
 	g.POST("", handler.CreateFinance)
 	g.GET("", handler.GetAllFinance)

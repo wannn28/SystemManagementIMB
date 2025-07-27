@@ -23,6 +23,9 @@ axios.interceptors.response.use(
 // Base API URL
 export const API_BASE_URL = (import.meta as any).env.VITE_API_URL;
 
+// Konfigurasi default axios
+axios.defaults.baseURL = API_BASE_URL;
+
 // Helper function to handle API responses
 export const handleApiResponse = (response: any) => {
   return response.data.data || response.data;

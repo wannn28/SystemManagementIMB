@@ -11,7 +11,7 @@ import (
 
 func RegisterProjectRoutes(e *echo.Echo, projectService service.ProjectService, config config.Config, activityService service.ActivityService) {
 	handler := http.NewProjectHandler(projectService, activityService)
-	g := e.Group("/projects")
+	g := e.Group("/api/projects")
 	g.Use(middleware.AdminAuth(config))
 
 	g.POST("", handler.CreateProject)
