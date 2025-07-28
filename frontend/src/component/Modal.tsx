@@ -7,7 +7,7 @@ interface AddCategoryModalProps {
 }
 
 export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ setShow, handleAddItem }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+  <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
     <div className="bg-white p-6 rounded-xl w-96">
       <h3 className="text-xl font-bold mb-4">Tambah Kategori Baru</h3>
       <input type="text" placeholder="Judul" className="w-full mb-3 p-2 border rounded" />
@@ -27,7 +27,7 @@ interface EditCategoryModalProps {
 }
 
 export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({ setShow, editingItem, setEditingItem }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+  <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
     <div className="bg-white p-6 rounded-xl w-96">
       <h3 className="text-xl font-bold mb-4">Edit Kategori</h3>
       <input type="text" placeholder="Judul" className="w-full mb-3 p-2 border rounded" value={editingItem?.title} onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })} />
@@ -47,7 +47,7 @@ interface AddDataModalProps {
 }
 
 export const AddDataModal: React.FC<AddDataModalProps> = ({ setShow, handleAddNewData, selectedItem }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+  <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
     <div className="bg-white p-6 rounded-xl w-96">
       <h3 className="text-xl font-bold mb-4">Tambah Data Baru</h3>
       {selectedItem.headers.map((header: TableHeader) => (

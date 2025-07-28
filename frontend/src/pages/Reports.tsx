@@ -486,7 +486,7 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
     const volumeData = getVolumeData(project);
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center z-50">
         <div className="bg-white p-6 rounded-lg w-full h-full max-w-9xl max-h-[90vh] flex flex-col">
           <button
             onClick={() => setFullscreenChart(null)}

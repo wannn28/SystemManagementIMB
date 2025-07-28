@@ -87,7 +87,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const renderDailyForm = (index: number) => {
         const report = dailyReports[index];
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
                 <div className="bg-white p-6 rounded-lg shadow-lg w-1/2">
                     <h3 className="text-lg font-semibold mb-4">Edit Daily Report</h3>
                     <form>
@@ -189,7 +189,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const renderWeeklyForm = (index: number) => {
         const report = weeklyReports[index];
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
                 <div className="bg-white p-6 rounded-lg shadow-lg w-1/2">
                     <h3 className="text-lg font-semibold mb-4">Edit Weekly Report</h3>
                     <form>
@@ -276,7 +276,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const renderMonthlyForm = (index: number) => {
         const report = monthlyReports[index];
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
                 <div className="bg-white p-6 rounded-lg shadow-lg w-1/2">
                     <h3 className="text-lg font-semibold mb-4">Edit Monthly Report</h3>
                     <form>

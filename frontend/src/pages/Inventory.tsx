@@ -428,7 +428,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
         {/* Modal Add/Edit Category */}
         {showAddModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
             <div className="bg-white p-6 rounded-xl w-96 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">
                 {editingCategory ? 'Edit Kategori' : 'Tambah Kategori Baru'}
@@ -530,7 +530,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
         {/* Modal Add/Edit Data */}
         {(showAddDataModal || editingData) && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
             <div className="bg-white p-6 rounded-xl w-96 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">
                 {editingData ? 'Edit Data' : 'Tambah Data Baru'}
@@ -631,7 +631,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         )}
 
         {selectedImage && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
             <div className="bg-white p-6 rounded-xl max-w-[90vw] max-h-[90vh] overflow-auto">
               <img
                 src={selectedImage}

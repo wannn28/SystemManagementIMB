@@ -767,7 +767,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           </button>
         </div>
         {isAddMemberModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-white-800 bg-opacity-30 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
               <h3 className="text-xl font-semibold mb-4">Add New Member</h3>
               <form onSubmit={(e) => {
@@ -1053,7 +1053,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         )}
 
         {selectedMember && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-white-800 bg-opacity-30 flex items-center justify-center p-4 backdrop-blur-sm z-50">
             <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Member Details</h3>
@@ -1288,7 +1288,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                 )}
                 <AddButtonCategory text='Tambah Bulan' setShowModal={handleModalNewSalary}></AddButtonCategory>
                 {newModalSalary && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                  <div className="fixed inset-0 bg-white-800 bg-opacity-30 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                       <form onSubmit={handleNewSalarySubmit} className="mt-4 space-y-4">
                         {/* Input Nama Bulan */}
@@ -1771,7 +1771,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
       {/* Image Modal */}
       {isImageModalOpen && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <img src={selectedImage} alt="Profile" className="w-48 h-48 rounded mb-4" />
             <button onClick={() => setIsImageModalOpen(false)} className="mt-4 px-4 py-2 bg-gray-500 text-white rounded-md">
@@ -1783,7 +1783,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
       {/* Delete Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <h4 className="text-lg font-semibold text-gray-800 mb-4">Are you sure you want to delete this member?</h4>
             <div className="flex justify-end">
