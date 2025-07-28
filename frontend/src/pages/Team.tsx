@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { teamAPI } from '../api';
 import { teamMembers } from '../types/teamMembersData';
 
-import { Member, SalaryDetail, Kasbon } from '../types/BasicTypes';
+import { Member, SalaryDetail, Kasbon, QueryParams, PaginationState } from '../types/BasicTypes';
 import { AddButtonCategory } from '../component/AddButton';
 import { SalaryDetailsTable } from './SalaryDetailsTable';
 import { PDFGeneratorButton } from '../component/PDFGeneratorButton';
 import { IDCardGeneratorButton } from '../component/IDCardGeneratorButton';
+import { PaginatedTable } from '../component/PaginatedTable';
 interface TeamProps {
   isCollapsed: boolean;
 }
@@ -15,6 +16,16 @@ interface TeamProps {
 const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [teamMembersData, setTeamMembersData] = useState<Member[]>([]); // State untuk menyimpan anggota tim
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [pagination, setPagination] = useState<PaginationState>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
+  });
+  const [loading, setLoading] = useState(false);
+  const [showPaginatedView, setShowPaginatedView] = useState(true);
   const [selectedTab, setSelectedTab] = useState('Personal');
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | 'profile'>('profile');
@@ -230,9 +241,19 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       );
     }
   }, [selectedMember]);
-  useEffect(() => {
-    const fetchTeamMembers = async () => {
-      try {
+  const fetchTeamMembers = async (params: QueryParams = { page: 1, limit: 10 }) => {
+    setLoading(true);
+    try {
+      if (showPaginatedView) {
+        const response = await teamAPI.members.getPaginated(params);
+        const membersWithSalaries = response.data.map((member: any) => ({
+          ...member,
+          // Pastikan salaries selalu array
+          salaries: Array.isArray(member.salaries) ? member.salaries : []
+        }));
+        setTeamMembersData(membersWithSalaries);
+        setPagination(response.pagination);
+      } else {
         const members = await teamAPI.members.getAll();
         const membersWithSalaries = members.map((member: any) => ({
           ...member,
@@ -240,13 +261,22 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           salaries: Array.isArray(member.salaries) ? member.salaries : []
         }));
         setTeamMembersData(membersWithSalaries);
-      } catch (error) {
-        console.error('Error fetching team members:', error);
-        setTeamMembersData(teamMembers);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      setTeamMembersData(teamMembers);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQueryChange = (params: QueryParams) => {
+    fetchTeamMembers(params);
+  };
+
+  useEffect(() => {
     fetchTeamMembers();
-  }, []);
+  }, [showPaginatedView]);
 
   const handleCreateMember = async (memberData: Omit<Member, 'id' | 'profileImage'>, profileImageFile?: File) => {
     try {
@@ -859,34 +889,181 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             </div>
           </div>
         )}
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Team</h1>
-        <p className="text-gray-500">Collaborate with your team members.</p>
-
-        <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Team Members</h2>
-
-          <div className="space-y-4">
-            {teamMembersData.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center p-4 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-                onClick={() => handleMemberClick(member)}
-              >
-                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
-                  <span className="text-indigo-600">{member.fullName.charAt(0)}</span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-800">{member.fullName}</p>
-                  <p className="text-sm text-gray-500">{member.role}</p>
-                </div>
-              </div>
-            ))}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Team</h1>
+            <p className="text-gray-500">Collaborate with your team members.</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowPaginatedView(!showPaginatedView)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {showPaginatedView ? 'Simple View' : 'Advanced View'}
+            </button>
+            <AddButtonCategory
+                  text="Add Member"
+                  setShowModal={setIsAddMemberModal}
+                />
           </div>
         </div>
 
-        {selectedMember && (
+        {showPaginatedView ? (
+          <PaginatedTable<Member>
+            data={teamMembersData}
+            pagination={pagination}
+            onQueryChange={handleQueryChange}
+            loading={loading}
+            searchFields={[
+              { key: 'fullName', label: 'Name' },
+              { key: 'role', label: 'Role' },
+              { key: 'phoneNumber', label: 'Phone' }
+            ]}
+            sortFields={[
+              { key: 'id', label: 'ID' },
+              { key: 'fullName', label: 'Name' },
+              { key: 'role', label: 'Role' },
+              { key: 'joinDate', label: 'Join Date' }
+            ]}
+            filterFields={[
+              {
+                key: 'role',
+                label: 'Role',
+                options: [
+                  { value: 'Project Manager', label: 'Project Manager' },
+                  { value: 'Developer', label: 'Developer' },
+                  { value: 'Designer', label: 'Designer' },
+                  { value: 'Analyst', label: 'Analyst' }
+                ]
+              }
+            ]}
+            renderHeader={() => (
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Profile
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Role
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Phone
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Join Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            )}
+            renderRow={(member) => (
+              <tr
+                key={member.id}
+                className="hover:bg-gray-50 cursor-pointer"
+                onClick={() => handleMemberClick(member)}
+              >
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                    {member.profileImage ? (
+                      <img
+                        src={`${import.meta.env.VITE_API_URL}/uploads/${member.profileImage}`}
+                        alt={member.fullName}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-indigo-600 font-medium">
+                        {member.fullName.charAt(0)}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900">
+                    {member.fullName}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-500">
+                    {member.role}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-500">
+                    {member.phoneNumber}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-500">
+                    {new Date(member.joinDate).toLocaleDateString()}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMemberClick(member);
+                    }}
+                    className="text-blue-600 hover:text-blue-900"
+                  >
+                    View Details
+                  </button>
+                </td>
+              </tr>
+            )}
+            className="mt-6"
+          />
+        ) : (
           <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Member Details</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">Team Members</h2>
+              <AddButtonCategory
+                text="Add Member"
+                setShowModal={setIsAddMemberModal}
+              />
+            </div>
+            <div className="space-y-4">
+              {teamMembersData.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center p-4 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
+                  onClick={() => handleMemberClick(member)}
+                >
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
+                    {member.profileImage ? (
+                      <img
+                        src={`${import.meta.env.VITE_API_URL}/uploads/${member.profileImage}`}
+                        alt={member.fullName}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-indigo-600">{member.fullName.charAt(0)}</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">{member.fullName}</p>
+                    <p className="text-sm text-gray-500">{member.role}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedMember && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">Member Details</h3>
+                <button
+                  onClick={() => setSelectedMember(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
             <div className="mb-4">
               <div className="flex space-x-4">
                 <button
@@ -1587,7 +1764,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                 )}
               </div>
             )}
-
+            </div>
           </div>
         )}
       </div>

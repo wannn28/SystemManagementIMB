@@ -105,3 +105,27 @@ export interface FinanceEntry {
   status : 'Paid' | 'Unpaid';
   category: 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon';
 }
+
+// Pagination interfaces
+export interface PaginationState {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface QueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sort?: string;
+  order?: 'ASC' | 'DESC';
+  filter?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: PaginationState;
+}

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Member, SalaryDetail, Kasbon } from '../types/BasicTypes';
+import { getMultipartHeaders } from './config';
 
 const API_URL = import.meta.env.VITE_API_URL + '/members';
 
@@ -50,9 +51,7 @@ export const membersAPI = {
       `${API_URL}/${memberId}/documents`,
       formData,
       {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        }
+        headers: getMultipartHeaders()
       }
     );
     return response.data;

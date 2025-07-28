@@ -179,8 +179,8 @@ const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], tim
                       : String(dateVal); // atau dateVal?.toString() jika dateVal bisa null
                   })()}
                 </p>
-                <p className="text-[#82ca9d]">Volume Plan : {data.plan?.toLocaleString()}</p>
-                <p className="text-[#ff7300]">Volume Aktual: {data.aktual?.toLocaleString()}</p>
+                <p className="text-[#ff7300]">Volume Plan : {data.plan?.toLocaleString()}</p>
+                <p className="text-[#82ca9d]">Volume Aktual: {data.aktual?.toLocaleString()}</p>
 
               </div>
             );
