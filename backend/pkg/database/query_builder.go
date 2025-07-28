@@ -30,7 +30,7 @@ func (qb *QueryBuilder) BuildQuery(params response.QueryParams, searchFields []s
 		searchArgs := make([]interface{}, 0)
 
 		for _, field := range searchFields {
-			searchConditions = append(searchConditions, fmt.Sprintf("%s ILIKE ?", field))
+			searchConditions = append(searchConditions, fmt.Sprintf("%s LIKE ?", field))
 			searchArgs = append(searchArgs, "%"+params.Search+"%")
 		}
 
