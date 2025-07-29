@@ -7,6 +7,9 @@ import App from './App'
 // Import API config to setup axios interceptors
 import './api/config';
 
+// Debug environment variables
+import './debug-env';
+
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
