@@ -20,11 +20,23 @@ func StartServer() {
 	}
 	e := echo.New()
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		// AllowOrigins: []string{"http://localhost:5173"},
-		AllowOrigins: []string{"*"},
-		// AllowOrigins: []string{"https://office.indiramaju.com"},
+		AllowOrigins: []string{
+			"https://office.indiramaju.com",
+			"https://www.office.indiramaju.com",
+			"http://localhost:5173",
+			"http://localhost:3000",
+			"http://localhost:3002",
+		},
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowHeaders: []string{
+			echo.HeaderOrigin,
+			echo.HeaderContentType,
+			echo.HeaderAccept,
+			echo.HeaderAuthorization,
+			"X-Requested-With",
+		},
+		AllowCredentials: true,
+		MaxAge:           86400, // 24 hours
 	}))
 
 	db, err := database.NewMySQLDB(&cfg)
