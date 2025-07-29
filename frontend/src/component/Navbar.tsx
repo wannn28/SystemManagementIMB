@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiHelpCircle, FiLogOut, FiChevronLeft, FiCreditCard } from 'react-icons/fi';
+import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiHelpCircle, FiLogOut, FiChevronLeft, FiCreditCard, FiFileText } from 'react-icons/fi';
 import Logo from '../assets/images/logo.png';
 
 interface NavbarProps {
@@ -17,6 +17,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
     { name: 'Team', icon: <FiUsers />, path: '/team' },
     { name: 'Reports', icon: <FiFlag />, path: '/reports' },
     { name: 'Finance', icon: <FiCreditCard />, path: '/finance' },
+    { name: 'Smart Nota', icon: <FiFileText />, path: '/smart-nota' },
     { name: 'Settings', icon: <FiSettings />, path: '/settings' },
   ];
   const handleLogout = () => {
