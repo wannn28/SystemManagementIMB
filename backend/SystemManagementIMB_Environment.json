@@ -4,7 +4,7 @@
 	"values": [
 		{
 			"key": "base_url",
-			"value": "http://151.106.120.69:8001/api",	
+			"value": "http://151.106.120.69:8002/api",	
 			"type": "default",
 			"enabled": true
 		},

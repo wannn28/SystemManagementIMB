@@ -7,14 +7,14 @@ services:
     container_name: project-backend2
     restart: always
     ports:
-      - "8001:8001"
+      - "8002:8002"
     environment:
       DB_HOST: 151.106.120.69
       DB_PORT: 3306
       DB_USER: ridwan
       DB_PASSWORD: Iwandila123.
       DB_NAME: imbbackend
-      PORT: 8001
+      PORT: 8002
       UPLOAD_DIR: ./uploads
       BASE_URL: https://officeapi.indiramaju.com
       JWT_SECRET: "In13dkofe31DAse"

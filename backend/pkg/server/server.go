@@ -21,11 +21,7 @@ func StartServer() {
 	e := echo.New()
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 		AllowOrigins: []string{
-			"https://office.indiramaju.com",
-			"https://www.office.indiramaju.com",
-			"http://localhost:5173",
-			"http://localhost:3000",
-			"http://localhost:3002",
+			"*",
 		},
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowHeaders: []string{
