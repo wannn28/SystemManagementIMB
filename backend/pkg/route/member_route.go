@@ -45,6 +45,9 @@ func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, sal
 	g.PUT("/:id/salaries/:salaryId", salaryHandler.UpdateSalary)
 	g.DELETE("/:id/salaries/:salaryId", salaryHandler.DeleteSalary)
 
+	// Salary Routes
+	h.GET("/:id", salaryHandler.GetSalaryByID)
+
 	// Salary Document Routes
 	h.POST("/:id/documents", salaryHandler.UploadDocuments)
 	h.DELETE("/:id/documents/:fileName", salaryHandler.DeleteDocument)

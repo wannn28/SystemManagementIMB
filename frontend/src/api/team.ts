@@ -131,6 +131,15 @@ export const teamAPI = {
       return response.data.data || [];
     },
 
+    // Get salary by ID
+    getBySalaryId: async (salaryId: string): Promise<SalaryRecord> => {
+      const response = await axios.get(`${API_URL}/salaries/${salaryId}`, {
+        headers: getAuthHeaders()
+      });
+      
+      return response.data.data;
+    },
+
     // Create new salary
     create: async (memberId: string, salaryData: Partial<SalaryRecord>): Promise<SalaryRecord> => {
       const response = await axios.post(

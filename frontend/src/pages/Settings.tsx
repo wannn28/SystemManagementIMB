@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getSmartNotaApiKey, setSmartNotaApiKey, removeSmartNotaApiKey, SMART_NOTA_BASE_URL } from '../utils/apiKey';
+import { apiKeyApi } from '../api/apiKey';
+import { SMART_NOTA_BASE_URL } from '../utils/apiKey';
 
 interface SettingsProps {
   isCollapsed: boolean;
@@ -11,12 +12,23 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Load API key from localStorage on component mount
+  // Load API key from backend on component mount
   useEffect(() => {
-    const savedApiKey = getSmartNotaApiKey();
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-    }
+    const loadApiKey = async () => {
+      try {
+        const response = await apiKeyApi.getApiKey();
+        setApiKey(response.api_key);
+      } catch (error: any) {
+        // Fallback to localStorage if API fails
+        console.log('No API key found or error loading:', error);
+        const localApiKey = localStorage.getItem('smartNotaApiKey');
+        if (localApiKey) {
+          setApiKey(localApiKey);
+        }
+      }
+    };
+    
+    loadApiKey();
   }, []);
 
   const handleSaveApiKey = async () => {
@@ -30,9 +42,7 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
     }
 
     try {
-      // Temporarily save the API key for validation
       const tempApiKey = apiKey.trim();
-      localStorage.setItem('smartNotaApiKey', tempApiKey);
       
       // Test the API key by making a direct request
       const response = await fetch(`${SMART_NOTA_BASE_URL}/api/api-key/invoices?page=1&limit=1`, {
@@ -43,18 +53,15 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
       });
       
       if (!response.ok) {
-        // Remove the invalid API key
-        localStorage.removeItem('smartNotaApiKey');
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      // If successful, API key is already saved
+      // If validation successful, save to backend
+      await apiKeyApi.saveApiKey(tempApiKey);
       setMessage('API Key berhasil disimpan dan divalidasi!');
       setIsEditing(false);
     } catch (error) {
       console.error('API Key validation failed:', error);
-      // Remove the invalid API key if not already removed
-      localStorage.removeItem('smartNotaApiKey');
       setMessage('API Key tidak valid atau terjadi kesalahan koneksi. Silakan cek kembali.');
     } finally {
       setIsLoading(false);
@@ -66,21 +73,29 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
     setMessage('');
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = async () => {
     setIsEditing(false);
     setMessage('');
     // Restore original value if editing was cancelled
-    const savedApiKey = getSmartNotaApiKey();
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
+    try {
+      const response = await apiKeyApi.getApiKey();
+      setApiKey(response.api_key);
+    } catch (error) {
+      // Fallback to localStorage if API fails
+      const localApiKey = localStorage.getItem('smartNotaApiKey');
+      setApiKey(localApiKey || '');
     }
   };
 
-  const handleClearApiKey = () => {
-    removeSmartNotaApiKey();
-    setApiKey('');
-    setMessage('API Key berhasil dihapus!');
-    setIsEditing(false);
+  const handleClearApiKey = async () => {
+    try {
+      await apiKeyApi.deleteApiKey();
+      setApiKey('');
+      setMessage('API Key berhasil dihapus!');
+      setIsEditing(false);
+    } catch (error) {
+      setMessage('Gagal menghapus API Key!');
+    }
   };
 
   return (
@@ -135,10 +150,14 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
                       )}
                     </button>
                     <button
-                      onClick={() => {
-                        setSmartNotaApiKey(apiKey.trim());
-                        setMessage('API Key berhasil disimpan (tanpa validasi)!');
-                        setIsEditing(false);
+                      onClick={async () => {
+                        try {
+                          await apiKeyApi.saveApiKey(apiKey.trim());
+                          setMessage('API Key berhasil disimpan (tanpa validasi)!');
+                          setIsEditing(false);
+                        } catch (error) {
+                          setMessage('Gagal menyimpan API Key!');
+                        }
                       }}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                     >
@@ -195,7 +214,8 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
               <h3 className="text-sm font-semibold text-blue-800 mb-2">Informasi API Key</h3>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• API Key digunakan untuk mengakses Smart Nota API</li>
-                <li>• Key akan disimpan secara lokal di browser Anda</li>
+                <li>• Key akan disimpan di database dan browser Anda</li>
+                <li>• Key akan tersedia di semua device ketika login</li>
                 <li>• Pastikan key yang dimasukkan valid dan aktif</li>
                 <li>• Untuk mendapatkan API Key, hubungi administrator Smart Nota</li>
               </ul>

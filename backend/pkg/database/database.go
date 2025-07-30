@@ -31,6 +31,7 @@ func NewMySQLDB(config *config.Config) (*gorm.DB, error) {
 		&entity.Member{},
 		&entity.Project{},
 		&entity.Salary{}, // Tambahkan ini
+		&entity.ApiKey{},
 	)
 
 	return db, nil

@@ -73,6 +73,19 @@ func (h *SalaryHandler) GetSalaries(c echo.Context) error {
 	return response.Success(c, http.StatusOK, salaries)
 }
 
+func (h *SalaryHandler) GetSalaryByID(c echo.Context) error {
+	salaryID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, errors.New("invalid salary ID"))
+	}
+
+	salary, err := h.service.GetSalaryByID(uint(salaryID))
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+	return response.Success(c, http.StatusOK, salary)
+}
+
 func (h *SalaryHandler) GetAllSalariesWithPagination(c echo.Context) error {
 	params := response.ParseQueryParams(c)
 	salaries, total, err := h.service.GetAllSalariesWithPagination(params)

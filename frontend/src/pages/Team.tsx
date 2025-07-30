@@ -74,17 +74,21 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // Kirim permintaan POST ke backend
       const response = await teamAPI.salaryDetails.create(salaryId.toString(), newData);
 
-      // Fetch ulang detail salary dari backend
+      // Fetch ulang data salary yang sudah diupdate dari backend
+      const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId.toString());
+      
+      // Fetch ulang details untuk salary ini
+      const updatedDetails = await teamAPI.salaryDetails.getBySalaryId(salaryId.toString());
+      
+      // Update state dengan data salary yang sudah diupdate
       setSelectedMember(prev => {
         if (!prev) return prev;
         return {
           ...prev,
           salaries: prev.salaries.map(salary =>
             salary.id === salaryId ? {
-              ...salary,
-              details: salary.details?.map(detail =>
-                detail.id === tempId ? response : detail
-              )
+              ...updatedSalary,
+              details: updatedDetails
             } : salary
           )
         };
@@ -99,22 +103,25 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // Kirim permintaan POST ke backend
       await teamAPI.kasbons.create(salaryId.toString(), newData);
 
-      // Fetch ulang kasbon dari backend
-      const updatedKasbons = await teamAPI.kasbons.getBySalaryId(String(salaryId));
+      // Fetch ulang data salary yang sudah diupdate dari backend
+      const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId.toString());
+      
+      // Fetch ulang kasbon untuk salary ini
+      const updatedKasbons = await teamAPI.kasbons.getBySalaryId(salaryId.toString());
 
-      // Perbarui state dengan data terbaru
+      // Update state dengan data yang sudah diupdate
       setSelectedMember(prev => {
         if (!prev) return prev;
-        const updatedSalaries = prev.salaries.map(salary => {
-          console.log(salary.id, salaryId)
-          if (salary.id === salaryId) {
-            return { ...salary, kasbons: updatedKasbons };
-          }
-          return salary;
-        });
-        return { ...prev, salaries: updatedSalaries };
+        return {
+          ...prev,
+          salaries: prev.salaries.map(salary =>
+            salary.id === salaryId ? {
+              ...updatedSalary,
+              kasbons: updatedKasbons
+            } : salary
+          )
+        };
       });
-
     } catch (error) {
       console.error("Error adding kasbon:", error);
     }
@@ -125,14 +132,13 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // 1. Kirim PUT request
       const response = await teamAPI.salaryDetails.update(salaryId, id, updatedData);
   
-      // 2. Konversi ID ke string dan format tanggal
-      const updatedDetail = {
-        ...response,
-        id: String(response.id), // Konversi ID number ke string
-        tanggal: new Date(response.tanggal).toISOString() // Pastikan format tanggal konsisten
-      };
-      console.log(updatedDetail)
-      // 3. Update state dengan data yang sudah dikonversi
+      // 2. Fetch ulang data salary yang sudah diupdate dari backend
+      const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId);
+      
+      // 3. Fetch ulang details untuk salary ini
+      const updatedDetails = await teamAPI.salaryDetails.getBySalaryId(salaryId);
+      
+      // 4. Update state dengan data yang sudah diupdate
       setSelectedMember(prev => {
         if (!prev) return prev;
         return {
@@ -141,10 +147,8 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             const salaryId2 = Number(salaryId)
             if (salary.id === salaryId2) {
               return {
-                ...salary,
-                details: salary.details?.map(detail => 
-                  detail.id === id ? updatedDetail : detail
-                ) || [] // Handle undefined details
+                ...updatedSalary,
+                details: updatedDetails
               };
             }
             return salary;
@@ -159,11 +163,17 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   // Team.tsx - Pastikan menghapus berdasarkan ID yang benar
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
+    if (!selectedMember) return;
+    const prevState = [...teamMembersData];
+    
     try {
       // Kirim permintaan DELETE ke backend
       await teamAPI.salaryDetails.delete(salaryId, id);
 
-      // Fetch ulang detail salary dari backend
+      // Fetch ulang data salary yang sudah diupdate dari backend
+      const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId);
+      
+      // Fetch ulang details untuk salary ini
       const updatedDetails = await teamAPI.salaryDetails.getBySalaryId(salaryId);
 
       // Perbarui state dengan data terbaru
@@ -172,7 +182,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         const updatedSalaries = prev.salaries.map(salary => {
           const salaryId2 = Number(salaryId)
           if (salary.id === salaryId2) {
-            return { ...salary, details: updatedDetails };
+            return { 
+              ...updatedSalary, 
+              details: updatedDetails 
+            };
           }
           return salary;
         });
@@ -191,16 +204,25 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // Kirim permintaan PUT ke backend
       await teamAPI.kasbons.update(id, updatedData);
 
-      // Jika ada salaryId, fetch ulang kasbon
-      if (selectedMember) {
-        const updatedSalaries = await Promise.all(
-          selectedMember.salaries.map(async (salary) => ({
-            ...salary,
-            kasbons: await teamAPI.kasbons.getBySalaryId(salaryId)
-          }))
-        );
-        setSelectedMember({ ...selectedMember, salaries: updatedSalaries });
-      }
+      // Fetch ulang data salary yang sudah diupdate dari backend
+      const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId);
+      
+      // Fetch ulang kasbon untuk salary ini
+      const updatedKasbons = await teamAPI.kasbons.getBySalaryId(salaryId);
+
+      // Update state dengan data yang sudah diupdate
+      setSelectedMember(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          salaries: prev.salaries.map(salary =>
+            salary.id === Number(salaryId) ? {
+              ...updatedSalary,
+              kasbons: updatedKasbons
+            } : salary
+          )
+        };
+      });
     } catch (error) {
       console.error("Error updating kasbon:", error);
     }
@@ -211,16 +233,25 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       // Kirim permintaan DELETE ke backend
       await teamAPI.kasbons.delete(id);
 
-      // Jika ada salaryId, fetch ulang kasbon
-      if (selectedMember) {
-        const updatedSalaries = await Promise.all(
-          selectedMember.salaries.map(async (salary) => ({
-            ...salary,
-            kasbons: await teamAPI.kasbons.getBySalaryId(salaryId)
-          }))
-        );
-        setSelectedMember({ ...selectedMember, salaries: updatedSalaries });
-      }
+      // Fetch ulang data salary yang sudah diupdate dari backend
+      const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId);
+      
+      // Fetch ulang kasbon untuk salary ini
+      const updatedKasbons = await teamAPI.kasbons.getBySalaryId(salaryId);
+
+      // Update state dengan data yang sudah diupdate
+      setSelectedMember(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          salaries: prev.salaries.map(salary =>
+            salary.id === Number(salaryId) ? {
+              ...updatedSalary,
+              kasbons: updatedKasbons
+            } : salary
+          )
+        };
+      });
     } catch (error) {
       console.error("Error deleting kasbon:", error);
     }

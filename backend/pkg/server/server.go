@@ -50,6 +50,10 @@ func StartServer() {
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo)
 
+	// Inisialisasi API key service
+	apiKeyRepo := repository.NewApiKeyRepository(db)
+	apiKeyService := service.NewApiKeyService(apiKeyRepo)
+
 	// Inisialisasi service lainnya
 	projectRepo := repository.NewProjectRepository(db)
 	projectService := service.NewProjectService(projectRepo)
@@ -82,6 +86,7 @@ func StartServer() {
 
 	route.RegisterFinanceRoutes(e, financeService, cfg, activityService)
 	route.RegisterRoutes(e, userService, cfg)
+	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }
