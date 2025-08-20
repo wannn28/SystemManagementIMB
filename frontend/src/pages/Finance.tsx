@@ -473,8 +473,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 <h1 className="text-3xl font-bold text-gray-800 mb-6">Finance Management</h1>
 
                 {/* Filter Section */}
-                <div className="bg-white p-6 rounded-lg shadow mb-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Filter & Pencarian</h3>
+                <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 mb-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+                        </svg>
+                        Filter & Pencarian
+                    </h3>
                     
                     {/* Basic Filters */}
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
@@ -484,12 +489,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 placeholder="Cari keterangan..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="border p-2 rounded w-full pr-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="border p-2 rounded w-full pr-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
                             />
                             {searchTerm && (
                                 <button
                                     onClick={() => setSearchTerm('')}
-                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
                                 >
                                     ✕
                                 </button>
@@ -498,7 +503,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
                         >
                             <option value="">Semua Kategori</option>
                             <option value="Barang">Barang</option>
@@ -512,7 +517,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         <select
                             value={selectedMonth}
                             onChange={(e) => setSelectedMonth(e.target.value)}
-                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedMonth ? 'border-blue-500 bg-blue-50' : ''}`}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedMonth ? 'border-blue-500 bg-blue-50' : ''}`}
                         >
                             <option value="">Semua Bulan</option>
                             {Array.from({ length: 12 }, (_, i) => (
@@ -526,14 +531,14 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             placeholder="Tahun"
                             value={selectedYear}
                             onChange={(e) => setSelectedYear(e.target.value)}
-                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedYear ? 'border-blue-500 bg-blue-50' : ''}`}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedYear ? 'border-blue-500 bg-blue-50' : ''}`}
                             min="2000"
                             max="2100"
                         />
                         <select
                             value={selectedStatus}
                             onChange={(e) => setSelectedStatus(e.target.value)}
-                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedStatus ? 'border-blue-500 bg-blue-50' : ''}`}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedStatus ? 'border-blue-500 bg-blue-50' : ''}`}
                         >
                             <option value="">Semua Status</option>
                             <option value="Paid">Paid</option>
@@ -541,7 +546,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         </select>
                         <button
                             onClick={resetFilters}
-                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200"
+                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm"
                         >
                             Reset
                         </button>
@@ -556,14 +561,14 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     type="date"
                                     value={startDate}
                                     onChange={(e) => setStartDate(e.target.value)}
-                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${startDate && endDate ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${startDate && endDate ? 'border-blue-500 bg-blue-50' : ''}`}
                                     placeholder="Dari"
                                 />
                                 <input
                                     type="date"
                                     value={endDate}
                                     onChange={(e) => setEndDate(e.target.value)}
-                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${startDate && endDate ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${startDate && endDate ? 'border-blue-500 bg-blue-50' : ''}`}
                                     placeholder="Sampai"
                                 />
                             </div>
@@ -576,7 +581,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     placeholder="Min"
                                     value={minAmount}
                                     onChange={(e) => setMinAmount(e.target.value)}
-                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${minAmount && maxAmount ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${minAmount && maxAmount ? 'border-blue-500 bg-blue-50' : ''}`}
                                     min="0"
                                 />
                                 <input
@@ -584,7 +589,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     placeholder="Max"
                                     value={maxAmount}
                                     onChange={(e) => setMaxAmount(e.target.value)}
-                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${minAmount && maxAmount ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${minAmount && maxAmount ? 'border-blue-500 bg-blue-50' : ''}`}
                                     min="0"
                                 />
                             </div>
@@ -594,21 +599,21 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <select
                                 value={pageSize}
                                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                                className="border p-2 rounded w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="border p-2 rounded w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white transition-colors duration-200 shadow-sm"
                             >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={1000}>1000</option>
-                                <option value={10000}>10000</option>
+                                <option value={5}>5 data</option>
+                                <option value={10}>10 data</option>
+                                <option value={20}>20 data</option>
+                                <option value={50}>50 data</option>
+                                <option value={100}>100 data</option>
+                                <option value={1000}>1.000 data</option>
+                                <option value={10000}>10.000 data</option>
                             </select>
                         </div>
                         <div className="flex items-end">
                             <button
                                 onClick={() => fetchData(true)}
-                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full disabled:opacity-50 transition-colors duration-200"
+                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full disabled:opacity-50 transition-colors duration-200 font-medium shadow-sm"
                                 disabled={isLoading}
                             >
                                 {isLoading ? 'Loading...' : 'Refresh Data'}
