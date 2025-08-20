@@ -553,7 +553,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     </div>
 
                     {/* Enhanced Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Rentang Tanggal</label>
                             <div className="flex gap-2">
