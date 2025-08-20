@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { Project } from '../types/BasicTypes';
-// import { ApiResponse } from './config';
 
 const API_URL = import.meta.env.VITE_API_URL + '/projects';
 
