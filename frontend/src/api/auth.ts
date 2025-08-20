@@ -17,6 +17,6 @@ export const authAPI = {
       email,
       password
     });
-    return response.data.data;
+    return response.data;
   },
 };
