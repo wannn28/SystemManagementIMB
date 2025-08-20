@@ -188,13 +188,15 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
         }
       });
 
-      // Convert to salary details format
-      const salaryDetails = Object.entries(tripsByDate).map(([date, tripCount]) => ({
-        tanggal: date,
-        jam_trip: tripCount,
-        harga_per_jam: Number(importFormData.hargaPerTrip),
-        keterangan: importFormData.keterangan || `Import dari Smart Nota - ${tripCount} trip`
-      }));
+      // Convert to salary details format and sort by date
+      const salaryDetails = Object.entries(tripsByDate)
+        .map(([date, tripCount]) => ({
+          tanggal: date,
+          jam_trip: tripCount,
+          harga_per_jam: Number(importFormData.hargaPerTrip),
+          keterangan: importFormData.keterangan || `Import dari Smart Nota Digital - ${tripCount} trip`
+        }))
+        .sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
 
       console.log('Trips by date:', tripsByDate);
       console.log('Salary details:', salaryDetails);
@@ -510,7 +512,9 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
               </tr>
             </thead>
             <tbody>
-              {data.map((item, index) => (
+              {data
+                .sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime())
+                .map((item, index) => (
                  <tr key={item.id || `temp-${index}`}>
                   <td className="py-2 px-4 border-b text-center">{index + 1}</td>
                   <td className="py-2 px-4 border-b">
