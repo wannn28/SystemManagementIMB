@@ -72,7 +72,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     });
     try {
       // Kirim permintaan POST ke backend
-      const response = await teamAPI.salaryDetails.create(salaryId.toString(), newData);
+      await teamAPI.salaryDetails.create(salaryId.toString(), newData);
 
       // Fetch ulang data salary yang sudah diupdate dari backend
       const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId.toString());
@@ -130,7 +130,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleUpdateSalaryDetail = async (salaryId: string, id: string, updatedData: SalaryDetail) => {
     try {
       // 1. Kirim PUT request
-      const response = await teamAPI.salaryDetails.update(salaryId, id, updatedData);
+      await teamAPI.salaryDetails.update(salaryId, id, updatedData);
   
       // 2. Fetch ulang data salary yang sudah diupdate dari backend
       const updatedSalary = await teamAPI.salaries.getBySalaryId(salaryId);
@@ -164,7 +164,6 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Team.tsx - Pastikan menghapus berdasarkan ID yang benar
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     if (!selectedMember) return;
-    const prevState = [...teamMembersData];
     
     try {
       // Kirim permintaan DELETE ke backend
@@ -276,14 +275,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     setLoading(true);
     try {
       if (showPaginatedView) {
-        const response = await teamAPI.members.getPaginated(params);
-        const membersWithSalaries = response.data.map((member: any) => ({
+        const paginatedResponse = await teamAPI.members.getPaginated(params);
+        const membersWithSalaries = paginatedResponse.data.map((member: any) => ({
           ...member,
           // Pastikan salaries selalu array
           salaries: Array.isArray(member.salaries) ? member.salaries : []
         }));
         setTeamMembersData(membersWithSalaries);
-        setPagination(response.pagination);
+        setPagination(paginatedResponse.pagination);
       } else {
         const members = await teamAPI.members.getAll();
         const membersWithSalaries = members.map((member: any) => ({

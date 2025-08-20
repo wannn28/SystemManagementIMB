@@ -1,17 +1,24 @@
 import axios from 'axios';
 
+// Define API response structure
+export interface ApiResponse<T = any> {
+  data: T;
+  message?: string;
+  status?: string;
+}
+
 // Setup axios interceptors
-axios.interceptors.request.use(config => {
+axios.interceptors.request.use((config: any) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
 axios.interceptors.response.use(
-  response => response,
-  error => {
+  (response: any) => response,
+  (error: any) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
@@ -49,7 +56,7 @@ export const getMultipartHeaders = () => {
 };
 
 // Helper function to handle API responses
-export const handleApiResponse = (response: any) => {
+export const handleApiResponse = <T>(response: any): T => {
   return response.data.data || response.data;
 };
 

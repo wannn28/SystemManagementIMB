@@ -5,28 +5,28 @@ import { getAuthHeaders, getMultipartHeaders } from './config';
 const inventoryAPI = {
   categories: {
     getAll: async (): Promise<InventoryCategory[]> => {
-      const response = await axios.get<InventoryCategory[]>('/inventory/categories', {
+      const response: any = await axios.get('/inventory/categories', {
         headers: getAuthHeaders(),
       });
       // Pastikan data yang dikembalikan adalah array
-      const responseData = response.data as any;
-      const data = responseData && Array.isArray(responseData) ? responseData : 
-                  (responseData && Array.isArray(responseData.data) ? responseData.data : []);
+      const responseData = response.data;
+      const data = responseData && Array.isArray(responseData.data) ? responseData.data : 
+                  (responseData && Array.isArray(responseData) ? responseData : []);
       return data;
     },
     
     create: async (categoryData: Omit<InventoryCategory, 'id'>): Promise<InventoryCategory> => {
-      const response = await axios.post<InventoryCategory>('/inventory/categories', categoryData, {
+      const response: any = await axios.post('/inventory/categories', categoryData, {
         headers: getAuthHeaders(),
       });
-      return response.data;
+      return response.data.data;
     },
     
     update: async (id: string, categoryData: Partial<InventoryCategory>): Promise<InventoryCategory> => {
-      const response = await axios.put<InventoryCategory>(`/inventory/categories/${id}`, categoryData, {
+      const response: any = await axios.put(`/inventory/categories/${id}`, categoryData, {
         headers: getAuthHeaders(),
       });
-      return response.data;
+      return response.data.data;
     },
     
     delete: async (id: string): Promise<void> => {
@@ -38,14 +38,14 @@ const inventoryAPI = {
   
   data: {
     getAll: async (): Promise<InventoryData[]> => {
-      const response = await axios.get<InventoryData[]>('/inventory/data', {
+      const response: any = await axios.get('/inventory/data', {
         headers: getAuthHeaders(),
       });
-      return response.data;
+      return response.data.data;
     },
     
     getByCategory: async (categoryId: string): Promise<InventoryData[]> => {
-      const response = await axios.get<any>(`/inventory/categories/${categoryId}/data`, {
+      const response: any = await axios.get(`/inventory/categories/${categoryId}/data`, {
         headers: getAuthHeaders(),
       });
       // Handle response structure: { data: [...], status: 200 }
@@ -59,17 +59,17 @@ const inventoryAPI = {
     },
     
     create: async (inventoryData: FormData): Promise<InventoryData> => {
-      const response = await axios.post<InventoryData>(`/inventory/categories/${inventoryData.get('category_id')}/data`, inventoryData, {
+      const response: any = await axios.post(`/inventory/categories/${inventoryData.get('category_id')}/data`, inventoryData, {
         headers: getMultipartHeaders(),
       });
-      return response.data;
+      return response.data.data;
     },
     
     update: async (id: string, inventoryData: FormData): Promise<InventoryData> => {
-      const response = await axios.put<InventoryData>(`/inventory/data/${id}`, inventoryData, {
+      const response: any = await axios.put(`/inventory/data/${id}`, inventoryData, {
         headers: getMultipartHeaders(),
       });
-      return response.data;
+      return response.data.data;
     },
     
     delete: async (id: string): Promise<void> => {

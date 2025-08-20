@@ -1,4 +1,4 @@
-import { financeAPI, PaginationParams, PaginatedResponse } from '../api';
+import { financeAPI, PaginationParams } from '../api';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import FinancePDFExportButton from '../component/FinancePDFExportButton'
