@@ -69,7 +69,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
       // Fetch invoices from Smart Nota with search and date filters
       const response = await smartNotaApi.getInvoices({
         page: 1,
-        per_page: 1000, // Get all invoices
+        limit: 1000, // Get all invoices
         sort: 'created_at',
         order: 'asc',
         search: importFormData.search || undefined,

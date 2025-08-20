@@ -110,7 +110,7 @@ export interface PaginatedResponse<T> {
   data: T[];
   pagination: {
     current_page: number;
-    per_page: number;
+    limit: number;
     total: number;
     total_pages: number;
     has_next_page: boolean;
@@ -152,7 +152,7 @@ class SmartNotaApiService {
   // Get all invoices with pagination
   async getInvoices(params: {
     page?: number;
-    per_page?: number;
+    limit?: number;
     sort?: string;
     order?: 'asc' | 'desc';
     search?: string;
@@ -162,7 +162,7 @@ class SmartNotaApiService {
     const searchParams = new URLSearchParams();
     
     if (params.page) searchParams.append('page', params.page.toString());
-    if (params.per_page) searchParams.append('per_page', params.per_page.toString());
+    if (params.limit) searchParams.append('limit', params.limit.toString());
     if (params.sort) searchParams.append('sort', params.sort);
     if (params.order) searchParams.append('order', params.order);
     if (params.search) searchParams.append('search', params.search);
