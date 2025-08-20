@@ -183,151 +183,780 @@
 			"name": "💰 Finance Management",
 			"item": [
 				{
-					"name": "Create Finance",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"date\": \"2024-01-15\",\n  \"description\": \"Pembayaran proyek\",\n  \"amount\": 5000000,\n  \"type\": \"income\",\n  \"category\": \"project_payment\"\n}"
+					"name": "📝 Basic CRUD Operations",
+					"item": [
+						{
+							"name": "Create Finance",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"tanggal\": \"2024-01-15\",\n  \"unit\": 5,\n  \"hargaPerUnit\": 200000.00,\n  \"keterangan\": \"Pembelian material proyek\",\n  \"type\": \"expense\",\n  \"category\": \"Barang\",\n  \"status\": \"Paid\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/finance",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance"
+									]
+								}
+							},
+							"response": []
 						},
-						"url": {
-							"raw": "{{base_url}}/api/finance",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"finance"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get All Finance",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/finance",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"finance"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Finance by ID",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/finance/1",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"finance",
-								"1"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Finance",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"date\": \"2024-01-15\",\n  \"description\": \"Pembayaran proyek updated\",\n  \"amount\": 6000000,\n  \"type\": \"income\",\n  \"category\": \"project_payment\"\n}"
+						{
+							"name": "Get All Finance (Simple)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance"
+									]
+								}
+							},
+							"response": []
 						},
-						"url": {
-							"raw": "{{base_url}}/finance/1",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"finance",
-								"1"
-							]
+						{
+							"name": "Get Finance by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Finance",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"tanggal\": \"2024-01-15\",\n  \"unit\": 6,\n  \"hargaPerUnit\": 200000.00,\n  \"keterangan\": \"Pembelian material proyek (updated)\",\n  \"type\": \"expense\",\n  \"category\": \"Barang\",\n  \"status\": \"Paid\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/finance/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Finance",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"1"
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				},
 				{
-					"name": "Delete Finance",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/finance/1",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"finance",
-								"1"
-							]
+					"name": "📊 Pagination & Advanced Queries",
+					"item": [
+						{
+							"name": "Get All Finance with Pagination",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pagination with Search",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20&search=material",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "search",
+											"value": "material"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pagination with Sorting",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20&sort=jumlah&order=DESC",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "sort",
+											"value": "jumlah"
+										},
+										{
+											"key": "order",
+											"value": "DESC"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pagination with Complex Filtering",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20&filter=type:expense,category:Barang,status:Paid",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "filter",
+											"value": "type:expense,category:Barang,status:Paid"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pagination with Date Range Filter",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20&filter=start_date:2024-01-01,end_date:2024-01-31",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "filter",
+											"value": "start_date:2024-01-01,end_date:2024-01-31"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pagination with Amount Range Filter",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20&filter=min_amount:100000,max_amount:5000000",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "filter",
+											"value": "min_amount:100000,max_amount:5000000"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Complete Query Example",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/paginated?page=1&limit=20&search=material&sort=jumlah&order=DESC&filter=type:expense,category:Barang,status:Paid,start_date:2024-01-01,end_date:2024-01-31",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"paginated"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "search",
+											"value": "material"
+										},
+										{
+											"key": "sort",
+											"value": "jumlah"
+										},
+										{
+											"key": "order",
+											"value": "DESC"
+										},
+										{
+											"key": "filter",
+											"value": "type:expense,category:Barang,status:Paid,start_date:2024-01-01,end_date:2024-01-31"
+										}
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				},
 				{
-					"name": "Get Financial Summary",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/finance/summary",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"finance",
-								"summary"
-							]
+					"name": "🔍 Enhanced Filtering",
+					"item": [
+						{
+							"name": "Filter by Date Range - January 2024",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/date-range?start_date=2024-01-01&end_date=2024-01-31",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"date-range"
+									],
+									"query": [
+										{
+											"key": "start_date",
+											"value": "2024-01-01"
+										},
+										{
+											"key": "end_date",
+											"value": "2024-01-31"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Date Range - Q1 2024",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/date-range?start_date=2024-01-01&end_date=2024-03-31",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"date-range"
+									],
+									"query": [
+										{
+											"key": "start_date",
+											"value": "2024-01-01"
+										},
+										{
+											"key": "end_date",
+											"value": "2024-03-31"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Amount Range - Small (100K-5M)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/amount-range?min_amount=100000&max_amount=5000000",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"amount-range"
+									],
+									"query": [
+										{
+											"key": "min_amount",
+											"value": "100000"
+										},
+										{
+											"key": "max_amount",
+											"value": "5000000"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Amount Range - Medium (5M-50M)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/amount-range?min_amount=5000000&max_amount=50000000",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"amount-range"
+									],
+									"query": [
+										{
+											"key": "min_amount",
+											"value": "5000000"
+										},
+										{
+											"key": "max_amount",
+											"value": "50000000"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Amount Range - Large (50M+)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/amount-range?min_amount=50000000&max_amount=999999999",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"amount-range"
+									],
+									"query": [
+										{
+											"key": "min_amount",
+											"value": "50000000"
+										},
+										{
+											"key": "max_amount",
+											"value": "999999999"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Category - Barang",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/category?category=Barang",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"category"
+									],
+									"query": [
+										{
+											"key": "category",
+											"value": "Barang"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Category - Jasa",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/category?category=Jasa",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"category"
+									],
+									"query": [
+										{
+											"key": "category",
+											"value": "Jasa"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Category - Gaji",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/category?category=Gaji",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"category"
+									],
+									"query": [
+										{
+											"key": "category",
+											"value": "Gaji"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Status - Paid",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/status?status=Paid",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"status"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "Paid"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Status - Unpaid",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/status?status=Unpaid",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"status"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "Unpaid"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Type - Expense with Pagination",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/type?type=expense&page=1&limit=20&sort=jumlah&order=DESC",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"type"
+									],
+									"query": [
+										{
+											"key": "type",
+											"value": "expense"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "sort",
+											"value": "jumlah"
+										},
+										{
+											"key": "order",
+											"value": "DESC"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Filter by Type - Income with Pagination",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/filter/type?type=income&page=1&limit=20&sort=jumlah&order=DESC",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"filter",
+										"type"
+									],
+									"query": [
+										{
+											"key": "type",
+											"value": "income"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "sort",
+											"value": "jumlah"
+										},
+										{
+											"key": "order",
+											"value": "DESC"
+										}
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				},
 				{
-					"name": "Get Monthly Comparison",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/finance/monthly",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"finance",
-								"monthly"
-							]
+					"name": "📈 Analytics & Summary",
+					"item": [
+						{
+							"name": "Get Financial Summary",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/summary",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"summary"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Monthly Comparison",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/finance/monthly",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"finance",
+										"monthly"
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				}
 			]
 		},

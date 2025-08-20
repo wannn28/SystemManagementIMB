@@ -90,7 +90,7 @@ export interface InventoryCategory {
 
 export interface InventoryData {
   id: string;
-  categoryID: string;
+  category_id: string;
   values: { [key: string]: any };
   images: string[];
 }

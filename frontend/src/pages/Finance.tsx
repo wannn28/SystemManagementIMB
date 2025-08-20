@@ -1,7 +1,8 @@
-import { financeAPI } from '../api';
-import React, { useState, useMemo, useEffect } from 'react';
+import { financeAPI, PaginationParams, PaginatedResponse } from '../api';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import FinancePDFExportButton from '../component/FinancePDFExportButton'
+
 interface FinanceProps {
     isCollapsed: boolean;
 }
@@ -18,85 +19,207 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [activeSection, setActiveSection] = useState<'income' | 'expense'>('income');
     const [incomeData, setIncomeData] = useState<FinanceEntry[]>([]);
     const [expenseData, setExpenseData] = useState<FinanceEntry[]>([]);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [hasNext, setHasNext] = useState(false);
+    const [hasPrev, setHasPrev] = useState(false);
+    
+    // Filter and search state
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
-    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status'>('id');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [selectedStatus, setSelectedStatus] = useState('');
-    // Filter configuration
-    const filterData = (data: FinanceEntry[]) => {
-        const filtered = data.filter((entry) => {
-            const matchesSearch = entry.keterangan.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = !selectedCategory || entry.category === selectedCategory;
-            const matchesStatus = !selectedStatus || entry.status === selectedStatus;
-            const entryDate = new Date(entry.tanggal);
-            const entryMonth = String(entryDate.getMonth() + 1).padStart(2, '0');
-            const entryYear = String(entryDate.getFullYear());
-            const matchesMonth = !selectedMonth || entryMonth === selectedMonth;
-            const matchesYear = !selectedYear || entryYear === selectedYear;
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [minAmount, setMinAmount] = useState('');
+    const [maxAmount, setMaxAmount] = useState('');
+    
+    // Sorting state
+    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status'>('id');
+    const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
+    
+    // Loading state
+    const [isLoading, setIsLoading] = useState(false);
 
-            return matchesSearch && matchesCategory && matchesMonth && matchesYear && matchesStatus;
-        });
-        const sorted = [...filtered].sort((a, b) => {
-            let valueA: number | string | Date;
-            let valueB: number | string | Date;
+    // Debounced search effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 500);
 
-            switch (sortBy) {
-                case 'id':
-                    valueA = a.id;
-                    valueB = b.id;
-                    break;
-                case 'tanggal':
-                    valueA = new Date(a.tanggal).getTime();
-                    valueB = new Date(b.tanggal).getTime();
-                    break;
-                case 'jumlah':
-                    valueA = a.unit * a.hargaPerUnit;
-                    valueB = b.unit * b.hargaPerUnit;
-                    break;
-                case 'status':
-                    valueA = a.status;
-                    valueB = b.status;
-                    break;
-                default:
-                    valueA = a[sortBy];
-                    valueB = b[sortBy];
-            }
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
-            if (typeof valueA === 'number' && typeof valueB === 'number') {
-                return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+    // Build filter string for API
+    const buildFilterString = useMemo(() => {
+        const filters: string[] = [];
+        
+        if (selectedCategory) filters.push(`category:${selectedCategory}`);
+        if (selectedStatus) filters.push(`status:${selectedStatus}`);
+        if (startDate && endDate) filters.push(`start_date:${startDate},end_date:${endDate}`);
+        if (minAmount && maxAmount) filters.push(`min_amount:${minAmount},max_amount:${maxAmount}`);
+        
+        return filters.join(',');
+    }, [selectedCategory, selectedStatus, startDate, endDate, minAmount, maxAmount]);
+
+    // Build pagination params
+    const buildPaginationParams = useMemo((): PaginationParams => {
+        return {
+            page: currentPage,
+            limit: pageSize,
+            search: debouncedSearchTerm || undefined,
+            sort: sortBy,
+            order: sortOrder,
+            filter: buildFilterString || undefined
+        };
+    }, [currentPage, pageSize, debouncedSearchTerm, sortBy, sortOrder, buildFilterString]);
+
+    // Fetch data with pagination
+    const fetchData = useCallback(async (usePagination = true) => {
+        setIsLoading(true);
+        try {
+            if (usePagination) {
+                // Use paginated API - fetch data for the active section only
+                const response = await financeAPI.getFinanceByTypePaginated(activeSection, buildPaginationParams);
+                
+                // Set data for the active section
+                if (activeSection === 'income') {
+                    setIncomeData(response.data);
+                    setExpenseData([]); // Clear expense data when viewing income
+                } else {
+                    setExpenseData(response.data);
+                    setIncomeData([]); // Clear income data when viewing expense
+                }
+                
+                // Update pagination info from the response
+                setTotalPages(response.pagination.total_pages);
+                setTotalRecords(response.pagination.total);
+                setCurrentPage(response.pagination.page);
+                setHasNext(response.pagination.has_next);
+                setHasPrev(response.pagination.has_prev);
             } else {
-                // const strA = valueA.toString().toLowerCase();
-                // const strB = valueB.toString().toLowerCase();
-                const comparison = valueA.toString().localeCompare(valueB.toString());
-                return sortOrder === 'asc' ? comparison : -comparison;
-                // return sortOrder === 'asc' ? comparison : -comparison;
-            }
-        });
+                // Fallback to simple API
+                const [incomeData, expenseData] = await Promise.all([
+                    financeAPI.getFinanceByType('income'),
+                    financeAPI.getFinanceByType('expense')
+                ]);
 
-        return sorted;
+                setIncomeData(incomeData);
+                setExpenseData(expenseData);
+                
+                // Reset pagination for simple API
+                setTotalPages(1);
+                setTotalRecords(incomeData.length + expenseData.length);
+                setCurrentPage(1);
+                setHasNext(false);
+                setHasPrev(false);
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            // Fallback to simple API
+            try {
+                const [incomeData, expenseData] = await Promise.all([
+                    financeAPI.getFinanceByType('income'),
+                    financeAPI.getFinanceByType('expense')
+                ]);
+
+                setIncomeData(incomeData);
+                setExpenseData(expenseData);
+                
+                // Reset pagination for fallback
+                setTotalPages(1);
+                setTotalRecords(incomeData.length + expenseData.length);
+                setCurrentPage(1);
+                setHasNext(false);
+                setHasPrev(false);
+            } catch (fallbackError) {
+                console.error('Fallback data fetching failed:', fallbackError);
+                setIncomeData([]);
+                setExpenseData([]);
+                setTotalPages(1);
+                setTotalRecords(0);
+                setCurrentPage(1);
+                setHasNext(false);
+                setHasPrev(false);
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, [buildPaginationParams, activeSection]);
+
+    // Fetch data when filters change
+    useEffect(() => {
+        setCurrentPage(1); // Reset to first page when filters change
+        fetchData(true);
+    }, [debouncedSearchTerm, selectedCategory, selectedMonth, selectedYear, selectedStatus, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
+
+    // Fetch data when active section changes
+    useEffect(() => {
+        fetchData(true);
+    }, [activeSection]);
+
+    // Fetch data when page changes
+    useEffect(() => {
+        if (currentPage > 1) {
+            fetchData(true);
+        }
+    }, [currentPage, pageSize]);
+
+    // Initial data fetch
+    useEffect(() => {
+        fetchData(true);
+    }, []);
+
+    // Handle active section change
+    const handleActiveSectionChange = (section: 'income' | 'expense') => {
+        setActiveSection(section);
+        setCurrentPage(1); // Reset to first page when switching sections
+        // Data will be fetched automatically by the useEffect
     };
 
-    const filteredIncomeData = useMemo(() => filterData(incomeData), [
-        incomeData, searchTerm, selectedCategory,
-        selectedMonth, selectedYear, selectedStatus, // Pastikan ini ada
-        sortBy, sortOrder
-      ]);
-      const filteredExpenseData = useMemo(() => filterData(expenseData), [
-        expenseData, searchTerm, selectedCategory,
-        selectedMonth, selectedYear, selectedStatus, // Pastikan ini ada
-        sortBy, sortOrder
-      ]);
+    // Handle sorting
     const handleSort = (column: 'id' | 'tanggal' | 'jumlah' | 'status') => {
         if (sortBy === column) {
-            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+            setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
         } else {
             setSortBy(column);
-            setSortOrder('asc');
+            setSortOrder('ASC');
         }
     };
+
+    // Handle page change
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    // Handle page size change
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        setCurrentPage(1);
+    };
+
+    // Reset all filters
+    const resetFilters = () => {
+        setSearchTerm('');
+        setSelectedCategory('');
+        setSelectedMonth('');
+        setSelectedYear('');
+        setSelectedStatus('');
+        setStartDate('');
+        setEndDate('');
+        setMinAmount('');
+        setMaxAmount('');
+        setSortBy('id');
+        setSortOrder('ASC');
+        setCurrentPage(1);
+    };
+
     const [newEntry, setNewEntry] = useState({
         tanggal: '',
         unit: '',
@@ -113,33 +236,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     });
 
     // Totals calculation
-    const totalPemasukan = useMemo(() =>
-        filteredIncomeData.reduce((sum, item) => sum + (item.unit * item.hargaPerUnit), 0),
-        [filteredIncomeData]
-    );
+    const totalPemasukan = useMemo(() => {
+        return incomeData.reduce((sum, item) => sum + (item.unit * item.hargaPerUnit), 0);
+    }, [incomeData]);
 
-    const totalPengeluaran = useMemo(() =>
-        filteredExpenseData.reduce((sum, item) => sum + (item.unit * item.hargaPerUnit), 0),
-        [filteredExpenseData]
-    );
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
-        try {
-            const [incomeData, expenseData] = await Promise.all([
-                financeAPI.getFinanceByType('income'),
-                financeAPI.getFinanceByType('expense')
-            ]);
-
-            setIncomeData(incomeData);
-            setExpenseData(expenseData);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-        }
-    };
+    const totalPengeluaran = useMemo(() => {
+        return expenseData.reduce((sum, item) => sum + (item.unit * item.hargaPerUnit), 0);
+    }, [expenseData]);
 
     // Edit handlers
     const handleEdit = async (id: number, type: 'income' | 'expense') => {
@@ -370,19 +473,32 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 <h1 className="text-3xl font-bold text-gray-800 mb-6">Finance Management</h1>
 
                 {/* Filter Section */}
-                <div className="bg-white p-4 rounded-lg shadow mb-6">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                        <input
-                            type="text"
-                            placeholder="Cari keterangan..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="border p-2 rounded"
-                        />
+                <div className="bg-white p-6 rounded-lg shadow mb-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Filter & Pencarian</h3>
+                    
+                    {/* Basic Filters */}
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Cari keterangan..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="border p-2 rounded w-full pr-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="border p-2 rounded"
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
                         >
                             <option value="">Semua Kategori</option>
                             <option value="Barang">Barang</option>
@@ -396,7 +512,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         <select
                             value={selectedMonth}
                             onChange={(e) => setSelectedMonth(e.target.value)}
-                            className="border p-2 rounded"
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedMonth ? 'border-blue-500 bg-blue-50' : ''}`}
                         >
                             <option value="">Semua Bulan</option>
                             {Array.from({ length: 12 }, (_, i) => (
@@ -410,31 +526,181 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             placeholder="Tahun"
                             value={selectedYear}
                             onChange={(e) => setSelectedYear(e.target.value)}
-                            className="border p-2 rounded"
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedYear ? 'border-blue-500 bg-blue-50' : ''}`}
                             min="2000"
                             max="2100"
                         />
                         <select
                             value={selectedStatus}
                             onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="border p-2 rounded"
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedStatus ? 'border-blue-500 bg-blue-50' : ''}`}
                         >
                             <option value="">Semua Status</option>
                             <option value="Paid">Paid</option>
                             <option value="Unpaid">Unpaid</option>
                         </select>
                         <button
-                            onClick={() => {
-                                setSelectedCategory('');
-                                setSelectedMonth('');
-                                setSelectedYear('');
-                                setSearchTerm('');
-                            }}
-                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                            onClick={resetFilters}
+                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200"
                         >
                             Reset
                         </button>
                     </div>
+
+                    {/* Enhanced Filters */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Rentang Tanggal</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${startDate && endDate ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    placeholder="Dari"
+                                />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${startDate && endDate ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    placeholder="Sampai"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Rentang Jumlah</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    placeholder="Min"
+                                    value={minAmount}
+                                    onChange={(e) => setMinAmount(e.target.value)}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${minAmount && maxAmount ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    min="0"
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="Max"
+                                    value={maxAmount}
+                                    onChange={(e) => setMaxAmount(e.target.value)}
+                                    className={`border p-2 rounded flex-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${minAmount && maxAmount ? 'border-blue-500 bg-blue-50' : ''}`}
+                                    min="0"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Jumlah per Halaman</label>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                                className="border p-2 rounded w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={1000}>1000</option>
+                                <option value={10000}>10000</option>
+                            </select>
+                        </div>
+                        <div className="flex items-end">
+                            <button
+                                onClick={() => fetchData(true)}
+                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full disabled:opacity-50 transition-colors duration-200"
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Loading...' : 'Refresh Data'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Active Filters Display */}
+                    {(searchTerm || selectedCategory || selectedMonth || selectedYear || selectedStatus || startDate || endDate || minAmount || maxAmount) && (
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <h4 className="text-sm font-medium text-blue-800 mb-2">Filter Aktif:</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {searchTerm && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Search: {searchTerm}
+                                        <button
+                                            onClick={() => setSearchTerm('')}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                                {selectedCategory && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Category: {selectedCategory}
+                                        <button
+                                            onClick={() => setSelectedCategory('')}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                                {selectedMonth && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Month: {new Date(0, parseInt(selectedMonth) - 1).toLocaleString('id-ID', { month: 'long' })}
+                                        <button
+                                            onClick={() => setSelectedMonth('')}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                                {selectedYear && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Year: {selectedYear}
+                                        <button
+                                            onClick={() => setSelectedYear('')}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                                {selectedStatus && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Status: {selectedStatus}
+                                        <button
+                                            onClick={() => setSelectedStatus('')}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                                {(startDate || endDate) && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Date Range: {startDate} - {endDate}
+                                        <button
+                                            onClick={() => { setStartDate(''); setEndDate(''); }}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                                {(minAmount || maxAmount) && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Amount Range: {minAmount || '0'} - {maxAmount || '∞'}
+                                        <button
+                                            onClick={() => { setMinAmount(''); setMaxAmount(''); }}
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Total Cards */}
                     <div className="grid grid-cols-2 gap-6">
@@ -454,25 +720,37 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 </div>
 
                 {/* Navigation Tabs */}
-                <div className="flex gap-2 mb-4">
+                <div className="flex gap-2 mb-6">
                     <button
-                        onClick={() => setActiveSection('income')}
-                        className={`px-6 py-2 rounded-t-lg ${activeSection === 'income'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-200 hover:bg-gray-300'}`}
+                        onClick={() => handleActiveSectionChange('income')}
+                        className={`px-6 py-3 rounded-lg flex items-center gap-2 font-medium transition-all duration-200 ${
+                            activeSection === 'income'
+                                ? 'bg-blue-500 text-white shadow-lg'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        disabled={isLoading}
                     >
                         Pemasukan
+                        {isLoading && activeSection === 'income' && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        )}
                     </button>
                     <button
-                        onClick={() => setActiveSection('expense')}
-                        className={`px-6 py-2 rounded-t-lg ${activeSection === 'expense'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-200 hover:bg-gray-300'}`}
+                        onClick={() => handleActiveSectionChange('expense')}
+                        className={`px-6 py-3 rounded-lg flex items-center gap-2 font-medium transition-all duration-200 ${
+                            activeSection === 'expense'
+                                ? 'bg-blue-500 text-white shadow-lg'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        disabled={isLoading}
                     >
                         Pengeluaran
+                        {isLoading && activeSection === 'expense' && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        )}
                     </button>
                     <FinancePDFExportButton
-                        data={activeSection === 'income' ? filteredIncomeData : filteredExpenseData}
+                        data={activeSection === 'income' ? incomeData : expenseData}
                         type={activeSection}
                         total={activeSection === 'income' ? totalPemasukan : totalPengeluaran}
                         month={selectedMonth}
@@ -485,8 +763,8 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 {/* Active Section Content */}
                 <div className="bg-white rounded-lg shadow">
                     {/* Add New Form */}
-                    <div className="p-4 border-b">
-                        <h2 className="text-lg font-semibold mb-4">
+                    <div className="p-6 border-b">
+                        <h2 className="text-lg font-semibold mb-4 text-gray-800">
                             Tambah {activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}
                         </h2>
 
@@ -498,7 +776,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 type="date"
                                 value={newEntry.tanggal}
                                 onChange={(e) => setNewEntry({ ...newEntry, tanggal: e.target.value })}
-                                className="border p-2 rounded"
+                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 required
                             />
                             <input
@@ -506,7 +784,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 placeholder="Jumlah Unit"
                                 value={newEntry.unit}
                                 onChange={(e) => setNewEntry({ ...newEntry, unit: e.target.value })}
-                                className="border p-2 rounded"
+                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 required
                             />
                             <input
@@ -514,7 +792,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 placeholder="Harga per Unit"
                                 value={newEntry.hargaPerUnit}
                                 onChange={(e) => setNewEntry({ ...newEntry, hargaPerUnit: e.target.value })}
-                                className="border p-2 rounded"
+                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 required
                             />
                             <input
@@ -522,12 +800,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 placeholder="Keterangan"
                                 value={newEntry.keterangan}
                                 onChange={(e) => setNewEntry({ ...newEntry, keterangan: e.target.value })}
-                                className="border p-2 rounded"
+                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                             <select
                                 value={newEntry.category}
                                 onChange={(e) => setNewEntry({ ...newEntry, category: e.target.value as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon' })}
-                                className="border p-2 rounded"
+                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 required
                             >
                                 <option value="Other">Pilih Kategori</option>
@@ -542,7 +820,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <select
                                 value={newEntry.status}
                                 onChange={(e) => setNewEntry({ ...newEntry, status: e.target.value as 'Paid' | 'Unpaid' })}
-                                className="border p-2 rounded"
+                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 required
                             >
                                 <option value="Unpaid">Unpaid</option>
@@ -550,7 +828,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             </select>
                             <button
                                 type="submit"
-                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium"
                             >
                                 Tambah
                             </button>
@@ -559,53 +837,158 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
                     {/* Data Table */}
                     <div className="overflow-x-auto">
+                        {/* Table Summary */}
+                        <div className="bg-gray-50 p-3 border-b">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-gray-600">
+                                    <span className="font-medium">{activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}</span>
+                                    {totalRecords > 0 && (
+                                        <span className="ml-2">
+                                            • Halaman {currentPage} dari {totalPages} • Total {totalRecords} data
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                    {isLoading ? 'Memuat data...' : 'Data siap'}
+                                </div>
+                            </div>
+                        </div>
+                        
                         <table className="w-full">
                             <thead className="bg-gray-50">
                                 <tr>
-
                                     <th
-                                        className="border px-4 py-2 w-12 cursor-pointer hover:bg-gray-100"
+                                        className="border px-4 py-3 w-12 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
                                         onClick={() => handleSort('id')}
                                     >
-                                        No {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                        No {sortBy === 'id' && (sortOrder === 'ASC' ? '↑' : '↓')}
                                     </th>
                                     <th
-                                        className="border px-4 py-2 cursor-pointer hover:bg-gray-100"
+                                        className="border px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
                                         onClick={() => handleSort('tanggal')}
                                     >
-                                        Tanggal {sortBy === 'tanggal' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                        Tanggal {sortBy === 'tanggal' && (sortOrder === 'ASC' ? '↑' : '↓')}
                                     </th>
-                                    <th className="border px-4 py-2">Unit</th>
-                                    <th className="border px-4 py-2">Harga/Unit</th>
+                                    <th className="border px-4 py-3 font-medium text-gray-700">Unit</th>
+                                    <th className="border px-4 py-3 font-medium text-gray-700">Harga/Unit</th>
                                     <th
-                                        className="border px-4 py-2 cursor-pointer hover:bg-gray-100"
+                                        className="border px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
                                         onClick={() => handleSort('jumlah')}
                                     >
-                                        Jumlah {sortBy === 'jumlah' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                        Jumlah {sortBy === 'jumlah' && (sortOrder === 'ASC' ? '↑' : '↓')}
                                     </th>
-
-                                    <th className="border px-4 py-2">Keterangan</th>
-                                    <th className="border px-4 py-2">Kategori</th>
+                                    <th className="border px-4 py-3 font-medium text-gray-700">Keterangan</th>
+                                    <th className="border px-4 py-3 font-medium text-gray-700">Kategori</th>
                                     <th
-                                        className="border px-4 py-2 cursor-pointer hover:bg-gray-100"
+                                        className="border px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
                                         onClick={() => handleSort('status')}
                                     >
-                                        Status {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                        Status {sortBy === 'status' && (sortOrder === 'ASC' ? '↑' : '↓')}
                                     </th>
-                                    <th className="border px-4 py-2 w-32">Aksi</th>
+                                    <th className="border px-4 py-3 w-32 font-medium text-gray-700">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {(activeSection === 'income' ? filteredIncomeData : filteredExpenseData).map((item, index) => (
-                                    <EditableRow
-                                        key={item.id}
-                                        item={item}
-                                        index={index}
-                                        type={activeSection}
-                                    />
-                                ))}
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={9} className="text-center py-12">
+                                            <div className="flex items-center justify-center">
+                                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                                                <span className="ml-3 text-gray-600 font-medium">Memuat data...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (activeSection === 'income' ? incomeData : expenseData).length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} className="text-center py-12 text-gray-500">
+                                            <div className="flex flex-col items-center">
+                                                <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                                <p className="text-lg font-medium">Tidak ada data {activeSection === 'income' ? 'pemasukan' : 'pengeluaran'}</p>
+                                                <p className="text-sm text-gray-400">Coba ubah filter atau tambah data baru</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    (activeSection === 'income' ? incomeData : expenseData).map((item, index) => (
+                                        <EditableRow
+                                            key={item.id}
+                                            item={item}
+                                            index={((currentPage - 1) * pageSize) + index}
+                                            type={activeSection}
+                                        />
+                                    ))
+                                )}
                             </tbody>
                         </table>
+
+                        {/* Pagination Controls */}
+                        <div className="bg-white p-6 border-t">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-sm text-gray-600">
+                                        Menampilkan {((currentPage - 1) * pageSize) + 1} sampai {Math.min(currentPage * pageSize, totalRecords)} dari {totalRecords} hasil
+                                    </span>
+                                </div>
+                                
+                                <div className="flex items-center space-x-3">
+                                    {/* Previous Button */}
+                                    <button
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={!hasPrev || isLoading}
+                                        className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Sebelumnya
+                                    </button>
+                                    
+                                    {/* Page Numbers */}
+                                    <div className="flex items-center space-x-1">
+                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                            let pageNum;
+                                            if (totalPages <= 5) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage <= 3) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage >= totalPages - 2) {
+                                                pageNum = totalPages - 4 + i;
+                                            } else {
+                                                pageNum = currentPage - 2 + i;
+                                            }
+                                            
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => handlePageChange(pageNum)}
+                                                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                                                        currentPage === pageNum
+                                                            ? 'bg-blue-600 text-white shadow-md'
+                                                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                                                    }`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    
+                                    {/* Next Button */}
+                                    <button
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={!hasNext || isLoading}
+                                        className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+                                    >
+                                        Selanjutnya
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                 </div>

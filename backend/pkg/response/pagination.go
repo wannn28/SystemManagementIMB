@@ -44,8 +44,8 @@ func ParseQueryParams(c echo.Context) QueryParams {
 	if limit <= 0 {
 		limit = 10
 	}
-	if limit > 100 {
-		limit = 100
+	if limit > 100000 {
+		limit = 100000
 	}
 
 	search := c.QueryParam("search")
