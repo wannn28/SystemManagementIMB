@@ -4,6 +4,7 @@ import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/response"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -153,4 +154,130 @@ func (h *FinanceHandler) GetMonthlyComparison(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusOK, data)
+}
+
+// GetFinanceByDateRange handles filtering finance records by date range
+func (h *FinanceHandler) GetFinanceByDateRange(c echo.Context) error {
+	startDate := c.QueryParam("start_date")
+	endDate := c.QueryParam("end_date")
+
+	if startDate == "" || endDate == "" {
+		return response.Error(c, http.StatusBadRequest, errors.New("start_date and end_date are required"))
+	}
+
+	finances, err := h.service.GetFinanceByDateRange(startDate, endDate)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	return response.Success(c, http.StatusOK, finances)
+}
+
+// GetFinanceByAmountRange handles filtering finance records by amount range
+func (h *FinanceHandler) GetFinanceByAmountRange(c echo.Context) error {
+	minAmountStr := c.QueryParam("min_amount")
+	maxAmountStr := c.QueryParam("max_amount")
+
+	if minAmountStr == "" || maxAmountStr == "" {
+		return response.Error(c, http.StatusBadRequest, errors.New("min_amount and max_amount are required"))
+	}
+
+	minAmount, err := strconv.ParseFloat(minAmountStr, 64)
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, errors.New("Invalid min_amount format"))
+	}
+
+	maxAmount, err := strconv.ParseFloat(maxAmountStr, 64)
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, errors.New("Invalid max_amount format"))
+	}
+
+	finances, err := h.service.GetFinanceByAmountRange(minAmount, maxAmount)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	return response.Success(c, http.StatusOK, finances)
+}
+
+// GetFinanceByCategory handles filtering finance records by category
+func (h *FinanceHandler) GetFinanceByCategory(c echo.Context) error {
+	category := c.QueryParam("category")
+
+	if category == "" {
+		return response.Error(c, http.StatusBadRequest, errors.New("category is required"))
+	}
+
+	// Validate category
+	validCategories := []string{"Barang", "Jasa", "Sewa Alat Berat", "Gaji", "Uang Makan", "Kasbon", "Other"}
+	isValid := false
+	for _, validCat := range validCategories {
+		if validCat == category {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		return response.Error(c, http.StatusBadRequest, errors.New("Invalid category"))
+	}
+
+	finances, err := h.service.GetFinanceByCategory(entity.FinanceCategory(category))
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	return response.Success(c, http.StatusOK, finances)
+}
+
+// GetFinanceByStatus handles filtering finance records by status
+func (h *FinanceHandler) GetFinanceByStatus(c echo.Context) error {
+	status := c.QueryParam("status")
+
+	if status == "" {
+		return response.Error(c, http.StatusBadRequest, errors.New("status is required"))
+	}
+
+	// Validate status
+	if status != "Paid" && status != "Unpaid" {
+		return response.Error(c, http.StatusBadRequest, errors.New("Invalid status. Must be 'Paid' or 'Unpaid'"))
+	}
+
+	finances, err := h.service.GetFinanceByStatus(status)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	return response.Success(c, http.StatusOK, finances)
+}
+
+// GetFinanceByTypeWithPagination handles filtering finance records by type with pagination
+func (h *FinanceHandler) GetFinanceByTypeWithPagination(c echo.Context) error {
+	fType := c.QueryParam("type")
+
+	if fType == "" {
+		return response.Error(c, http.StatusBadRequest, errors.New("type is required"))
+	}
+
+	// Validate type
+	if fType != "income" && fType != "expense" {
+		return response.Error(c, http.StatusBadRequest, errors.New("Invalid type. Must be 'income' or 'expense'"))
+	}
+
+	params := response.ParseQueryParams(c)
+
+	// Add type filter to params
+	if params.Filter == "" {
+		params.Filter = "type:" + fType
+	} else {
+		params.Filter += ",type:" + fType
+	}
+
+	finances, total, err := h.service.GetAllFinanceWithPagination(params)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+
+	pagination := response.CalculatePagination(params.Page, params.Limit, total)
+	return response.SuccessWithPagination(c, http.StatusOK, finances, pagination)
 }

@@ -164,7 +164,6 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   // Team.tsx - Pastikan menghapus berdasarkan ID yang benar
   const handleDeleteSalaryDetail = async (salaryId: string, id: string) => {
     if (!selectedMember) return;
-    // const prevState = [...teamMembersData];
     
     try {
       // Kirim permintaan DELETE ke backend
@@ -276,14 +275,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     setLoading(true);
     try {
       if (showPaginatedView) {
-        const response = await teamAPI.members.getPaginated(params);
-        const membersWithSalaries = response.data.map((member: any) => ({
+        const paginatedResponse = await teamAPI.members.getPaginated(params);
+        const membersWithSalaries = paginatedResponse.data.map((member: any) => ({
           ...member,
           // Pastikan salaries selalu array
           salaries: Array.isArray(member.salaries) ? member.salaries : []
         }));
         setTeamMembersData(membersWithSalaries);
-        setPagination(response.pagination);
+        setPagination(paginatedResponse.pagination);
       } else {
         const members = await teamAPI.members.getAll();
         const membersWithSalaries = members.map((member: any) => ({

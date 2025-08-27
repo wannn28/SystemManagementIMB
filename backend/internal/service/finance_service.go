@@ -16,6 +16,10 @@ type FinanceService interface {
 	GetFinanceByType(fType entity.FinanceType) ([]entity.Finance, error)
 	GetFinancialSummary() (income float64, expense float64, err error)
 	GetMonthlyComparison() ([]entity.MonthlyComparison, error)
+	GetFinanceByDateRange(startDate, endDate string) ([]entity.Finance, error)
+	GetFinanceByAmountRange(minAmount, maxAmount float64) ([]entity.Finance, error)
+	GetFinanceByCategory(category entity.FinanceCategory) ([]entity.Finance, error)
+	GetFinanceByStatus(status string) ([]entity.Finance, error)
 }
 
 type financeService struct {
@@ -62,4 +66,20 @@ func (s *financeService) GetFinancialSummary() (income float64, expense float64,
 
 func (s *financeService) GetAllFinanceWithPagination(params response.QueryParams) ([]entity.Finance, int, error) {
 	return s.repo.FindAllWithPagination(params)
+}
+
+func (s *financeService) GetFinanceByDateRange(startDate, endDate string) ([]entity.Finance, error) {
+	return s.repo.GetFinanceByDateRange(startDate, endDate)
+}
+
+func (s *financeService) GetFinanceByAmountRange(minAmount, maxAmount float64) ([]entity.Finance, error) {
+	return s.repo.GetFinanceByAmountRange(minAmount, maxAmount)
+}
+
+func (s *financeService) GetFinanceByCategory(category entity.FinanceCategory) ([]entity.Finance, error) {
+	return s.repo.GetFinanceByCategory(category)
+}
+
+func (s *financeService) GetFinanceByStatus(status string) ([]entity.Finance, error) {
+	return s.repo.GetFinanceByStatus(status)
 }

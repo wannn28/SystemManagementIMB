@@ -12,7 +12,7 @@ const SmartNotaInvoices: React.FC<SmartNotaInvoicesProps> = ({ isCollapsed }) =>
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
-    per_page: 10,
+    limit: 10,
     total: 0,
     total_pages: 0,
     has_next_page: false,
@@ -25,7 +25,7 @@ const SmartNotaInvoices: React.FC<SmartNotaInvoicesProps> = ({ isCollapsed }) =>
     if (hasSmartNotaApiKey()) {
       fetchInvoices();
     }
-  }, [pagination.page, pagination.per_page]);
+  }, [pagination.page, pagination.limit]);
 
   const fetchInvoices = async () => {
     if (!hasSmartNotaApiKey()) {
@@ -39,7 +39,7 @@ const SmartNotaInvoices: React.FC<SmartNotaInvoicesProps> = ({ isCollapsed }) =>
     try {
       const response = await smartNotaApi.getInvoices({
         page: pagination.page,
-        per_page: pagination.per_page,
+        limit: pagination.limit,
         sort: 'created_at',
         order: 'desc',
       });

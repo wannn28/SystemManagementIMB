@@ -9,7 +9,7 @@ export const teamAPI = {
   members: {
     // Get all team members
     getAll: async (): Promise<Member[]> => {
-      const response = await axios.get(`${API_URL}/members`, {
+      const response: any = await axios.get(`${API_URL}/members`, {
         headers: getAuthHeaders()
       });
       return response.data.data || [];
@@ -26,19 +26,19 @@ export const teamAPI = {
       if (params.order) queryString.append('order', params.order);
       if (params.filter) queryString.append('filter', params.filter);
       
-      const response = await axios.get(`${API_URL}/members/paginated?${queryString.toString()}`, {
+      const response: any = await axios.get(`${API_URL}/members/paginated?${queryString.toString()}`, {
         headers: getAuthHeaders()
       });
       
       return {
         data: response.data.data || [],
         pagination: {
-          page: response.data.pagination.page,
-          limit: response.data.pagination.limit,
-          total: response.data.pagination.total,
-          totalPages: response.data.pagination.total_pages,
-          hasNext: response.data.pagination.has_next,
-          hasPrev: response.data.pagination.has_prev
+          page: response.data.pagination?.page || 1,
+          limit: response.data.pagination?.limit || 10,
+          total: response.data.pagination?.total || 0,
+          totalPages: response.data.pagination?.total_pages || 0,
+          hasNext: response.data.pagination?.has_next || false,
+          hasPrev: response.data.pagination?.has_prev || false
         }
       };
     },
@@ -55,7 +55,7 @@ export const teamAPI = {
         formData.append('file', profileImage);
       }
       
-      const response = await axios.post(`${API_URL}/members`, formData, {
+      const response: any = await axios.post(`${API_URL}/members`, formData, {
         headers: getMultipartHeaders()
       });
       
@@ -64,7 +64,7 @@ export const teamAPI = {
 
     // Update member
     update: async (id: string, memberData: Partial<Member>): Promise<Member> => {
-      const response = await axios.put(`${API_URL}/members/${id}`, memberData, {
+      const response: any = await axios.put(`${API_URL}/members/${id}`, memberData, {
         headers: getAuthHeaders()
       });
       
@@ -83,7 +83,7 @@ export const teamAPI = {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${API_URL}/members/${memberId}/profile`,
         formData,
         {
@@ -91,7 +91,7 @@ export const teamAPI = {
         }
       );
       
-      return response.data;
+      return response.data.data;
     },
 
     // Upload documents
@@ -101,7 +101,7 @@ export const teamAPI = {
         formData.append('files', file);
       });
       
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${API_URL}/members/${memberId}/documents`,
         formData,
         {
@@ -109,7 +109,7 @@ export const teamAPI = {
         }
       );
       
-      return response.data;
+      return response.data.data;
     },
 
     // Delete document
@@ -124,7 +124,7 @@ export const teamAPI = {
   salaries: {
     // Get salaries for a member
     getByMemberId: async (memberId: string): Promise<SalaryRecord[]> => {
-      const response = await axios.get(`${API_URL}/members/${memberId}/salaries`, {
+      const response: any = await axios.get(`${API_URL}/members/${memberId}/salaries`, {
         headers: getAuthHeaders()
       });
       
@@ -133,7 +133,7 @@ export const teamAPI = {
 
     // Get salary by ID
     getBySalaryId: async (salaryId: string): Promise<SalaryRecord> => {
-      const response = await axios.get(`${API_URL}/salaries/${salaryId}`, {
+      const response: any = await axios.get(`${API_URL}/salaries/${salaryId}`, {
         headers: getAuthHeaders()
       });
       
@@ -142,7 +142,7 @@ export const teamAPI = {
 
     // Create new salary
     create: async (memberId: string, salaryData: Partial<SalaryRecord>): Promise<SalaryRecord> => {
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${API_URL}/members/${memberId}/salaries`,
         salaryData,
         {
@@ -155,7 +155,7 @@ export const teamAPI = {
 
     // Update salary
     update: async (memberId: string, salaryId: string, salaryData: Partial<SalaryRecord>): Promise<SalaryRecord> => {
-      const response = await axios.put(
+      const response: any = await axios.put(
         `${API_URL}/members/${memberId}/salaries/${salaryId}`,
         salaryData,
         {
@@ -178,7 +178,7 @@ export const teamAPI = {
       const formData = new FormData();
       files.forEach(file => formData.append('files', file));
       
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${API_URL}/salaries/${salaryId}/documents`,
         formData,
         {
@@ -186,7 +186,7 @@ export const teamAPI = {
         }
       );
       
-      return response.data;
+      return response.data.data;
     },
 
     // Delete salary document
@@ -201,7 +201,7 @@ export const teamAPI = {
   salaryDetails: {
     // Get salary details
     getBySalaryId: async (salaryId: string): Promise<SalaryDetail[]> => {
-      const response = await axios.get(`${API_URL}/salaries/${salaryId}/details`, {
+      const response: any = await axios.get(`${API_URL}/salaries/${salaryId}/details`, {
         headers: getAuthHeaders()
       });
       
@@ -210,7 +210,7 @@ export const teamAPI = {
 
     // Create salary detail
     create: async (salaryId: string, detailData: Partial<SalaryDetail>): Promise<SalaryDetail> => {
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${API_URL}/salaries/${salaryId}/details`,
         { ...detailData, tanggal: new Date(detailData.tanggal as string).toISOString() },
         {
@@ -223,7 +223,7 @@ export const teamAPI = {
 
     // Update salary detail
     update: async (salaryId: string, detailId: string, detailData: Partial<SalaryDetail>): Promise<SalaryDetail> => {
-      const response = await axios.put(
+      const response: any = await axios.put(
         `${API_URL}/salaries/${salaryId}/details/${detailId}`,
         { ...detailData, tanggal: new Date(detailData.tanggal as string).toISOString() },
         {
@@ -246,7 +246,7 @@ export const teamAPI = {
   kasbons: {
     // Get kasbons for a salary
     getBySalaryId: async (salaryId: string): Promise<Kasbon[]> => {
-      const response = await axios.get(`${API_URL}/salaries/${salaryId}/kasbons`, {
+      const response: any = await axios.get(`${API_URL}/salaries/${salaryId}/kasbons`, {
         headers: getAuthHeaders()
       });
       
@@ -255,7 +255,7 @@ export const teamAPI = {
 
     // Create kasbon
     create: async (salaryId: string, kasbonData: Partial<Kasbon>): Promise<Kasbon> => {
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${API_URL}/salaries/${salaryId}/kasbons`,
         { ...kasbonData, tanggal: new Date(kasbonData.tanggal as string).toISOString() },
         {
@@ -268,7 +268,7 @@ export const teamAPI = {
 
     // Update kasbon
     update: async (kasbonId: string, kasbonData: Partial<Kasbon>): Promise<Kasbon> => {
-      const response = await axios.put(
+      const response: any = await axios.put(
         `${API_URL}/kasbons/${kasbonId}`,
         { ...kasbonData, tanggal: new Date(kasbonData.tanggal as string).toISOString() },
         {

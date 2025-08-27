@@ -7,25 +7,25 @@ const API_URL = import.meta.env.VITE_API_URL + '/members';
 export const membersAPI = {
   // Get all members
   getAllMembers: async (): Promise<Member[]> => {
-    const response = await axios.get(API_URL);
+    const response: any = await axios.get(API_URL);
     return response.data.data || [];
   },
 
   // Get member by ID
   getMemberById: async (id: string): Promise<Member> => {
-    const response = await axios.get(`${API_URL}/${id}`);
+    const response: any = await axios.get(`${API_URL}/${id}`);
     return response.data.data;
   },
 
   // Create new member
   createMember: async (data: Partial<Member>): Promise<Member> => {
-    const response = await axios.post(API_URL, data);
+    const response: any = await axios.post(API_URL, data);
     return response.data.data;
   },
 
   // Update member
   updateMember: async (id: string, data: Partial<Member>): Promise<Member> => {
-    const response = await axios.put(`${API_URL}/${id}`, data);
+    const response: any = await axios.put(`${API_URL}/${id}`, data);
     return response.data.data;
   },
 
@@ -36,7 +36,7 @@ export const membersAPI = {
 
   // Get member count
   getMemberCount: async (): Promise<{count: number}> => {
-    const response = await axios.get(`${API_URL}/count`);
+    const response: any = await axios.get(`${API_URL}/count`);
     return response.data.data;
   },
 
@@ -47,21 +47,21 @@ export const membersAPI = {
       formData.append("files", file);
     });
 
-    const response = await axios.post(
+    const response: any = await axios.post(
       `${API_URL}/${memberId}/documents`,
       formData,
       {
         headers: getMultipartHeaders()
       }
     );
-    return response.data;
+    return response.data.data;
   },
 
   // Salary related endpoints
   salary: {
     // Add salary detail
     addSalaryDetail: async (salaryId: number, data: Partial<SalaryDetail>): Promise<SalaryDetail> => {
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details`,
         { ...data, tanggal: new Date(data.tanggal as string).toISOString() }
       );
@@ -70,7 +70,7 @@ export const membersAPI = {
 
     // Update salary detail
     updateSalaryDetail: async (salaryId: string, detailId: string, data: Partial<SalaryDetail>): Promise<SalaryDetail> => {
-      const response = await axios.put(
+      const response: any = await axios.put(
         `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/details/${detailId}`,
         { ...data, tanggal: new Date(data.tanggal as string).toISOString() }
       );
@@ -87,13 +87,13 @@ export const membersAPI = {
   kasbon: {
     // Get kasbons for a salary
     getKasbons: async (salaryId: string): Promise<Kasbon[]> => {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`);
+      const response: any = await axios.get(`${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`);
       return response.data.data || [];
     },
 
     // Add kasbon
     addKasbon: async (salaryId: number, data: Partial<Kasbon>): Promise<Kasbon> => {
-      const response = await axios.post(
+      const response: any = await axios.post(
         `${import.meta.env.VITE_API_URL}/salaries/${salaryId}/kasbons`,
         { ...data, tanggal: new Date(data.tanggal as string).toISOString() }
       );
@@ -102,7 +102,7 @@ export const membersAPI = {
 
     // Update kasbon
     updateKasbon: async (kasbonId: string, data: Partial<Kasbon>): Promise<Kasbon> => {
-      const response = await axios.put(
+      const response: any = await axios.put(
         `${import.meta.env.VITE_API_URL}/kasbons/${kasbonId}`,
         { ...data, tanggal: new Date(data.tanggal as string).toISOString() }
       );

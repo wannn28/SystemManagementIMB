@@ -32,7 +32,7 @@ export const createSmartNotaHeaders = (): Record<string, string> => {
 };
 
 // Smart Nota API base URL
-export const SMART_NOTA_BASE_URL = 'https://smartnotaapi.indiramaju.com';
+export const SMART_NOTA_BASE_URL = import.meta.env.VITE_API_SMART_NOTA_URL;
 
 // Smart Nota API endpoints
 export const SMART_NOTA_ENDPOINTS = {

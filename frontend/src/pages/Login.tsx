@@ -13,11 +13,17 @@ const Login: React.FC = () => {
     e.preventDefault();
     try {
       const response = await authAPI.login(email, password);
-      
+      console.log(response);
       localStorage.setItem('token', response.token);
-      navigate('/');
+      // set time out 3 detik
+      setTimeout(() => {
+        navigate('/');
+      }, 3000);
     } catch (err) {
-      setError('Login failed. Please check your credentials.');
+      console.log(err);
+      setTimeout(() => {
+        setError('Login failed. Please check your credentials.');
+      }, 3000);
     }
   };
 
