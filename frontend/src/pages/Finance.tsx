@@ -620,7 +620,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             onChange={setSelectedCategory}
                             placeholder="Filter kategori (contoh: Minyak)"
                             inputClassName={`${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
-                            debounceMs={2000}
+                            debounceMs={5000}
                         />
                         <select
                             value={selectedMonth}
@@ -957,7 +957,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 value={newEntry.category}
                                 onChange={(v) => setNewEntry({ ...newEntry, category: v })}
                                 placeholder="Kategori (contoh: Minyak)"
-                                debounceMs={2000}
+                                debounceMs={5000}
                             />
                             <select
                                 value={newEntry.status}
