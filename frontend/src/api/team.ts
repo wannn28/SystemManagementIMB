@@ -108,8 +108,13 @@ export const teamAPI = {
           headers: getMultipartHeaders()
         }
       );
-      
-      return response.data.data;
+      // Normalize response to always be a string array
+      const data = response?.data?.data;
+      if (Array.isArray(data)) return data as string[];
+      if (typeof data === 'string') return [data];
+      if (Array.isArray(data?.files)) return data.files as string[];
+      if (typeof data?.file === 'string') return [data.file];
+      return [];
     },
 
     // Delete document
@@ -185,8 +190,13 @@ export const teamAPI = {
           headers: getMultipartHeaders()
         }
       );
-      
-      return response.data.data;
+      // Normalize response to always be a string array
+      const data = response?.data?.data;
+      if (Array.isArray(data)) return data as string[];
+      if (typeof data === 'string') return [data];
+      if (Array.isArray(data?.files)) return data.files as string[];
+      if (typeof data?.file === 'string') return [data.file];
+      return [];
     },
 
     // Delete salary document

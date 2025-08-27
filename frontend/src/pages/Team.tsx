@@ -363,20 +363,25 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const handleDocumentUpload = async (memberId: string, files: File[]) => {
     try {
       const uploadedFiles = await teamAPI.members.uploadDocuments(memberId, files);
+      const normalized: string[] = Array.isArray(uploadedFiles)
+        ? uploadedFiles
+        : typeof uploadedFiles === 'string'
+          ? [uploadedFiles]
+          : [];
       
       setTeamMembersData(prev =>
         prev.map(member =>
           member.id === memberId
-            ? { ...member, documents: [...member.documents, ...uploadedFiles] }
+            ? { ...member, documents: [...member.documents, ...normalized] }
             : member
         )
       );
 
       if (selectedMember?.id === memberId) {
-        setSelectedMember(prev => prev !== null ? { ...prev, documents: [...prev.documents, ...uploadedFiles] } : prev);
+        setSelectedMember(prev => prev !== null ? { ...prev, documents: [...prev.documents, ...normalized] } : prev);
       }
       
-      return uploadedFiles; // Pastikan backend mengembalikan array nama file
+      return normalized; // Pastikan backend mengembalikan array nama file
     } catch (error) {
       console.error("Error uploading documents:", error);
       return [];
