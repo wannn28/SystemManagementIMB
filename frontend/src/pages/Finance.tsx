@@ -28,18 +28,35 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         onChange,
         placeholder,
         inputClassName = '',
-    }: { value: string; onChange: (v: string) => void; placeholder?: string; inputClassName?: string }) => {
+        debounceMs = 0,
+    }: { value: string; onChange: (v: string) => void; placeholder?: string; inputClassName?: string; debounceMs?: number }) => {
         const [open, setOpen] = useState(false);
         const [hoverIndex, setHoverIndex] = useState<number>(-1);
+        const [internalValue, setInternalValue] = useState<string>(value || '');
+
+        useEffect(() => {
+            setInternalValue(value || '');
+        }, [value]);
+
+        useEffect(() => {
+            if (debounceMs > 0) {
+                const t = setTimeout(() => {
+                    onChange(internalValue);
+                }, debounceMs);
+                return () => clearTimeout(t);
+            }
+        }, [internalValue, debounceMs, onChange]);
+
         const filtered = useMemo(() => {
-            const v = (value || '').toLowerCase();
+            const v = (internalValue || '').toLowerCase();
             const names = categories.map(c => c.name);
             const uniq = Array.from(new Set(names));
             if (!v) return uniq.slice(0, 8);
             return uniq.filter(n => n.toLowerCase().includes(v)).slice(0, 8);
-        }, [value, categories]);
+        }, [internalValue, categories]);
 
         const select = (name: string) => {
+            setInternalValue(name);
             onChange(name);
             setOpen(false);
         };
@@ -48,8 +65,8 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
             <div className="relative w-full" onBlur={() => setTimeout(() => setOpen(false), 120)}>
                 <input
                     type="text"
-                    value={value}
-                    onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+                    value={internalValue}
+                    onChange={(e) => { debounceMs === 0 ? onChange(e.target.value) : undefined; setInternalValue(e.target.value); setOpen(true); }}
                     onFocus={() => setOpen(true)}
                     placeholder={placeholder}
                     className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full ${inputClassName}`}
@@ -500,6 +517,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 onChange={(v) => setEditMode(prev => ({ ...prev, data: { ...prev.data, category: v } }))}
                                 placeholder="Kategori"
                                 inputClassName="p-1"
+                                debounceMs={1000}
                             />
                         </div>
                     ) : (
@@ -602,6 +620,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             onChange={setSelectedCategory}
                             placeholder="Filter kategori (contoh: Minyak)"
                             inputClassName={`${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
+                            debounceMs={2000}
                         />
                         <select
                             value={selectedMonth}
@@ -938,6 +957,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 value={newEntry.category}
                                 onChange={(v) => setNewEntry({ ...newEntry, category: v })}
                                 placeholder="Kategori (contoh: Minyak)"
+                                debounceMs={2000}
                             />
                             <select
                                 value={newEntry.status}
