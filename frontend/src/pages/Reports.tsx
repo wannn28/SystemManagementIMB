@@ -83,8 +83,8 @@ const getAggregatedRevenueData = (project: Project, timeRange: string) => {
 const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange: string, showTotals: boolean }) => {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" />
+      <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis
           dataKey={timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'}
           tickFormatter={(tick) => {
@@ -93,56 +93,98 @@ const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange:
             if (timeRange === 'weekly') return `Week ${Math.ceil(date.getDate() / 7)}`;
             return date.toLocaleString('default', { month: 'short' });
           }}
+          tick={{ fontSize: 12, fill: '#666' }}
+          axisLine={{ stroke: '#ddd' }}
         />
-        <YAxis />
-        <Tooltip content={({ active, payload }) => {
-          if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            const percentage = ((data.revenue / data.totalRevenue) * 100).toFixed(2);
-            const remaining = data.totalRevenue - data.revenue;
+        <YAxis 
+          tick={{ fontSize: 12, fill: '#666' }}
+          axisLine={{ stroke: '#ddd' }}
+          tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+        />
+        <Tooltip 
+          content={({ active, payload }) => {
+            if (active && payload && payload.length) {
+              const data = payload[0].payload;
+              const percentage = ((data.revenue / data.totalRevenue) * 100).toFixed(2);
+              const remaining = data.totalRevenue - data.revenue;
 
-            return (
-              <div className="bg-white p-3 border rounded-lg shadow-sm">
-                <p className="font-semibold">
-                  {data[timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'] instanceof Date
-                    ? data[timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'].toLocaleDateString()
-                    : data[timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart']}
-                </p>
-                <p className="text-[#8884d8]">Realisasi: Rp{data.revenue?.toLocaleString()}</p>
-                <p className="text-[#82ca9d]">Total Revenue: Rp{data.totalRevenue?.toLocaleString()}</p>
-                <p className="mt-2">Terbayar: {percentage}%</p>
-                <p>Sisa: Rp{remaining?.toLocaleString()}</p>
-              </div>
-            );
-          }
-          return null;
-        }} />
-        <Legend />
+              return (
+                <div className="bg-white p-4 border border-gray-200 rounded-xl shadow-lg">
+                  <div className="mb-3 pb-2 border-b border-gray-100">
+                    <p className="font-bold text-gray-800 text-sm">
+                      {data[timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'] instanceof Date
+                        ? data[timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'].toLocaleDateString()
+                        : data[timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart']}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Revenue:</span>
+                      <span className="font-semibold text-blue-600">Rp{data.revenue?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Paid:</span>
+                      <span className="font-semibold text-green-600">Rp{data.paid?.toLocaleString()}</span>
+                    </div>
+                    {showTotals && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Total Revenue:</span>
+                          <span className="font-semibold text-purple-600">Rp{data.totalRevenue?.toLocaleString()}</span>
+                        </div>
+                        <div className="pt-2 border-t border-gray-100">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Progress:</span>
+                            <span className="font-bold text-green-600">{percentage}%</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Remaining:</span>
+                            <span className="font-semibold text-red-600">Rp{remaining?.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          }}
+        />
+        <Legend 
+          wrapperStyle={{ paddingTop: '10px' }}
+          formatter={(value) => (
+            <span style={{ color: '#666', fontSize: '12px' }}>{value}</span>
+          )}
+        />
         <Line
           type="monotone"
           dataKey="revenue"
-          stroke="#8884d8"
+          stroke="#3b82f6"
           name="Revenue"
-          strokeWidth={2}
-          dot={{ r: 4 }}
+          strokeWidth={3}
+          dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+          activeDot={{ r: 7, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
         />
         <Line
           type="monotone"
           dataKey="paid"
-          stroke="#8884d8"
-          name="Terbayar"
-          strokeWidth={2}
-          dot={{ r: 4 }}
+          stroke="#10b981"
+          name="Paid"
+          strokeWidth={3}
+          dot={{ r: 5, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+          activeDot={{ r: 7, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
         />
         {showTotals && (
           <Line
             type="monotone"
             dataKey="totalRevenue"
-            stroke="#82ca9d"
+            stroke="#8b5cf6"
             name="Total Revenue"
-            strokeWidth={2}
+            strokeWidth={3}
             strokeDasharray="5 5"
-            dot={{ r: 4 }}
+            dot={{ r: 5, fill: '#8b5cf6', strokeWidth: 2, stroke: '#fff' }}
+            activeDot={{ r: 7, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
           />
         )}
       </LineChart>
@@ -154,61 +196,94 @@ const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange:
 const VolumeProgressChart = ({ data, timeRange, showTotals }: { data: any[], timeRange: string, showTotals: boolean }) => {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey={timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'} />
-        <YAxis />
-        <Legend />
-        <Tooltip content={({ active, payload }) => {
-          if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-              <div className="bg-white p-3 border rounded-lg shadow-sm">
-                <p className="font-semibold">
-                  {(() => {
-                    const dateVal = data[
-                      timeRange === 'daily'
-                        ? 'date'
-                        : timeRange === 'weekly'
-                          ? 'weekStart'
-                          : 'monthStart'
-                    ];
-                    return dateVal instanceof Date
-                      ? dateVal.toLocaleDateString()
-                      : String(dateVal); // atau dateVal?.toString() jika dateVal bisa null
-                  })()}
-                </p>
-                <p className="text-[#ff7300]">Volume Plan : {data.plan?.toLocaleString()}</p>
-                <p className="text-[#82ca9d]">Volume Aktual: {data.aktual?.toLocaleString()}</p>
-
-              </div>
-            );
-          }
-          return null;
-        }} />
+      <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis 
+          dataKey={timeRange === 'daily' ? 'date' : timeRange === 'weekly' ? 'weekStart' : 'monthStart'}
+          tick={{ fontSize: 12, fill: '#666' }}
+          axisLine={{ stroke: '#ddd' }}
+        />
+        <YAxis 
+          tick={{ fontSize: 12, fill: '#666' }}
+          axisLine={{ stroke: '#ddd' }}
+          tickFormatter={(value) => `${(value / 1000).toFixed(1)}K`}
+        />
+        <Legend 
+          wrapperStyle={{ paddingTop: '10px' }}
+          formatter={(value) => (
+            <span style={{ color: '#666', fontSize: '12px' }}>{value}</span>
+          )}
+        />
+        <Tooltip 
+          content={({ active, payload }) => {
+            if (active && payload && payload.length) {
+              const data = payload[0].payload;
+              return (
+                <div className="bg-white p-4 border border-gray-200 rounded-xl shadow-lg">
+                  <div className="mb-3 pb-2 border-b border-gray-100">
+                    <p className="font-bold text-gray-800 text-sm">
+                      {(() => {
+                        const dateVal = data[
+                          timeRange === 'daily'
+                            ? 'date'
+                            : timeRange === 'weekly'
+                              ? 'weekStart'
+                              : 'monthStart'
+                        ];
+                        return dateVal instanceof Date
+                          ? dateVal.toLocaleDateString()
+                          : String(dateVal);
+                      })()}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Plan:</span>
+                      <span className="font-semibold text-orange-600">{data.plan?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Actual:</span>
+                      <span className="font-semibold text-green-600">{data.aktual?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Target:</span>
+                      <span className="font-semibold text-blue-600">{data.targetVolume?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Volume:</span>
+                      <span className="font-semibold text-yellow-600">{data.volume?.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          }}
+        />
         <Line
           type="monotone"
           dataKey="plan"
-          stroke="#ff7300"
+          stroke="#f97316"
           name="Plan"
-          strokeWidth={2}
-          dot={{ r: 4 }}
+          strokeWidth={3}
+          dot={{ r: 5, fill: '#f97316', strokeWidth: 2, stroke: '#fff' }}
+          activeDot={{ r: 7, fill: '#f97316', stroke: '#fff', strokeWidth: 2 }}
         />
         <Line
           type="monotone"
           dataKey="aktual"
-          stroke="#82ca9d"
-          name="Aktual"
+          stroke="#10b981"
+          name="Actual"
           connectNulls={false}
-          strokeWidth={2}
-          dot={{ r: 4 }}
+          strokeWidth={3}
+          dot={{ r: 5, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+          activeDot={{ r: 7, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
         />
         {showTotals && (
           <Line
             type="monotone"
             dataKey="totalVolume"
-            stroke="#8884d8"
+            stroke="#8b5cf6"
             name="Total Volume"
             strokeWidth={2}
             strokeDasharray="5 5"
@@ -522,161 +597,503 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   };
   return (
     <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-      <div className="max-w-7xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Reports</h1>
-
-        <div className="flex gap-4 mb-6">
-          {['daily', 'weekly', 'monthly'].map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range as any)}
-              className={`px-4 py-2 rounded-lg ${timeRange === range ? 'bg-indigo-600 text-white' : 'bg-gray-100'
-                }`}
-            >
-              {range.charAt(0).toUpperCase() + range.slice(1)}
-            </button>
-
-          ))}
-          <button
-            onClick={() => setShowTotals(!showTotals)}
-            className={`px-4 py-2 rounded-lg ${showTotals ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}
-          >
-            Tampilkan Total
-          </button>
-
-        </div>
-        {editingProject && (
-          <EditReports
-            project={editingProject}
-            onSave={handleSaveProject}
-          />
-        )}
-        {renderFullscreenChart()}
-        <div className="space-y-8">
-          {projects.map((project) => (
-            <div key={project.id} className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">{project.name}</h2>
-                <button
-                  onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
-                  className="text-indigo-600 hover:underline"
-                >
-                  {selectedProject === project.id ? 'Sembunyikan Detail' : 'Tampilkan Detail'}
-                </button>
-                <button
-                  onClick={() => setEditingProject(project)} // Open edit form
-                  className="text-indigo-600 hover:underline"
-                >
-                  Edit Reports
-                </button>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="max-w-7xl mx-auto p-6">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-4xl font-bold text-gray-800 mb-2">📊 Project Reports</h1>
+                <p className="text-gray-600">Comprehensive project analytics and performance metrics</p>
               </div>
-
-              {selectedProject === project.id && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Revenue Chart */}
-                  <div className="p-4 border rounded-lg relative h-64">
-                    <button
-                      onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'revenue' })}
-                      className="absolute top-2 right-2 p-1 bg-gray-100 rounded hover:bg-gray-200"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                      </svg>
-                    </button>
-                    <h3 className="text-lg font-semibold mb-4">Revenue vs Total Revenue ({timeRange})</h3>
-                    <RevenueChart
-                      data={getAggregatedRevenueData(project, timeRange)}
-                      timeRange={timeRange}
-                      showTotals={showTotals}
-                    />
-                  </div>
-
-                  {/* Volume Progress Chart */}
-                  <div className="p-4 border rounded-lg relative h-64">
-                    <button
-                      onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-progress' })}
-                      className="absolute top-2 right-2 p-1 bg-gray-100 rounded hover:bg-gray-200"
-                    >
-                      {/* Icon sama */}
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                      </svg>
-                    </button>
-                    <h3 className="text-lg font-semibold mb-4">Progress Volume</h3>
-                    <VolumeProgressChart
-                      data={getVolumeData(project)}
-                      timeRange={timeRange}
-                      showTotals={showTotals}
-                    />
-                  </div>
-
-                  {/* Volume Data Chart */}
-                  <div className="col-span-full p-4 border rounded-lg relative h-96">
-                    <button
-                      onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-data' })}
-                      className="absolute top-2 right-2 p-1 bg-gray-100 rounded hover:bg-gray-200"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                      </svg>
-                    </button>
-                    <h3 className="text-lg font-semibold mb-4">Volume Data ({timeRange})</h3>
-                    <VolumeDataChart
-                      data={getVolumeData(project)}
-                      timeRange={timeRange}
-                    />
-                  </div>
-                  <div className="col-span-full grid grid-cols-3 gap-4">
-                    <div className="bg-yellow-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Akumulasi Plan</p>
-                      <p className="text-2xl font-bold">{getTimeRangeData(project).reduce((acc, item) => acc + item.plan, 0)}</p>
-                    </div>
-                    <div className="bg-red-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Akumulasi Aktual</p>
-                      <p className="text-2xl font-bold">{getTimeRangeData(project).reduce((acc, item) => acc + item.aktual, 0)}</p>
-                    </div>
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Deviasi</p>
-                      <p className="text-2xl font-bold">{getTimeRangeData(project).reduce((acc, item) => acc + (item.aktual - item.plan), 0)}</p>
-                    </div>
-                  </div>
-
-                  <div className="col-span-full p-4 border rounded-lg">
-                    <h3 className="text-lg font-semibold mb-4">Detail Volume</h3>
-                    <p className="text-sm text-gray-600">
-                      Target Volume:{" "}
-                      {getTimeRangeData(project).reduce(
-                        (acc, item) => acc + (item.targetVolume ?? 0), // Gunakan ?? untuk mengganti null dengan 0
-                        0
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Jumlah Volume:{" "}
-                      {getTimeRangeData(project).reduce(
-                        (acc, item) => acc + (item.volume ?? 0), // Gunakan ?? untuk mengganti null dengan 0
-                        0
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Sisa Volume:{" "}
-                      {getTimeRangeData(project).reduce(
-                        (acc, item) => acc + (item.targetVolume ?? 0), // Gunakan ?? untuk mengganti null dengan 0
-                        0
-                      ) -
-                        getTimeRangeData(project).reduce(
-                          (acc, item) => acc + (item.volume ?? 0), // Gunakan ?? untuk mengganti null dengan 0
-                          0
-                        )}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Progress: {getProgress(project).toFixed(2)}%
-                    </p>
-                  </div>
+              <div className="flex items-center space-x-4">
+                <div className="bg-white rounded-lg shadow-sm px-4 py-2">
+                  <span className="text-sm text-gray-600">Total Projects: {projects.length}</span>
                 </div>
-              )}
+              </div>
             </div>
 
-          ))}
+            {/* Filter Controls */}
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-semibold text-gray-700">Time Range:</span>
+                  {['daily', 'weekly', 'monthly'].map((range) => (
+                    <button
+                      key={range}
+                      onClick={() => setTimeRange(range as any)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                        timeRange === range 
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {range.charAt(0).toUpperCase() + range.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-semibold text-gray-700">Display:</span>
+                  <button
+                    onClick={() => setShowTotals(!showTotals)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                      showTotals 
+                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {showTotals ? '✅ Show Totals' : '📊 Show Totals'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Edit Reports Modal */}
+          {editingProject && (
+            <EditReports
+              project={editingProject}
+              onSave={handleSaveProject}
+            />
+          )}
+
+          {/* Fullscreen Chart */}
+          {renderFullscreenChart()}
+
+          {/* Projects List */}
+          <div className="space-y-8">
+            {projects.map((project) => (
+              <div key={project.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                {/* Project Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-2xl font-bold mb-1 text-white drop-shadow-sm">{project.name}</h2>
+                      <p className="text-blue-50 font-medium">Project ID: {project.id}</p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
+                        className="bg-white bg-opacity-25 hover:bg-opacity-35 text-blue-700 px-4 py-2 rounded-lg transition-all duration-200 font-semibold shadow-sm"
+                      >
+                        {selectedProject === project.id ? '👁️ Hide Details' : '📊 Show Details'}
+                      </button>
+                      <button
+                        onClick={() => setEditingProject(project)}
+                        className="bg-white bg-opacity-25 hover:bg-opacity-35 text-blue-700 px-4 py-2 rounded-lg transition-all duration-200 font-semibold shadow-sm"
+                      >
+                        ✏️ Edit Reports
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project Content */}
+                {selectedProject === project.id && (
+                  <div className="p-6 space-y-8">
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Revenue Chart */}
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 relative">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+                              <span className="text-white font-bold">💰</span>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-gray-800">Revenue Analysis</h3>
+                              <p className="text-sm text-gray-600">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} view</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'revenue' })}
+                            className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-lg transition-all duration-200 shadow-sm"
+                          >
+                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="h-64">
+                          <RevenueChart
+                            data={getAggregatedRevenueData(project, timeRange)}
+                            timeRange={timeRange}
+                            showTotals={showTotals}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Volume Progress Chart */}
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 relative">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+                              <span className="text-white font-bold">📈</span>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-gray-800">Volume Progress</h3>
+                              <p className="text-sm text-gray-600">Progress tracking</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-progress' })}
+                            className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-lg transition-all duration-200 shadow-sm"
+                          >
+                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="h-64">
+                          <VolumeProgressChart
+                            data={getVolumeData(project)}
+                            timeRange={timeRange}
+                            showTotals={showTotals}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Volume Data Chart - Full Width */}
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white font-bold">📊</span>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-800">Volume Data Analysis</h3>
+                            <p className="text-sm text-gray-600">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} detailed view</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-data' })}
+                          className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-lg transition-all duration-200 shadow-sm"
+                        >
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="h-96">
+                        <VolumeDataChart
+                          data={getVolumeData(project)}
+                          timeRange={timeRange}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Key Metrics Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-200">
+                        <div className="flex items-center mb-4">
+                          <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white font-bold">📋</span>
+                          </div>
+                          <h4 className="text-lg font-bold text-gray-800">Accumulated Plan</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-yellow-700">
+                          {getTimeRangeData(project).reduce((acc, item) => acc + item.plan, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-6 border border-red-200">
+                        <div className="flex items-center mb-4">
+                          <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white font-bold">✅</span>
+                          </div>
+                          <h4 className="text-lg font-bold text-gray-800">Accumulated Actual</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-red-700">
+                          {getTimeRangeData(project).reduce((acc, item) => acc + item.aktual, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                        <div className="flex items-center mb-4">
+                          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white font-bold">📊</span>
+                          </div>
+                          <h4 className="text-lg font-bold text-gray-800">Deviation</h4>
+                        </div>
+                        <p className="text-3xl font-bold text-blue-700">
+                          {getTimeRangeData(project).reduce((acc, item) => acc + (item.aktual - item.plan), 0).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Volume Details */}
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
+                      <div className="flex items-center mb-6">
+                        <div className="w-10 h-10 bg-gray-500 rounded-lg flex items-center justify-center mr-3">
+                          <span className="text-white font-bold">📦</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800">Volume Details</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                          <p className="text-sm text-gray-600 mb-1">Target Volume</p>
+                          <p className="text-xl font-bold text-gray-800">
+                            {getTimeRangeData(project).reduce((acc, item) => acc + (item.targetVolume ?? 0), 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                          <p className="text-sm text-gray-600 mb-1">Total Volume</p>
+                          <p className="text-xl font-bold text-gray-800">
+                            {getTimeRangeData(project).reduce((acc, item) => acc + (item.volume ?? 0), 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                          <p className="text-sm text-gray-600 mb-1">Remaining Volume</p>
+                          <p className="text-xl font-bold text-gray-800">
+                            {(getTimeRangeData(project).reduce((acc, item) => acc + (item.targetVolume ?? 0), 0) -
+                              getTimeRangeData(project).reduce((acc, item) => acc + (item.volume ?? 0), 0)).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                          <p className="text-sm text-gray-600 mb-1">Progress</p>
+                          <p className="text-xl font-bold text-green-600">
+                            {getProgress(project).toFixed(2)}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Summary Tables */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Daily Summary */}
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
+                        <div className="flex items-center mb-6">
+                          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white font-bold">📅</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-gray-800">Daily Summary</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6">
+                          {/* Man Power Summary */}
+                          <div className="bg-white rounded-lg p-4 border border-green-200">
+                            <h4 className="font-semibold text-gray-800 mb-4 flex items-center">
+                              👷 Man Power
+                            </h4>
+                            <div className="space-y-3">
+                              {(() => {
+                                const dailyReports = project.reports.daily;
+                                if (!dailyReports || dailyReports.length === 0) return (
+                                  <div className="text-gray-500 text-sm">No data available</div>
+                                );
+
+                                const allWorkerTypes = new Set<string>();
+                                dailyReports.forEach(report => {
+                                  if (report.workers) {
+                                    Object.keys(report.workers).forEach(type => allWorkerTypes.add(type));
+                                  }
+                                });
+
+                                const workerStats = Array.from(allWorkerTypes).map(workerType => {
+                                  const totals = dailyReports.reduce((sum, report) => sum + (report.workers?.[workerType] || 0), 0);
+                                  return { type: workerType, total: totals };
+                                });
+
+                                const totalWorkers = workerStats.reduce((sum, stat) => sum + stat.total, 0);
+
+                                return (
+                                  <>
+                                    <div className="flex justify-between items-center p-2 bg-green-100 rounded-lg">
+                                      <span className="font-semibold text-green-800">Total</span>
+                                      <span className="bg-green-500 text-white px-2 py-1 rounded-full text-sm font-bold">
+                                        {totalWorkers}
+                                      </span>
+                                    </div>
+                                    {workerStats.map((stat) => (
+                                      <div key={stat.type} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                                        <span className="text-sm text-gray-700">{stat.type}</span>
+                                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                          {stat.total}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Equipment Summary */}
+                          <div className="bg-white rounded-lg p-4 border border-green-200">
+                            <h4 className="font-semibold text-gray-800 mb-4 flex items-center">
+                              🚜 Equipment
+                            </h4>
+                            <div className="space-y-3">
+                              {(() => {
+                                const dailyReports = project.reports.daily;
+                                if (!dailyReports || dailyReports.length === 0) return (
+                                  <div className="text-gray-500 text-sm">No data available</div>
+                                );
+
+                                const allEquipmentTypes = new Set<string>();
+                                dailyReports.forEach(report => {
+                                  if (report.equipment) {
+                                    Object.keys(report.equipment).forEach(type => allEquipmentTypes.add(type));
+                                  }
+                                });
+
+                                const equipmentStats = Array.from(allEquipmentTypes).map(equipmentType => {
+                                  const totals = dailyReports.reduce((sum, report) => sum + (report.equipment?.[equipmentType] || 0), 0);
+                                  return { type: equipmentType, total: totals };
+                                });
+
+                                const totalEquipment = equipmentStats.reduce((sum, stat) => sum + stat.total, 0);
+
+                                return (
+                                  <>
+                                    <div className="flex justify-between items-center p-2 bg-green-100 rounded-lg">
+                                      <span className="font-semibold text-green-800">Total</span>
+                                      <span className="bg-green-500 text-white px-2 py-1 rounded-full text-sm font-bold">
+                                        {totalEquipment}
+                                      </span>
+                                    </div>
+                                    {equipmentStats.map((stat) => (
+                                      <div key={stat.type} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                                        <span className="text-sm text-gray-700">{stat.type}</span>
+                                        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
+                                          {stat.total}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Weekly Summary */}
+                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+                        <div className="flex items-center mb-6">
+                          <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white font-bold">📊</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-gray-800">Weekly Summary</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6">
+                          {/* Weekly Man Power Summary */}
+                          <div className="bg-white rounded-lg p-4 border border-purple-200">
+                            <h4 className="font-semibold text-gray-800 mb-4 flex items-center">
+                              👷 Man Power
+                            </h4>
+                            <div className="space-y-3">
+                              {(() => {
+                                const dailyReports = project.reports.daily;
+                                if (!dailyReports || dailyReports.length === 0) return (
+                                  <div className="text-gray-500 text-sm">No data available</div>
+                                );
+
+                                const allWorkerTypes = new Set<string>();
+                                dailyReports.forEach(report => {
+                                  if (report.workers) {
+                                    Object.keys(report.workers).forEach(type => allWorkerTypes.add(type));
+                                  }
+                                });
+
+                                const workerStats = Array.from(allWorkerTypes).map(workerType => {
+                                  const totals = dailyReports.reduce((sum, report) => sum + (report.workers?.[workerType] || 0), 0);
+                                  const average = dailyReports.length > 0 ? totals / dailyReports.length : 0;
+                                  return { type: workerType, total: totals, average: average };
+                                });
+
+                                const totalWorkers = workerStats.reduce((sum, stat) => sum + stat.total, 0);
+                                const avgTotalWorkers = dailyReports.length > 0 ? totalWorkers / dailyReports.length : 0;
+
+                                return (
+                                  <>
+                                    <div className="flex justify-between items-center p-2 bg-purple-100 rounded-lg">
+                                      <span className="font-semibold text-purple-800">Total</span>
+                                      <span className="bg-purple-500 text-white px-2 py-1 rounded-full text-sm font-bold">
+                                        {totalWorkers}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center p-2 bg-purple-100 rounded-lg">
+                                      <span className="font-semibold text-purple-800">Average</span>
+                                      <span className="bg-purple-500 text-white px-2 py-1 rounded-full text-sm font-bold">
+                                        {avgTotalWorkers.toFixed(1)}
+                                      </span>
+                                    </div>
+                                    {workerStats.map((stat) => (
+                                      <div key={stat.type} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                                        <span className="text-sm text-gray-700">{stat.type}</span>
+                                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                          {stat.average.toFixed(1)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Weekly Equipment Summary */}
+                          <div className="bg-white rounded-lg p-4 border border-purple-200">
+                            <h4 className="font-semibold text-gray-800 mb-4 flex items-center">
+                              🚜 Equipment
+                            </h4>
+                            <div className="space-y-3">
+                              {(() => {
+                                const dailyReports = project.reports.daily;
+                                if (!dailyReports || dailyReports.length === 0) return (
+                                  <div className="text-gray-500 text-sm">No data available</div>
+                                );
+
+                                const allEquipmentTypes = new Set<string>();
+                                dailyReports.forEach(report => {
+                                  if (report.equipment) {
+                                    Object.keys(report.equipment).forEach(type => allEquipmentTypes.add(type));
+                                  }
+                                });
+
+                                const equipmentStats = Array.from(allEquipmentTypes).map(equipmentType => {
+                                  const totals = dailyReports.reduce((sum, report) => sum + (report.equipment?.[equipmentType] || 0), 0);
+                                  const average = dailyReports.length > 0 ? totals / dailyReports.length : 0;
+                                  return { type: equipmentType, total: totals, average: average };
+                                });
+
+                                const totalEquipment = equipmentStats.reduce((sum, stat) => sum + stat.total, 0);
+                                const avgTotalEquipment = dailyReports.length > 0 ? totalEquipment / dailyReports.length : 0;
+
+                                return (
+                                  <>
+                                    <div className="flex justify-between items-center p-2 bg-purple-100 rounded-lg">
+                                      <span className="font-semibold text-purple-800">Total</span>
+                                      <span className="bg-purple-500 text-white px-2 py-1 rounded-full text-sm font-bold">
+                                        {totalEquipment}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center p-2 bg-purple-100 rounded-lg">
+                                      <span className="font-semibold text-purple-800">Average</span>
+                                      <span className="bg-purple-500 text-white px-2 py-1 rounded-full text-sm font-bold">
+                                        {avgTotalEquipment.toFixed(1)}
+                                      </span>
+                                    </div>
+                                    {equipmentStats.map((stat) => (
+                                      <div key={stat.type} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                                        <span className="text-sm text-gray-700">{stat.type}</span>
+                                        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
+                                          {stat.average.toFixed(1)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

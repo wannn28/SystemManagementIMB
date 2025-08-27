@@ -60,6 +60,72 @@ export interface Member {
   salaries: SalaryRecord[];
 }
 
+export interface DailyReportImage {
+  id: number;
+  reportDailyId: number;
+  imagePath: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DailyReport {
+  id: number;
+  projectId: number;
+  date: string;
+  revenue: number;
+  paid: number;
+  volume: number;
+  targetVolume: number;
+  plan: number;
+  aktual: number;
+  workers: Record<string, number>;
+  equipment: Record<string, number>;
+  totalWorkers: number;
+  totalEquipment: number;
+  images: DailyReportImage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WeeklyReport {
+  targetPlan: number;
+  targetAktual: number;
+  week: string;
+  volume: number;
+  targetVolume: number;
+  // New fields for workers and equipment totals and averages
+  totalWorkers: number;
+  avgWorkers: number;
+  totalEquipment: number;
+  avgEquipment: number;
+  // Detailed worker counts
+  workers: Record<string, number>; // Total workers by type for the week
+  avgWorkersByType: Record<string, number>; // Average workers by type
+  // Detailed equipment counts
+  equipment: Record<string, number>; // Total equipment by type for the week
+  avgEquipmentByType: Record<string, number>; // Average equipment by type
+}
+
+export interface MonthlyReport {
+  targetPlan: number;
+  targetAktual: number;
+  month: string;
+  volume: number;
+  targetVolume: number;
+  // New fields for workers and equipment totals and averages
+  totalWorkers: number;
+  avgWorkers: number;
+  totalEquipment: number;
+  avgEquipment: number;
+  // Detailed worker counts
+  workers: Record<string, number>; // Total workers by type for the month
+  avgWorkersByType: Record<string, number>; // Average workers by type
+  // Detailed equipment counts
+  equipment: Record<string, number>; // Total equipment by type for the month
+  avgEquipmentByType: Record<string, number>; // Average equipment by type
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -74,9 +140,9 @@ export interface Project {
   totalVolume: number;
   unit: string;
   reports: {
-    daily: { date: string; revenue: number; paid: number; volume: number; targetVolume: number; plan: number; aktual: number }[];
-    weekly: { targetPlan: number; targetAktual: number; week: string; volume: number; targetVolume: number; }[];
-    monthly: { targetPlan: number; targetAktual: number; month: string; volume: number; targetVolume: number }[];
+    daily: DailyReport[];
+    weekly: WeeklyReport[];
+    monthly: MonthlyReport[];
   };
 }
 

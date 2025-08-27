@@ -213,9 +213,24 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
   };
 
   const handleConfirmImport = () => {
-    importPreview.forEach((salaryDetail) => {
+    // Check for duplicates before adding
+    const existingDates = new Set(data.map(item => item.tanggal));
+    const newData = importPreview.filter(salaryDetail => !existingDates.has(salaryDetail.tanggal));
+    
+    if (newData.length === 0) {
+      alert('Semua data untuk tanggal yang dipilih sudah ada. Tidak ada data baru yang ditambahkan.');
+      return;
+    }
+    
+    if (newData.length < importPreview.length) {
+      const duplicateCount = importPreview.length - newData.length;
+      alert(`Ditemukan ${duplicateCount} data duplikasi yang akan dilewati. ${newData.length} data baru akan ditambahkan.`);
+    }
+    
+    newData.forEach((salaryDetail) => {
       onAdd(salaryDetail);
     });
+    
     setShowImportForm(false);
     setImportPreview([]);
     setImportFormData({
@@ -487,6 +502,61 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
 
       {showForm && data.length > 0 && (
         <div className="overflow-x-auto">
+          {/* Duplicate Detection and Cleanup */}
+          {(() => {
+            const dateCounts = data.reduce((acc, item) => {
+              acc[item.tanggal] = (acc[item.tanggal] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+            
+            const duplicateDates = Object.entries(dateCounts)
+              .filter(([, count]) => count > 1)
+              .map(([date, count]) => ({ date, count }));
+            
+            if (duplicateDates.length > 0) {
+              return (
+                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Data Duplikasi Ditemukan</h4>
+                      <p className="text-yellow-700 text-sm">
+                        Ditemukan {duplicateDates.length} tanggal dengan data duplikasi:
+                      </p>
+                      <ul className="text-yellow-700 text-sm mt-1">
+                        {duplicateDates.map(({ date, count }) => (
+                          <li key={date}>
+                            {new Date(date).toLocaleDateString()}: {count} entri
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Remove duplicates by keeping only the first occurrence of each date
+                        const seenDates = new Set<string>();
+                        const uniqueData = data.filter(item => {
+                          if (seenDates.has(item.tanggal)) {
+                            return false;
+                          }
+                          seenDates.add(item.tanggal);
+                          return true;
+                        });
+                        
+                        // Update the data by removing all items and adding back unique ones
+                        data.forEach(item => onDelete(item.id));
+                        uniqueData.forEach(item => onAdd(item));
+                      }}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                    >
+                      Hapus Duplikasi
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          
           <table className="min-w-full bg-white">
             <thead>
               <tr>
