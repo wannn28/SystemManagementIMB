@@ -79,12 +79,14 @@ func StartServer() {
 
 	financeRepo := repository.NewFinanceRepository(db)
 	financeService := service.NewFinanceService(financeRepo)
+	financeCategoryRepo := repository.NewFinanceCategoryRepository(db)
+	financeCategoryService := service.NewFinanceCategoryService(financeCategoryRepo)
 
 	inventoryRepo := repository.NewInventoryRepository(db)
 	inventoryService := service.NewInventoryService(inventoryRepo)
 	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL, cfg, activityService)
 
-	route.RegisterFinanceRoutes(e, financeService, cfg, activityService)
+	route.RegisterFinanceRoutes(e, financeService, cfg, activityService, financeCategoryService)
 	route.RegisterRoutes(e, userService, cfg)
 	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
 

@@ -169,7 +169,7 @@ export interface FinanceEntry {
   keterangan: string;
   type: 'income' | 'expense';
   status : 'Paid' | 'Unpaid';
-  category: 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon';
+  category: string;
 }
 
 // Pagination interfaces

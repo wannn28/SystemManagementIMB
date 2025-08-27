@@ -19,6 +19,60 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [activeSection, setActiveSection] = useState<'income' | 'expense'>('income');
     const [incomeData, setIncomeData] = useState<FinanceEntry[]>([]);
     const [expenseData, setExpenseData] = useState<FinanceEntry[]>([]);
+    const [categories, setCategories] = useState<Array<{id:number; name:string}>>([]);
+    const [showManageCategories, setShowManageCategories] = useState(false);
+    
+    // Reusable category autocomplete input
+    const CategoryAutocomplete = ({
+        value,
+        onChange,
+        placeholder,
+        inputClassName = '',
+    }: { value: string; onChange: (v: string) => void; placeholder?: string; inputClassName?: string }) => {
+        const [open, setOpen] = useState(false);
+        const [hoverIndex, setHoverIndex] = useState<number>(-1);
+        const filtered = useMemo(() => {
+            const v = (value || '').toLowerCase();
+            const names = categories.map(c => c.name);
+            const uniq = Array.from(new Set(names));
+            if (!v) return uniq.slice(0, 8);
+            return uniq.filter(n => n.toLowerCase().includes(v)).slice(0, 8);
+        }, [value, categories]);
+
+        const select = (name: string) => {
+            onChange(name);
+            setOpen(false);
+        };
+
+        return (
+            <div className="relative w-full" onBlur={() => setTimeout(() => setOpen(false), 120)}>
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+                    onFocus={() => setOpen(true)}
+                    placeholder={placeholder}
+                    className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full ${inputClassName}`}
+                />
+                {open && filtered.length > 0 && (
+                    <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto">
+                        {filtered.map((name, idx) => (
+                            <button
+                                type="button"
+                                key={name}
+                                onMouseEnter={() => setHoverIndex(idx)}
+                                onMouseLeave={() => setHoverIndex(-1)}
+                                onClick={() => select(name)}
+                                className={`block w-full text-left px-3 py-2 text-sm ${hoverIndex === idx ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}
+                            >
+                                {name}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -174,6 +228,14 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     // Initial data fetch
     useEffect(() => {
         fetchData(true);
+        (async () => {
+            try {
+                const list = await financeAPI.categories.list();
+                setCategories(list);
+            } catch (e) {
+                console.error('Error loading categories:', e);
+            }
+        })();
     }, []);
 
     // Handle active section change
@@ -225,7 +287,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         unit: '',
         hargaPerUnit: '',
         keterangan: '',
-        category: 'Other' as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon',
+        category: '' as string,
         status: 'Paid' as 'Unpaid' | 'Paid'
     });
 
@@ -267,6 +329,19 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const handleSaveEdit = async () => {
         if (editMode.id && editMode.type) {
             try {
+                const catName = (editMode.data.category as string) || '';
+                if (catName) {
+                    const exists = categories.some(c => c.name === catName);
+                    if (!exists) {
+                        try {
+                            await financeAPI.categories.create(catName);
+                            const list = await financeAPI.categories.list();
+                            setCategories(list);
+                        } catch (e) {
+                            console.error('Error creating category on edit:', e);
+                        }
+                    }
+                }
                 await financeAPI.updateFinance(editMode.id, {
                     ...editMode.data,
                     type: editMode.type,
@@ -288,10 +363,40 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         }
     };
 
+    const handleDeleteCategory = async (id: number) => {
+        try {
+            await financeAPI.categories.delete(id);
+            const list = await financeAPI.categories.list();
+            setCategories(list);
+            // If current filters or inputs use deleted category, keep user-friendly behavior
+            const deleted = categories.find(c => c.id === id)?.name;
+            if (deleted) {
+                if (selectedCategory === deleted) setSelectedCategory('');
+                if (newEntry.category === deleted) setNewEntry({ ...newEntry, category: '' as string });
+                if ((editMode.data.category as string) === deleted) setEditMode(prev => ({ ...prev, data: { ...prev.data, category: '' } }));
+            }
+        } catch (e) {
+            console.error('Error deleting category:', e);
+        }
+    };
+
     // Add new entry
     const handleAddEntry = async (e: React.FormEvent, type: 'income' | 'expense') => {
         e.preventDefault();
         try {
+            const catName = newEntry.category;
+            if (catName) {
+                const exists = categories.some(c => c.name === catName);
+                if (!exists) {
+                    try {
+                        await financeAPI.categories.create(catName);
+                        const list = await financeAPI.categories.list();
+                        setCategories(list);
+                    } catch (e) {
+                        console.error('Error creating category:', e);
+                    }
+                }
+            }
             const newEntryData: Partial<FinanceEntry> = {
                 tanggal: newEntry.tanggal,
                 unit: Number(newEntry.unit),
@@ -308,7 +413,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 unit: '', 
                 hargaPerUnit: '', 
                 keterangan: '', 
-                category: 'Other' as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon', 
+                category: 'Other', 
                 status: 'Paid' as 'Unpaid' | 'Paid' 
             });
             fetchData();
@@ -389,22 +494,14 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 </td>
                 <td className="border px-4 py-2">
                     {isEditing ? (
-                        <select
-                            value={editMode.data.category || item.category}
-                            onChange={(e) => setEditMode(prev => ({
-                                ...prev,
-                                data: { ...prev.data, category: e.target.value as any }
-                            }))}
-                            className="border p-1 rounded w-full"
-                        >
-                            <option value="Barang">Barang</option>
-                            <option value="Jasa">Jasa</option>
-                            <option value="Sewa Alat Berat">Sewa Alat Berat</option>
-                            <option value="Gaji">Gaji</option>
-                            <option value="Kasbon">Kasbon</option>
-                            <option value="Uang Makan">Uang Makan</option>
-                            <option value="Other">Lainnya</option>
-                        </select>
+                        <div className="w-full">
+                            <CategoryAutocomplete
+                                value={(editMode.data.category as string) || item.category}
+                                onChange={(v) => setEditMode(prev => ({ ...prev, data: { ...prev.data, category: v } }))}
+                                placeholder="Kategori"
+                                inputClassName="p-1"
+                            />
+                        </div>
                     ) : (
                         item.category
                     )}
@@ -500,20 +597,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 </button>
                             )}
                         </div>
-                        <select
+                        <CategoryAutocomplete
                             value={selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value)}
-                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
-                        >
-                            <option value="">Semua Kategori</option>
-                            <option value="Barang">Barang</option>
-                            <option value="Jasa">Jasa</option>
-                            <option value="Sewa Alat Berat">Sewa Alat Berat</option>
-                            <option value="Gaji">Gaji</option>
-                            <option value="Kasbon">Kasbon</option>
-                            <option value="Uang Makan">Uang Makan</option>
-                            <option value="Other">Lainnya</option>
-                        </select>
+                            onChange={setSelectedCategory}
+                            placeholder="Filter kategori (contoh: Minyak)"
+                            inputClassName={`${selectedCategory ? 'border-blue-500 bg-blue-50' : ''}`}
+                        />
                         <select
                             value={selectedMonth}
                             onChange={(e) => setSelectedMonth(e.target.value)}
@@ -544,13 +633,51 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <option value="Paid">Paid</option>
                             <option value="Unpaid">Unpaid</option>
                         </select>
-                        <button
-                            onClick={resetFilters}
-                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm"
-                        >
-                            Reset
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={resetFilters}
+                                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm"
+                            >
+                                Reset
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowManageCategories(v => !v)}
+                                className="bg-white border px-4 py-2 rounded hover:bg-gray-50 transition-colors duration-200 font-medium shadow-sm"
+                            >
+                                {showManageCategories ? 'Tutup Kategori' : 'Kelola Kategori'}
+                            </button>
+                        </div>
                     </div>
+
+                    {showManageCategories && (
+                        <div className="mb-6 border rounded-md p-3 bg-gray-50">
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-sm font-semibold text-gray-700">Kategori (klik hapus untuk menghapus)</h4>
+                            </div>
+                            {categories.length === 0 ? (
+                                <p className="text-sm text-gray-500">Belum ada kategori.</p>
+                            ) : (
+                                <div className="flex flex-wrap gap-2">
+                                    {categories.map(c => (
+                                        <span key={c.id} className="inline-flex items-center gap-2 bg-white border border-gray-200 px-3 py-1 rounded-full text-sm shadow-sm">
+                                            <span>{c.name}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (confirm(`Hapus kategori "${c.name}"?`)) handleDeleteCategory(c.id);
+                                                }}
+                                                className="text-red-600 hover:text-red-800"
+                                                aria-label={`Hapus ${c.name}`}
+                                            >
+                                                ✕
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Enhanced Filters */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -807,21 +934,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 onChange={(e) => setNewEntry({ ...newEntry, keterangan: e.target.value })}
                                 className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
-                            <select
+                            <CategoryAutocomplete
                                 value={newEntry.category}
-                                onChange={(e) => setNewEntry({ ...newEntry, category: e.target.value as 'Barang' | 'Jasa' | 'Sewa Alat Berat' | 'Other' | 'Gaji' | 'Uang Makan' | 'Kasbon' })}
-                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                required
-                            >
-                                <option value="Other">Pilih Kategori</option>
-                                <option value="Barang">Barang</option>
-                                <option value="Jasa">Jasa</option>
-                                <option value="Sewa Alat Berat">Sewa Alat Berat</option>
-                                <option value="Gaji">Gaji</option>
-                                <option value="Kasbon">Kasbon</option>
-                                <option value="Uang Makan">Uang Makan</option>
-                                <option value="Other">Lainnya</option>
-                            </select>
+                                onChange={(v) => setNewEntry({ ...newEntry, category: v })}
+                                placeholder="Kategori (contoh: Minyak)"
+                            />
                             <select
                                 value={newEntry.status}
                                 onChange={(e) => setNewEntry({ ...newEntry, status: e.target.value as 'Paid' | 'Unpaid' })}

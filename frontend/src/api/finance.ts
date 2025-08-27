@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAuthHeaders } from './config';
 import { FinanceEntry } from '../types/BasicTypes';
 
 const API_URL = import.meta.env.VITE_API_URL + '/finance';
@@ -25,6 +26,23 @@ export interface PaginatedResponse<T> {
 }
 
 export const financeAPI = {
+  categories: {
+    list: async (): Promise<Array<{id:number; name:string}>> => {
+      const response: any = await axios.get(`${API_URL}/categories`, { headers: getAuthHeaders() });
+      return response.data?.data || [];
+    },
+    create: async (name: string): Promise<{id:number; name:string}> => {
+      const response: any = await axios.post(`${API_URL}/categories`, { name }, { headers: getAuthHeaders() });
+      return response.data?.data;
+    },
+    update: async (id: number, name: string): Promise<{id:number; name:string}> => {
+      const response: any = await axios.put(`${API_URL}/categories/${id}`, { name }, { headers: getAuthHeaders() });
+      return response.data?.data;
+    },
+    delete: async (id: number): Promise<void> => {
+      await axios.delete(`${API_URL}/categories/${id}`, { headers: getAuthHeaders() });
+    }
+  },
   // Get all finance entries by type using the correct filter endpoint
   getFinanceByType: async (type: 'income' | 'expense'): Promise<FinanceEntry[]> => {
     console.log(`Fetching finance data for type: ${type}`);

@@ -28,6 +28,6 @@ type Finance struct {
 	HargaPerUnit float64         `json:"hargaPerUnit"`
 	Keterangan   string          `json:"keterangan"`
 	Type         FinanceType     `gorm:"type:ENUM('income','expense')" json:"type"`
-	Category     FinanceCategory `gorm:"type:ENUM('Barang','Jasa','Sewa Alat Berat','Gaji','Uang Makan','Kasbon','Other')" json:"category"`
+	Category     FinanceCategory `gorm:"type:varchar(100)" json:"category"`
 	Status       string          `gorm:"type:ENUM('Paid','Unpaid')" json:"status"`
 }
