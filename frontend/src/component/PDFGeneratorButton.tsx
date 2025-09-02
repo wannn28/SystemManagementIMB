@@ -58,17 +58,27 @@ export const PDFGeneratorButton: React.FC<PDFGeneratorButtonProps> = ({ member, 
     doc.text(`Total Kasbon: Rp${salary.loan.toLocaleString()}`, margin, finalY + 5);
     doc.text(`Total Gaji Bersih: Rp${salary.net_salary.toLocaleString()}`, margin, finalY + 10);
 
-    // Footer
-    doc.setFont('Helvetica', 'normal');
-    doc.text('Hormat Kami,', margin+20, pageHeight - 55);
-    doc.text('PT Indira Maju Bersama', margin + 10, pageHeight - 50);
-    
-    // Tanda Tangan
-    doc.text('Diketahui oleh:', pageWidth - margin - 30, pageHeight - 50, { align: 'right' });
-    // doc.line(pageWidth - margin - 50, pageHeight - 35, pageWidth - margin, pageHeight - 35);
+    // Check if we need a new page for footer
+    const footerY = finalY + 20;
+    if (footerY > pageHeight - 80) {
+      doc.addPage();
+      doc.text('Hormat Kami,', margin + 20, 30);
+      doc.text('PT Indira Maju Bersama', margin + 10, 35);
+      
+      // Tanda Tangan
+      doc.text('Diketahui oleh:', pageWidth - margin - 30, 35, { align: 'right' });
+    } else {
+      // Footer
+      doc.setFont('Helvetica', 'normal');
+      doc.text('Hormat Kami,', margin + 20, footerY);
+      doc.text('PT Indira Maju Bersama', margin + 10, footerY + 5);
+      
+      // Tanda Tangan
+      doc.text('Diketahui oleh:', pageWidth - margin - 30, footerY + 5, { align: 'right' });
+    }
 
     // Halaman Gambar
-    if (salary.documents.length > 0) {
+    if (salary.documents && salary.documents.length > 0) {
       doc.addPage();
       doc.text('Bukti Pembayaran dan Kasbon', pageWidth/2, 30, { align: 'center' });
       
