@@ -52,17 +52,58 @@ func (h *MemberHandler) GetAllMembersWithPagination(c echo.Context) error {
 
 func (h *MemberHandler) CreateMember(c echo.Context) error {
 	var member entity.Member
-	if err := c.Bind(&member); err != nil {
-		return response.Error(c, http.StatusBadRequest, err)
+
+	// Check if request is multipart form data
+	contentType := c.Request().Header.Get("Content-Type")
+	if contentType != "" && len(contentType) >= 19 && contentType[:19] == "multipart/form-data" {
+		// Handle multipart form data (with file upload)
+		dataStr := c.FormValue("data")
+		if dataStr == "" {
+			return response.Error(c, http.StatusBadRequest, errors.New("data field is required"))
+		}
+
+		// Parse JSON data
+		if err := json.Unmarshal([]byte(dataStr), &member); err != nil {
+			return response.Error(c, http.StatusBadRequest, fmt.Errorf("invalid JSON data: %v", err))
+		}
+
+		// Handle profile image upload if provided
+		file, err := c.FormFile("file")
+		if err == nil && file != nil {
+			// Generate nama file unik
+			fileExt := filepath.Ext(file.Filename)
+			fileName := uuid.New().String() + fileExt
+			dstPath := filepath.Join(h.uploadDir, fileName)
+
+			// Simpan file
+			if err := h.saveUploadedFile(file, dstPath); err != nil {
+				return response.Error(c, http.StatusInternalServerError, fmt.Errorf("failed to save file: %v", err))
+			}
+			member.ProfileImage = fileName
+		} else {
+			member.ProfileImage = ""
+		}
+	} else {
+		// Handle regular JSON request
+		if err := c.Bind(&member); err != nil {
+			return response.Error(c, http.StatusBadRequest, err)
+		}
+		member.ProfileImage = ""
 	}
 
 	// Generate ID
 	member.ID = uuid.New().String()
 
 	// Inisialisasi nilai default
-	member.ProfileImage = ""
-	member.Documents = datatypes.JSON("[]")
-	member.Files = datatypes.JSON("[]")
+	if member.ProfileImage == "" {
+		member.ProfileImage = ""
+	}
+	if member.Documents == nil || len(member.Documents) == 0 {
+		member.Documents = datatypes.JSON("[]")
+	}
+	if member.Files == nil || len(member.Files) == 0 {
+		member.Files = datatypes.JSON("[]")
+	}
 
 	if err := h.service.CreateMember(&member); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
