@@ -231,4 +231,3 @@ func (h *ProjectIncomeHandler) GetAllIncomes(c echo.Context) error {
 
 	return response.Success(c, http.StatusOK, incomes)
 }
-

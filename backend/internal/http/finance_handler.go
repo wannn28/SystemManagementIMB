@@ -13,10 +13,10 @@ import (
 )
 
 type FinanceHandler struct {
-	service                service.FinanceService
-	activityService        service.ActivityService
-	projectIncomeService   service.ProjectIncomeService
-	projectExpenseService  service.ProjectExpenseService
+	service               service.FinanceService
+	activityService       service.ActivityService
+	projectIncomeService  service.ProjectIncomeService
+	projectExpenseService service.ProjectExpenseService
 }
 
 func NewFinanceHandler(service service.FinanceService, activityService service.ActivityService, projectIncomeService service.ProjectIncomeService, projectExpenseService service.ProjectExpenseService) *FinanceHandler {
@@ -55,13 +55,13 @@ func formatCurrency(value float64) string {
 
 func (h *FinanceHandler) UpdateFinance(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	
+
 	// Get old finance to check if it's synced from project
 	oldFinance, err := h.service.GetFinanceByID(uint(id))
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
-	
+
 	var finance entity.Finance
 	if err := c.Bind(&finance); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -71,7 +71,7 @@ func (h *FinanceHandler) UpdateFinance(c echo.Context) error {
 	if err := h.service.UpdateFinance(&finance); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-	
+
 	// REVERSE SYNC: Update project entry if this finance is synced from project
 	if oldFinance.Source == "project" {
 		if oldFinance.ProjectIncomeID != nil && h.projectIncomeService != nil {
@@ -95,7 +95,7 @@ func (h *FinanceHandler) UpdateFinance(c echo.Context) error {
 			})
 		}
 	}
-	
+
 	activityType := entity.ActivityIncome
 	if finance.Type == entity.Expense {
 		activityType = entity.ActivityExpense
@@ -119,7 +119,7 @@ func (h *FinanceHandler) DeleteFinance(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
-	
+
 	// REVERSE SYNC: Delete or update status of project entry if this finance is synced from project
 	if finance.Source == "project" {
 		if finance.ProjectIncomeID != nil && h.projectIncomeService != nil {
@@ -135,7 +135,7 @@ func (h *FinanceHandler) DeleteFinance(c echo.Context) error {
 			})
 		}
 	}
-	
+
 	activityType := entity.ActivityIncome
 	if finance.Type == entity.Expense {
 		activityType = entity.ActivityExpense
