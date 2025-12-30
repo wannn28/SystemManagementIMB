@@ -11,6 +11,7 @@ type ProjectExpense struct {
 	Deskripsi string    `json:"deskripsi" gorm:"type:text"`
 	Jumlah    float64   `json:"jumlah" gorm:"type:decimal(15,2);not null;default:0"`
 	Status    string    `json:"status" gorm:"type:enum('Paid','Unpaid','Pending');not null;default:'Unpaid';index"`
+	FinanceID *int      `json:"financeId,omitempty" gorm:"column:finance_id;index"`
 	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
 }
@@ -43,14 +44,19 @@ type ProjectExpenseUpdateRequest struct {
 type ProjectFinancialSummary struct {
 	ProjectID         int               `json:"projectId"`
 	ProjectName       string            `json:"projectName"`
-	TotalRevenue      float64           `json:"totalRevenue"`      // Total pemasukan yang harus didapat
+	TotalRevenue      float64           `json:"totalRevenue"`      // Total pemasukan kontrak
+	TotalIncome       float64           `json:"totalIncome"`       // Total pemasukan yang sudah diterima
+	IncomeReceived    float64           `json:"incomeReceived"`    // Pemasukan yang sudah received
+	IncomePending     float64           `json:"incomePending"`     // Pemasukan yang pending
 	TotalExpenses     float64           `json:"totalExpenses"`     // Total pengeluaran
 	ExpensesPaid      float64           `json:"expensesPaid"`      // Pengeluaran yang sudah dibayar
 	ExpensesUnpaid    float64           `json:"expensesUnpaid"`    // Pengeluaran yang belum dibayar
+	ActualProfit      float64           `json:"actualProfit"`      // Profit aktual (income - expenses paid)
 	EstimatedProfit   float64           `json:"estimatedProfit"`   // Keuntungan yang diperkirakan
 	ProgressPercent   float64           `json:"progressPercent"`   // Persentase progress
 	ProfitMargin      float64           `json:"profitMargin"`      // Profit margin (%)
-	ExpenseCategories []ExpenseCategory `json:"expenseCategories"` // Breakdown per kategori
+	IncomeCategories  []IncomeCategory  `json:"incomeCategories"`  // Breakdown pemasukan per kategori
+	ExpenseCategories []ExpenseCategory `json:"expenseCategories"` // Breakdown pengeluaran per kategori
 }
 
 // ExpenseCategory represents expense breakdown by category

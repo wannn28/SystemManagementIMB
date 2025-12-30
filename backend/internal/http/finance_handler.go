@@ -13,12 +13,14 @@ import (
 )
 
 type FinanceHandler struct {
-	service         service.FinanceService
-	activityService service.ActivityService
+	service                service.FinanceService
+	activityService        service.ActivityService
+	projectIncomeService   service.ProjectIncomeService
+	projectExpenseService  service.ProjectExpenseService
 }
 
-func NewFinanceHandler(service service.FinanceService, activityService service.ActivityService) *FinanceHandler {
-	return &FinanceHandler{service, activityService}
+func NewFinanceHandler(service service.FinanceService, activityService service.ActivityService, projectIncomeService service.ProjectIncomeService, projectExpenseService service.ProjectExpenseService) *FinanceHandler {
+	return &FinanceHandler{service, activityService, projectIncomeService, projectExpenseService}
 }
 
 func (h *FinanceHandler) CreateFinance(c echo.Context) error {
@@ -53,6 +55,13 @@ func formatCurrency(value float64) string {
 
 func (h *FinanceHandler) UpdateFinance(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
+	
+	// Get old finance to check if it's synced from project
+	oldFinance, err := h.service.GetFinanceByID(uint(id))
+	if err != nil {
+		return response.Error(c, http.StatusNotFound, err)
+	}
+	
 	var finance entity.Finance
 	if err := c.Bind(&finance); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -62,12 +71,37 @@ func (h *FinanceHandler) UpdateFinance(c echo.Context) error {
 	if err := h.service.UpdateFinance(&finance); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
+	
+	// REVERSE SYNC: Update project entry if this finance is synced from project
+	if oldFinance.Source == "project" {
+		if oldFinance.ProjectIncomeID != nil && h.projectIncomeService != nil {
+			// Update project income
+			_, _ = h.projectIncomeService.UpdateIncome(*oldFinance.ProjectIncomeID, &entity.ProjectIncomeUpdateRequest{
+				Tanggal:   finance.Tanggal,
+				Kategori:  string(finance.Category),
+				Deskripsi: finance.Keterangan,
+				Jumlah:    finance.Jumlah,
+				Status:    "Received", // Keep as Received since finance is Paid
+			})
+		}
+		if oldFinance.ProjectExpenseID != nil && h.projectExpenseService != nil {
+			// Update project expense
+			_, _ = h.projectExpenseService.UpdateExpense(*oldFinance.ProjectExpenseID, &entity.ProjectExpenseUpdateRequest{
+				Tanggal:   finance.Tanggal,
+				Kategori:  string(finance.Category),
+				Deskripsi: finance.Keterangan,
+				Jumlah:    finance.Jumlah,
+				Status:    "Paid", // Keep as Paid
+			})
+		}
+	}
+	
 	activityType := entity.ActivityIncome
 	if finance.Type == entity.Expense {
 		activityType = entity.ActivityExpense
 	}
 
-	err := h.activityService.LogActivity(
+	err = h.activityService.LogActivity(
 		activityType,
 		"Edit Transaksi",
 		fmt.Sprintf("%s - %s", finance.Keterangan, formatCurrency(finance.Jumlah)),
@@ -85,6 +119,23 @@ func (h *FinanceHandler) DeleteFinance(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
+	
+	// REVERSE SYNC: Delete or update status of project entry if this finance is synced from project
+	if finance.Source == "project" {
+		if finance.ProjectIncomeID != nil && h.projectIncomeService != nil {
+			// Change project income status to Pending (not fully delete)
+			_, _ = h.projectIncomeService.UpdateIncome(*finance.ProjectIncomeID, &entity.ProjectIncomeUpdateRequest{
+				Status: "Pending",
+			})
+		}
+		if finance.ProjectExpenseID != nil && h.projectExpenseService != nil {
+			// Change project expense status to Unpaid (not fully delete)
+			_, _ = h.projectExpenseService.UpdateExpense(*finance.ProjectExpenseID, &entity.ProjectExpenseUpdateRequest{
+				Status: "Unpaid",
+			})
+		}
+	}
+	
 	activityType := entity.ActivityIncome
 	if finance.Type == entity.Expense {
 		activityType = entity.ActivityExpense
@@ -100,9 +151,6 @@ func (h *FinanceHandler) DeleteFinance(c echo.Context) error {
 		fmt.Println("Gagal log activity:", err)
 	}
 	if err := h.service.DeleteFinance(uint(id)); err != nil {
-		return response.Error(c, http.StatusNotFound, err)
-	}
-	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 

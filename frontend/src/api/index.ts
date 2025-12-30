@@ -5,4 +5,6 @@ export * from './finance';
 export * from './Inventory';
 export * from './members';
 export * from './projects';
+export * from './projectExpenses';
+export * from './projectIncomes';
 export * from './team';

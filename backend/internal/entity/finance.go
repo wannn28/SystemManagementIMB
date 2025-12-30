@@ -21,13 +21,17 @@ type MonthlyComparison struct {
 	Expense float64 `json:"expense"`
 }
 type Finance struct {
-	ID           uint            `gorm:"primaryKey" json:"id"`
-	Tanggal      string          `json:"tanggal"`
-	Unit         int             `json:"unit"`
-	Jumlah       float64         `json:"jumlah"`
-	HargaPerUnit float64         `json:"hargaPerUnit"`
-	Keterangan   string          `json:"keterangan"`
-	Type         FinanceType     `gorm:"type:ENUM('income','expense')" json:"type"`
-	Category     FinanceCategory `gorm:"type:varchar(100)" json:"category"`
-	Status       string          `gorm:"type:ENUM('Paid','Unpaid')" json:"status"`
+	ID               uint            `gorm:"primaryKey" json:"id"`
+	Tanggal          string          `json:"tanggal"`
+	Unit             int             `json:"unit"`
+	Jumlah           float64         `json:"jumlah"`
+	HargaPerUnit     float64         `json:"hargaPerUnit"`
+	Keterangan       string          `json:"keterangan"`
+	Type             FinanceType     `gorm:"type:ENUM('income','expense')" json:"type"`
+	Category         FinanceCategory `gorm:"type:varchar(100)" json:"category"`
+	Status           string          `gorm:"type:ENUM('Paid','Unpaid')" json:"status"`
+	ProjectID        *int            `json:"projectId,omitempty" gorm:"column:project_id"`
+	Source           string          `json:"source" gorm:"type:varchar(50);default:'manual'"`
+	ProjectIncomeID  *int            `json:"projectIncomeId,omitempty" gorm:"column:project_income_id"`
+	ProjectExpenseID *int            `json:"projectExpenseId,omitempty" gorm:"column:project_expense_id"`
 }

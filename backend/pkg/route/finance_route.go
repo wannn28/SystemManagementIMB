@@ -9,8 +9,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterFinanceRoutes(e *echo.Echo, financeService service.FinanceService, config config.Config, activityService service.ActivityService, categoryService service.FinanceCategoryService) {
-	handler := http.NewFinanceHandler(financeService, activityService)
+func RegisterFinanceRoutes(e *echo.Echo, financeService service.FinanceService, config config.Config, activityService service.ActivityService, categoryService service.FinanceCategoryService, projectIncomeService service.ProjectIncomeService, projectExpenseService service.ProjectExpenseService) {
+	handler := http.NewFinanceHandler(financeService, activityService, projectIncomeService, projectExpenseService)
 	catHandler := http.NewFinanceCategoryHandler(categoryService)
 	g := e.Group("/api/finance")
 	g.Use(middleware.AdminAuth(config))

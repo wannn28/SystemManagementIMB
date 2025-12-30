@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 
 import { Project } from '../types/BasicTypes';
 import EditReports from './EditReportForm';
-import { projectsAPI } from '../api';
+import { projectsAPI, projectExpensesAPI, projectIncomesAPI, ProjectExpense, ProjectIncome, ProjectFinancialSummary, financeAPI } from '../api';
 interface ReportsProps {
   isCollapsed: boolean;
 }
@@ -376,6 +376,31 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [editingProject, setEditingProject] = useState<Project | null>(null); // State for editing project
   const [projects, setProjects] = useState<Project[]>([]);
   const [fullscreenChart, setFullscreenChart] = useState<{ projectId: number; chartType: string } | null>(null);
+  
+  // Expense management states
+  const [projectExpenses, setProjectExpenses] = useState<Record<number, ProjectExpense[]>>({});
+  const [projectIncomes, setProjectIncomes] = useState<Record<number, ProjectIncome[]>>({});
+  const [financialSummaries, setFinancialSummaries] = useState<Record<number, ProjectFinancialSummary>>({});
+  const [showExpenseModal, setShowExpenseModal] = useState<number | null>(null);
+  const [showIncomeModal, setShowIncomeModal] = useState<number | null>(null);
+  const [expenseForm, setExpenseForm] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
+    kategori: '',
+    deskripsi: '',
+    jumlah: 0,
+    status: 'Unpaid' as 'Paid' | 'Unpaid' | 'Pending'
+  });
+  const [incomeForm, setIncomeForm] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
+    kategori: '',
+    deskripsi: '',
+    jumlah: 0,
+    status: 'Pending' as 'Received' | 'Pending' | 'Planned'
+  });
+  const [editingExpense, setEditingExpense] = useState<ProjectExpense | null>(null);
+  const [editingIncome, setEditingIncome] = useState<ProjectIncome | null>(null);
+  const [categories, setCategories] = useState<Array<{id: number; name: string}>>([]);
+  
   const groupDataByTimeRange = (project: Project, timeRange: 'daily' | 'weekly' | 'monthly') => {
     const dailyData = project.reports.daily;
 
@@ -474,12 +499,41 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
       try {
         const data = await projectsAPI.getAllProjects();
         setProjects(data);
+        
+        // Load expenses, incomes and financial summaries for each project
+        data.forEach(async (project) => {
+          try {
+            const expenses = await projectExpensesAPI.getExpensesByProjectId(project.id);
+            setProjectExpenses(prev => ({ ...prev, [project.id]: expenses || [] }));
+            
+            const incomes = await projectIncomesAPI.getIncomesByProjectId(project.id);
+            setProjectIncomes(prev => ({ ...prev, [project.id]: incomes || [] }));
+            
+            const summary = await projectExpensesAPI.getFinancialSummary(project.id);
+            setFinancialSummaries(prev => ({ ...prev, [project.id]: summary }));
+          } catch (err) {
+            console.error(`Gagal memuat data expense/income untuk project ${project.id}:`, err);
+            // Set default empty values on error
+            setProjectExpenses(prev => ({ ...prev, [project.id]: [] }));
+            setProjectIncomes(prev => ({ ...prev, [project.id]: [] }));
+          }
+        });
       } catch (err) {
         console.error('Gagal memuat data projek:', err);
       }
     };
 
+    const fetchCategories = async () => {
+      try {
+        const list = await financeAPI.categories.list();
+        setCategories(list);
+      } catch (err) {
+        console.error('Gagal memuat kategori:', err);
+      }
+    };
+
     fetchProjects();
+    fetchCategories();
   }, []);
   const handleSaveProject = async (updatedProject: Project) => {
     console.log(updatedProject)
@@ -551,6 +605,192 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
     const progress = (akumulasiAktual / akumulasiPlan) * 100;
 
     return progress;
+  };
+
+  // Expense management functions
+  const handleAddExpense = async (projectId: number) => {
+    try {
+      const newExpense = await projectExpensesAPI.createExpense({
+        projectId,
+        ...expenseForm
+      });
+      setProjectExpenses(prev => ({
+        ...prev,
+        [projectId]: [...(prev[projectId] || []), newExpense]
+      }));
+      
+      // Refresh financial summary
+      const summary = await projectExpensesAPI.getFinancialSummary(projectId);
+      setFinancialSummaries(prev => ({ ...prev, [projectId]: summary }));
+      
+      // Reset form
+      setExpenseForm({
+        tanggal: new Date().toISOString().split('T')[0],
+        kategori: '',
+        deskripsi: '',
+        jumlah: 0,
+        status: 'Unpaid'
+      });
+      setShowExpenseModal(null);
+    } catch (err) {
+      console.error('Gagal menambah pengeluaran:', err);
+      alert('Gagal menambah pengeluaran');
+    }
+  };
+
+  const handleUpdateExpense = async (expenseId: number, projectId: number) => {
+    try {
+      const updated = await projectExpensesAPI.updateExpense(expenseId, expenseForm);
+      setProjectExpenses(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(e => e.id === expenseId ? updated : e)
+      }));
+      
+      // Refresh financial summary
+      const summary = await projectExpensesAPI.getFinancialSummary(projectId);
+      setFinancialSummaries(prev => ({ ...prev, [projectId]: summary }));
+      
+      setEditingExpense(null);
+      setShowExpenseModal(null);
+    } catch (err) {
+      console.error('Gagal update pengeluaran:', err);
+      alert('Gagal update pengeluaran');
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: number, projectId: number) => {
+    if (!confirm('Yakin ingin menghapus pengeluaran ini?')) return;
+    
+    try {
+      await projectExpensesAPI.deleteExpense(expenseId);
+      setProjectExpenses(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].filter(e => e.id !== expenseId)
+      }));
+      
+      // Refresh financial summary
+      const summary = await projectExpensesAPI.getFinancialSummary(projectId);
+      setFinancialSummaries(prev => ({ ...prev, [projectId]: summary }));
+    } catch (err) {
+      console.error('Gagal hapus pengeluaran:', err);
+      alert('Gagal hapus pengeluaran');
+    }
+  };
+
+  const openExpenseModal = (projectId: number, expense?: ProjectExpense) => {
+    if (expense) {
+      setEditingExpense(expense);
+      setExpenseForm({
+        tanggal: expense.tanggal,
+        kategori: expense.kategori,
+        deskripsi: expense.deskripsi,
+        jumlah: expense.jumlah,
+        status: expense.status
+      });
+    } else {
+      setEditingExpense(null);
+      setExpenseForm({
+        tanggal: new Date().toISOString().split('T')[0],
+        kategori: '',
+        deskripsi: '',
+        jumlah: 0,
+        status: 'Unpaid'
+      });
+    }
+    setShowExpenseModal(projectId);
+  };
+
+  // Income management functions
+  const handleAddIncome = async (projectId: number) => {
+    try {
+      const newIncome = await projectIncomesAPI.createIncome({
+        projectId,
+        ...incomeForm
+      });
+      setProjectIncomes(prev => ({
+        ...prev,
+        [projectId]: [...(prev[projectId] || []), newIncome]
+      }));
+      
+      // Refresh financial summary
+      const summary = await projectExpensesAPI.getFinancialSummary(projectId);
+      setFinancialSummaries(prev => ({ ...prev, [projectId]: summary }));
+      
+      // Reset form
+      setIncomeForm({
+        tanggal: new Date().toISOString().split('T')[0],
+        kategori: '',
+        deskripsi: '',
+        jumlah: 0,
+        status: 'Pending'
+      });
+      setShowIncomeModal(null);
+    } catch (err) {
+      console.error('Gagal menambah pemasukan:', err);
+      alert('Gagal menambah pemasukan');
+    }
+  };
+
+  const handleUpdateIncome = async (incomeId: number, projectId: number) => {
+    try {
+      const updated = await projectIncomesAPI.updateIncome(incomeId, incomeForm);
+      setProjectIncomes(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(i => i.id === incomeId ? updated : i)
+      }));
+      
+      // Refresh financial summary
+      const summary = await projectExpensesAPI.getFinancialSummary(projectId);
+      setFinancialSummaries(prev => ({ ...prev, [projectId]: summary }));
+      
+      setEditingIncome(null);
+      setShowIncomeModal(null);
+    } catch (err) {
+      console.error('Gagal update pemasukan:', err);
+      alert('Gagal update pemasukan');
+    }
+  };
+
+  const handleDeleteIncome = async (incomeId: number, projectId: number) => {
+    if (!confirm('Yakin ingin menghapus pemasukan ini?')) return;
+    
+    try {
+      await projectIncomesAPI.deleteIncome(incomeId);
+      setProjectIncomes(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].filter(i => i.id !== incomeId)
+      }));
+      
+      // Refresh financial summary
+      const summary = await projectExpensesAPI.getFinancialSummary(projectId);
+      setFinancialSummaries(prev => ({ ...prev, [projectId]: summary }));
+    } catch (err) {
+      console.error('Gagal hapus pemasukan:', err);
+      alert('Gagal hapus pemasukan');
+    }
+  };
+
+  const openIncomeModal = (projectId: number, income?: ProjectIncome) => {
+    if (income) {
+      setEditingIncome(income);
+      setIncomeForm({
+        tanggal: income.tanggal,
+        kategori: income.kategori,
+        deskripsi: income.deskripsi,
+        jumlah: income.jumlah,
+        status: income.status
+      });
+    } else {
+      setEditingIncome(null);
+      setIncomeForm({
+        tanggal: new Date().toISOString().split('T')[0],
+        kategori: '',
+        deskripsi: '',
+        jumlah: 0,
+        status: 'Pending'
+      });
+    }
+    setShowIncomeModal(projectId);
   };
   const renderFullscreenChart = () => {
     if (!fullscreenChart) return null;
@@ -781,6 +1021,230 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
             />
           )}
 
+          {/* Expense Modal */}
+          {showExpenseModal !== null && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 rounded-t-2xl">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-white">
+                      {editingExpense ? 'Edit Pengeluaran' : 'Tambah Pengeluaran'}
+                    </h2>
+                    <button
+                      onClick={() => {
+                        setShowExpenseModal(null);
+                        setEditingExpense(null);
+                      }}
+                      className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tanggal</label>
+                    <input
+                      type="date"
+                      value={expenseForm.tanggal}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, tanggal: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori</label>
+                    <select
+                      value={expenseForm.kategori}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, kategori: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="">Pilih Kategori</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Deskripsi</label>
+                    <textarea
+                      value={expenseForm.deskripsi}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, deskripsi: e.target.value })}
+                      placeholder="Detail pengeluaran (optional)"
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Jumlah (Rp)</label>
+                    <input
+                      type="number"
+                      value={expenseForm.jumlah}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, jumlah: parseFloat(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status Pembayaran</label>
+                    <select
+                      value={expenseForm.status}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, status: e.target.value as 'Paid' | 'Unpaid' | 'Pending' })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="Unpaid">Unpaid (Belum Dibayar)</option>
+                      <option value="Pending">Pending (Sedang Diproses)</option>
+                      <option value="Paid">Paid (Sudah Dibayar)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 bg-gray-50 px-6 py-4 rounded-b-2xl flex gap-3 justify-end border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowExpenseModal(null);
+                      setEditingExpense(null);
+                    }}
+                    className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (editingExpense) {
+                        handleUpdateExpense(editingExpense.id, showExpenseModal);
+                      } else {
+                        handleAddExpense(showExpenseModal);
+                      }
+                    }}
+                    className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-lg transition-colors shadow-lg"
+                  >
+                    {editingExpense ? 'Update' : 'Simpan'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Income Modal */}
+          {showIncomeModal !== null && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 rounded-t-2xl">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-white">
+                      {editingIncome ? 'Edit Pemasukan' : 'Tambah Pemasukan'}
+                    </h2>
+                    <button
+                      onClick={() => {
+                        setShowIncomeModal(null);
+                        setEditingIncome(null);
+                      }}
+                      className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tanggal</label>
+                    <input
+                      type="date"
+                      value={incomeForm.tanggal}
+                      onChange={(e) => setIncomeForm({ ...incomeForm, tanggal: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori</label>
+                    <select
+                      value={incomeForm.kategori}
+                      onChange={(e) => setIncomeForm({ ...incomeForm, kategori: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      required
+                    >
+                      <option value="">Pilih Kategori</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Deskripsi</label>
+                    <textarea
+                      value={incomeForm.deskripsi}
+                      onChange={(e) => setIncomeForm({ ...incomeForm, deskripsi: e.target.value })}
+                      placeholder="Detail pemasukan (optional)"
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Jumlah (Rp)</label>
+                    <input
+                      type="number"
+                      value={incomeForm.jumlah}
+                      onChange={(e) => setIncomeForm({ ...incomeForm, jumlah: parseFloat(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status Pemasukan</label>
+                    <select
+                      value={incomeForm.status}
+                      onChange={(e) => setIncomeForm({ ...incomeForm, status: e.target.value as 'Received' | 'Pending' | 'Planned' })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    >
+                      <option value="Pending">Pending (Sedang Diproses)</option>
+                      <option value="Planned">Planned (Rencana)</option>
+                      <option value="Received">Received (Sudah Diterima)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 bg-gray-50 px-6 py-4 rounded-b-2xl flex gap-3 justify-end border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowIncomeModal(null);
+                      setEditingIncome(null);
+                    }}
+                    className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (editingIncome) {
+                        handleUpdateIncome(editingIncome.id, showIncomeModal);
+                      } else {
+                        handleAddIncome(showIncomeModal);
+                      }
+                    }}
+                    className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg transition-colors shadow-lg"
+                  >
+                    {editingIncome ? 'Update' : 'Simpan'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Fullscreen Chart */}
           {renderFullscreenChart()}
 
@@ -969,6 +1433,222 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Financial Summary Section */}
+                    {financialSummaries[project.id] && (
+                      <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-gray-800">Financial Analysis</h3>
+                              <p className="text-sm text-gray-600">Analisa keuangan dan profitabilitas project</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => openIncomeModal(project.id)}
+                              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                              Tambah Pemasukan
+                            </button>
+                            <button
+                              onClick={() => openExpenseModal(project.id)}
+                              className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                              Tambah Pengeluaran
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                          <div className="bg-white rounded-xl p-4 shadow-sm">
+                            <p className="text-sm font-medium text-gray-600 mb-1">Total Revenue</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                              Rp {financialSummaries[project.id].totalRevenue.toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded-xl p-4 shadow-sm">
+                            <p className="text-sm font-medium text-gray-600 mb-1">Total Pengeluaran</p>
+                            <p className="text-2xl font-bold text-red-600">
+                              Rp {financialSummaries[project.id].totalExpenses.toLocaleString('id-ID')}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Paid: Rp {financialSummaries[project.id].expensesPaid.toLocaleString('id-ID')} | 
+                              Unpaid: Rp {financialSummaries[project.id].expensesUnpaid.toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded-xl p-4 shadow-sm">
+                            <p className="text-sm font-medium text-gray-600 mb-1">Estimasi Profit</p>
+                            <p className={`text-2xl font-bold ${financialSummaries[project.id].estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              Rp {financialSummaries[project.id].estimatedProfit.toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded-xl p-4 shadow-sm">
+                            <p className="text-sm font-medium text-gray-600 mb-1">Profit Margin</p>
+                            <p className={`text-2xl font-bold ${financialSummaries[project.id].profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {financialSummaries[project.id].profitMargin.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Expense Categories */}
+                        {financialSummaries[project.id]?.expenseCategories && financialSummaries[project.id].expenseCategories.length > 0 && (
+                          <div className="bg-white rounded-xl p-5 shadow-sm">
+                            <h4 className="text-lg font-bold text-gray-800 mb-4">Breakdown Pengeluaran per Kategori</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {financialSummaries[project.id].expenseCategories.map((cat, idx) => (
+                                <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                  <p className="text-sm font-semibold text-gray-700 mb-1">{cat.kategori}</p>
+                                  <p className="text-xl font-bold text-gray-900">
+                                    Rp {cat.total.toLocaleString('id-ID')}
+                                  </p>
+                                  <p className="text-xs text-gray-500">{cat.count} transaksi</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Expense List */}
+                    {projectExpenses[project.id]?.length > 0 && (
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">Daftar Pengeluaran</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-gray-200">
+                                <th className="text-left p-3 text-sm font-semibold text-gray-700">Tanggal</th>
+                                <th className="text-left p-3 text-sm font-semibold text-gray-700">Kategori</th>
+                                <th className="text-left p-3 text-sm font-semibold text-gray-700">Deskripsi</th>
+                                <th className="text-right p-3 text-sm font-semibold text-gray-700">Jumlah</th>
+                                <th className="text-center p-3 text-sm font-semibold text-gray-700">Status</th>
+                                <th className="text-center p-3 text-sm font-semibold text-gray-700">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {projectExpenses[project.id].map((expense) => (
+                                <tr key={expense.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="p-3 text-sm text-gray-700">{new Date(expense.tanggal).toLocaleDateString('id-ID')}</td>
+                                  <td className="p-3 text-sm font-medium text-gray-800">{expense.kategori}</td>
+                                  <td className="p-3 text-sm text-gray-600">{expense.deskripsi || '-'}</td>
+                                  <td className="p-3 text-sm font-bold text-right text-gray-900">
+                                    Rp {expense.jumlah.toLocaleString('id-ID')}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                      expense.status === 'Paid' ? 'bg-green-100 text-green-700' :
+                                      expense.status === 'Unpaid' ? 'bg-red-100 text-red-700' :
+                                      'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {expense.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button
+                                        onClick={() => openExpenseModal(project.id, expense)}
+                                        className="text-blue-600 hover:text-blue-800 p-1"
+                                        title="Edit"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteExpense(expense.id, project.id)}
+                                        className="text-red-600 hover:text-red-800 p-1"
+                                        title="Hapus"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Income List */}
+                    {projectIncomes[project.id]?.length > 0 && (
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">Daftar Pemasukan</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-gray-200">
+                                <th className="text-left p-3 text-sm font-semibold text-gray-700">Tanggal</th>
+                                <th className="text-left p-3 text-sm font-semibold text-gray-700">Kategori</th>
+                                <th className="text-left p-3 text-sm font-semibold text-gray-700">Deskripsi</th>
+                                <th className="text-right p-3 text-sm font-semibold text-gray-700">Jumlah</th>
+                                <th className="text-center p-3 text-sm font-semibold text-gray-700">Status</th>
+                                <th className="text-center p-3 text-sm font-semibold text-gray-700">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {projectIncomes[project.id].map((income) => (
+                                <tr key={income.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="p-3 text-sm text-gray-700">{new Date(income.tanggal).toLocaleDateString('id-ID')}</td>
+                                  <td className="p-3 text-sm font-medium text-gray-800">{income.kategori}</td>
+                                  <td className="p-3 text-sm text-gray-600">{income.deskripsi || '-'}</td>
+                                  <td className="p-3 text-sm font-bold text-right text-gray-900">
+                                    Rp {income.jumlah.toLocaleString('id-ID')}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                      income.status === 'Received' ? 'bg-green-100 text-green-700' :
+                                      income.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {income.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button
+                                        onClick={() => openIncomeModal(project.id, income)}
+                                        className="text-blue-600 hover:text-blue-800 p-1"
+                                        title="Edit"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteIncome(income.id, project.id)}
+                                        className="text-red-600 hover:text-red-800 p-1"
+                                        title="Hapus"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Volume Data Chart - Full Width */}
                     <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">

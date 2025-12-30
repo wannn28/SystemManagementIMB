@@ -58,6 +58,11 @@ func StartServer() {
 	projectRepo := repository.NewProjectRepository(db)
 	projectService := service.NewProjectService(projectRepo)
 
+	projectExpenseRepo := repository.NewProjectExpenseRepository(db)
+	projectIncomeRepo := repository.NewProjectIncomeRepository(db)
+	projectExpenseService := service.NewProjectExpenseService(projectExpenseRepo, projectIncomeRepo)
+	projectIncomeService := service.NewProjectIncomeService(projectIncomeRepo)
+
 	memberRepo := repository.NewMemberRepository(db)
 	memberService := service.NewMemberService(memberRepo)
 
@@ -73,12 +78,15 @@ func StartServer() {
 	salaryRepo := repository.NewSalaryRepository(db)
 	salaryService := service.NewSalaryService(salaryRepo, memberRepo, salaryDetailService, kasbonService)
 
-	// Registrasi route
-	route.RegisterProjectRoutes(e, projectService, cfg, activityService)
-	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService, activityService) // Perbaiki typo
-
+	// Initialize finance service first (needed by project routes)
 	financeRepo := repository.NewFinanceRepository(db)
 	financeService := service.NewFinanceService(financeRepo)
+
+	// Registrasi route
+	route.RegisterProjectRoutes(e, projectService, cfg, activityService)
+	route.RegisterProjectExpenseRoutes(e, projectExpenseService, activityService, financeService, cfg)
+	route.RegisterProjectIncomeRoutes(e, projectIncomeService, activityService, financeService, cfg)
+	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService, activityService) // Perbaiki typo
 	financeCategoryRepo := repository.NewFinanceCategoryRepository(db)
 	financeCategoryService := service.NewFinanceCategoryService(financeCategoryRepo)
 
@@ -86,7 +94,7 @@ func StartServer() {
 	inventoryService := service.NewInventoryService(inventoryRepo)
 	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL, cfg, activityService)
 
-	route.RegisterFinanceRoutes(e, financeService, cfg, activityService, financeCategoryService)
+	route.RegisterFinanceRoutes(e, financeService, cfg, activityService, financeCategoryService, projectIncomeService, projectExpenseService)
 	route.RegisterRoutes(e, userService, cfg)
 	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
 	route.RegisterActivityRoutes(e, activityService, cfg)
