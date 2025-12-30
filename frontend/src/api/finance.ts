@@ -9,7 +9,7 @@ export interface PaginationParams {
   limit?: number;
   search?: string;
   sort?: string;
-  order?: 'ASC' | 'DESC';
+  order?: 'asc' | 'desc';
   filter?: string;
 }
 

@@ -1,4 +1,4 @@
-import { financeAPI, PaginationParams } from '../api';
+import { financeAPI, PaginationParams } from '../api/finance';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import FinancePDFExportButton from '../component/FinancePDFExportButton'
@@ -113,7 +113,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     
     // Sorting state
     const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status'>('id');
-    const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     
     // Loading state
     const [isLoading, setIsLoading] = useState(false);
@@ -265,10 +265,10 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     // Handle sorting
     const handleSort = (column: 'id' | 'tanggal' | 'jumlah' | 'status') => {
         if (sortBy === column) {
-            setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
         } else {
             setSortBy(column);
-            setSortOrder('ASC');
+            setSortOrder('asc');
         }
     };
 
@@ -295,7 +295,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         setMinAmount('');
         setMaxAmount('');
         setSortBy('id');
-        setSortOrder('ASC');
+        setSortOrder('asc');
         setCurrentPage(1);
     };
 
@@ -1143,7 +1143,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                         <div className="flex items-center justify-center gap-1">
                                             No
                                             {sortBy === 'id' && (
-                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                                             )}
                                         </div>
                                     </th>
@@ -1154,7 +1154,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                         <div className="flex items-center justify-center gap-1">
                                             Tanggal
                                             {sortBy === 'tanggal' && (
-                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                                             )}
                                         </div>
                                     </th>
@@ -1167,7 +1167,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                         <div className="flex items-center justify-center gap-1">
                                             Jumlah
                                             {sortBy === 'jumlah' && (
-                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                                             )}
                                         </div>
                                     </th>
@@ -1180,7 +1180,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                         <div className="flex items-center justify-center gap-1">
                                             Status
                                             {sortBy === 'status' && (
-                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                                             )}
                                         </div>
                                     </th>

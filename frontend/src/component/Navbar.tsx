@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiLogOut, FiChevronLeft, FiCreditCard, FiFileText } from 'react-icons/fi';
 import Logo from '../assets/images/logo.png';

@@ -268,7 +268,7 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
                   tooltip: {
                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
                     padding: 12,
-                    borderRadius: 8,
+                    cornerRadius: 8,
                     titleFont: {
                       size: 14,
                       weight: 'bold'
@@ -286,7 +286,7 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
                     ticks: {
                       font: {
                         size: 12,
-                        weight: '600'
+                        weight: 600
                       }
                     }
                   },
