@@ -1321,7 +1321,8 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                         </div>
                         <div className="flex space-x-3">
                             <button 
-                                onClick={() => window.history.back()} 
+                                // onClick={() => window.history.back()} // buat bukan kembali tapi reload page
+                                onClick={() => window.location.reload()}
                                 className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-all duration-200"
                             >
                                 ❌ Cancel
