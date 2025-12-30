@@ -120,19 +120,15 @@ func (h *FinanceHandler) DeleteFinance(c echo.Context) error {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 
-	// REVERSE SYNC: Delete or update status of project entry if this finance is synced from project
+	// REVERSE SYNC: Delete project entry if this finance is synced from project
 	if finance.Source == "project" {
 		if finance.ProjectIncomeID != nil && h.projectIncomeService != nil {
-			// Change project income status to Pending (not fully delete)
-			_, _ = h.projectIncomeService.UpdateIncome(*finance.ProjectIncomeID, &entity.ProjectIncomeUpdateRequest{
-				Status: "Pending",
-			})
+			// Delete project income entry
+			_ = h.projectIncomeService.DeleteIncome(*finance.ProjectIncomeID)
 		}
 		if finance.ProjectExpenseID != nil && h.projectExpenseService != nil {
-			// Change project expense status to Unpaid (not fully delete)
-			_, _ = h.projectExpenseService.UpdateExpense(*finance.ProjectExpenseID, &entity.ProjectExpenseUpdateRequest{
-				Status: "Unpaid",
-			})
+			// Delete project expense entry
+			_ = h.projectExpenseService.DeleteExpense(*finance.ProjectExpenseID)
 		}
 	}
 

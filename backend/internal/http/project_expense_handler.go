@@ -175,6 +175,13 @@ func (h *ProjectExpenseHandler) DeleteExpense(c echo.Context) error {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 
+	// SYNC: Delete associated finance entry if exists
+	if expense.FinanceID != nil {
+		if err := h.financeService.DeleteFinance(uint(*expense.FinanceID)); err != nil {
+			fmt.Println("Failed to delete synced finance entry:", err)
+		}
+	}
+
 	if err := h.service.DeleteExpense(id); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
