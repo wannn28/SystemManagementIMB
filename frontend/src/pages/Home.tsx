@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { FiUsers, FiActivity, FiDollarSign, FiClock, FiPlus, FiMinus, FiRefreshCw} from 'react-icons/fi';
 import { financeAPI, membersAPI, projectsAPI, activitiesAPI } from '../api';
+import ActivitiesModal from '../component/ActivitiesModal';
 
 ChartJS.register(
   CategoryScale,
@@ -54,6 +55,7 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
   const [projectCount, setProjectCount] = useState<number>(0);
   const [monthlyData, setMonthlyData] = useState<MonthlyComparison[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [isActivitiesModalOpen, setIsActivitiesModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,60 +141,119 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
   // ];
 
   return (
-    <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-      <div className="max-w-7xl mx-auto p-6">
+    <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-72'} bg-gradient-to-br from-gray-50 via-orange-50/20 to-amber-50/30 min-h-screen`}>
+      <div className="max-w-7xl mx-auto p-8">
         {/* Header Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard Overview</h1>
-          <div className="flex items-center text-gray-500">
-            <FiClock className="mr-2" />
-            <span>Last updated: {new Date().toLocaleDateString('id-ID')}</span>
+        <div className="mb-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-orange-900 to-amber-900 bg-clip-text text-transparent mb-3">
+                Dashboard Overview
+              </h1>
+              <div className="flex items-center text-gray-600 space-x-2">
+                <FiClock className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                  Terakhir diperbarui: {new Date().toLocaleDateString('id-ID', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </span>
+              </div>
+            </div>
+            <button className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200 hover:scale-105">
+              <FiRefreshCw className="inline mr-2" />
+              Refresh Data
+            </button>
           </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div className="bg-green-100 text-green-600 p-3 rounded-lg">
-                <FiDollarSign className="w-6 h-6" />
+          {/* Total Sisa Uang Card */}
+          <div className="group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-orange-200">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400/20 to-emerald-500/20 rounded-full blur-3xl transform translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500"></div>
+            <div className="relative">
+              <div className="flex justify-between items-start mb-4">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-xl shadow-lg shadow-green-500/30">
+                  <FiDollarSign className="w-7 h-7 text-white" />
+                </div>
+                <div className="bg-green-50 px-3 py-1 rounded-full">
+                  <span className="text-xs font-bold text-green-600">Aktif</span>
+                </div>
               </div>
-              <span className="text-sm text-gray-500">
-                Sisa Saldo
-              </span>
+              <h3 className="text-gray-500 text-sm font-semibold mb-2">Total Sisa Uang</h3>
+              <p className="text-3xl font-bold text-gray-900 mb-1">
+                {formatCurrency(financialSummary.income - financialSummary.expense)}
+              </p>
+              <div className="flex items-center text-green-600 text-sm font-medium">
+                <FiActivity className="w-4 h-4 mr-1" />
+                <span>Saldo Tersedia</span>
+              </div>
             </div>
-            <h3 className="text-gray-500 text-sm mt-4">Total Sisa Uang</h3>
-            <p className="text-2xl font-bold text-gray-800">
-              {formatCurrency(financialSummary.income - financialSummary.expense)}
-            </p>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div className="bg-blue-100 text-blue-600 p-3 rounded-lg">
-                <FiUsers className="w-6 h-6" />
+          {/* Total Members Card */}
+          <div className="group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-200">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-indigo-500/20 rounded-full blur-3xl transform translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500"></div>
+            <div className="relative">
+              <div className="flex justify-between items-start mb-4">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-xl shadow-lg shadow-blue-500/30">
+                  <FiUsers className="w-7 h-7 text-white" />
+                </div>
+                <div className="bg-blue-50 px-3 py-1 rounded-full">
+                  <span className="text-xs font-bold text-blue-600">Team</span>
+                </div>
+              </div>
+              <h3 className="text-gray-500 text-sm font-semibold mb-2">Total Members</h3>
+              <p className="text-3xl font-bold text-gray-900 mb-1">{memberCount}</p>
+              <div className="flex items-center text-blue-600 text-sm font-medium">
+                <FiActivity className="w-4 h-4 mr-1" />
+                <span>Anggota Aktif</span>
               </div>
             </div>
-            <h3 className="text-gray-500 text-sm mt-4">Total Members</h3>
-            <p className="text-2xl font-bold text-gray-800">{memberCount}</p>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start">
-              <div className="bg-purple-100 text-purple-600 p-3 rounded-lg">
-                <FiActivity className="w-6 h-6" />
+          {/* Total Projects Card */}
+          <div className="group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-purple-200">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-pink-500/20 rounded-full blur-3xl transform translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500"></div>
+            <div className="relative">
+              <div className="flex justify-between items-start mb-4">
+                <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-xl shadow-lg shadow-purple-500/30">
+                  <FiActivity className="w-7 h-7 text-white" />
+                </div>
+                <div className="bg-purple-50 px-3 py-1 rounded-full">
+                  <span className="text-xs font-bold text-purple-600">Active</span>
+                </div>
+              </div>
+              <h3 className="text-gray-500 text-sm font-semibold mb-2">Total Projects</h3>
+              <p className="text-3xl font-bold text-gray-900 mb-1">{projectCount}</p>
+              <div className="flex items-center text-purple-600 text-sm font-medium">
+                <FiActivity className="w-4 h-4 mr-1" />
+                <span>Proyek Berjalan</span>
               </div>
             </div>
-            <h3 className="text-gray-500 text-sm mt-4">Total Projects</h3>
-            <p className="text-2xl font-bold text-gray-800">{projectCount}</p>
           </div>
         </div>
 
         {/* Charts Section */}
-        <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-gray-800">Perbandingan Bulanan</h2>
-            {/* <span className="text-indigo-600 text-sm">Tahun 2024</span> */}
+        <div className="bg-white rounded-2xl p-8 shadow-lg mb-8 border border-gray-100">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Perbandingan Bulanan</h2>
+              <p className="text-sm text-gray-500">Analisis pemasukan dan pengeluaran per bulan</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                <span className="text-sm font-medium text-gray-600">Pemasukan</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                <span className="text-sm font-medium text-gray-600">Pengeluaran</span>
+              </div>
+            </div>
           </div>
           <div className="h-80">
             <Bar 
@@ -201,16 +262,44 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                  legend: { position: 'top' },
+                  legend: { 
+                    display: false,
+                  },
+                  tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    borderRadius: 8,
+                    titleFont: {
+                      size: 14,
+                      weight: 'bold'
+                    },
+                    bodyFont: {
+                      size: 13
+                    }
+                  }
                 },
                 scales: {
                   x: {
-                    grid: { display: false }
+                    grid: { 
+                      display: false 
+                    },
+                    ticks: {
+                      font: {
+                        size: 12,
+                        weight: '600'
+                      }
+                    }
                   },
                   y: {
                     beginAtZero: true,
+                    grid: {
+                      color: 'rgba(0, 0, 0, 0.05)'
+                    },
                     ticks: {
-                      callback: (value) => `Rp ${value} jt`
+                      callback: (value) => `Rp ${value} jt`,
+                      font: {
+                        size: 12
+                      }
                     }
                   }
                 }
@@ -220,45 +309,65 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-gray-800">Aktivitas Terkini</h2>
-            <button className="text-indigo-600 text-sm hover:underline">Lihat Semua</button>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Aktivitas Terkini</h2>
+              <p className="text-sm text-gray-500">Menampilkan 10 aktivitas terbaru</p>
+            </div>
+            <button 
+              onClick={() => setIsActivitiesModalOpen(true)}
+              className="px-4 py-2 text-orange-600 hover:bg-orange-50 rounded-lg font-semibold transition-all duration-200 text-sm"
+            >
+              Lihat Semua →
+            </button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {activities.map((activity, index) => (
-              <div key={index} className="flex items-start p-4 hover:bg-gray-50 rounded-lg transition-colors">
+              <div 
+                key={index} 
+                className="flex items-start p-4 hover:bg-gradient-to-r hover:from-orange-50/50 hover:to-amber-50/50 rounded-xl transition-all duration-200 border border-transparent hover:border-orange-100 group"
+              >
                 <div className="flex-shrink-0 mt-1">
                   {activity.type === 'income' && (
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <FiPlus className="text-green-600" />
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/30 group-hover:scale-110 transition-transform">
+                      <FiPlus className="text-white w-5 h-5" />
                     </div>
                   )}
                   {activity.type === 'expense' && (
-                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                      <FiMinus className="text-red-600" />
+                    <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/30 group-hover:scale-110 transition-transform">
+                      <FiMinus className="text-white w-5 h-5" />
                     </div>
                   )}
                   {activity.type === 'member' && (
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <FiUsers className="text-blue-600" />
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
+                      <FiUsers className="text-white w-5 h-5" />
                     </div>
                   )}
                   {activity.type === 'update' && (
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <FiRefreshCw className="text-blue-600" />
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform">
+                      <FiRefreshCw className="text-white w-5 h-5" />
                     </div>
                   )}
                 </div>
                 <div className="ml-4 flex-1">
-                  <p className="font-medium text-gray-800">{activity.title}</p>
-                  <p className="text-sm text-gray-600">{activity.description}</p>
-                  <p className="text-xs text-gray-400 mt-1">{activity.timestamp}</p>
+                  <p className="font-semibold text-gray-900 mb-1">{activity.title}</p>
+                  <p className="text-sm text-gray-600 mb-2">{activity.description}</p>
+                  <div className="flex items-center text-xs text-gray-400">
+                    <FiClock className="w-3 h-3 mr-1" />
+                    <span>{activity.timestamp}</span>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
+
+        {/* Activities Modal */}
+        <ActivitiesModal 
+          isOpen={isActivitiesModalOpen}
+          onClose={() => setIsActivitiesModalOpen(false)}
+        />
       </div>
     </div>
   );

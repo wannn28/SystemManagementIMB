@@ -123,6 +123,126 @@ export const teamAPI = {
         headers: getAuthHeaders()
       });
     },
+
+    // Deactivate member
+    deactivate: async (memberId: string, reason: string): Promise<{message: string}> => {
+      const response: any = await axios.post(
+        `${API_URL}/members/${memberId}/deactivate`,
+        { reason },
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Activate member
+    activate: async (memberId: string): Promise<{message: string}> => {
+      const response: any = await axios.post(
+        `${API_URL}/members/${memberId}/activate`,
+        {},
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Get total salary for a specific member
+    getTotalSalary: async (memberId: string): Promise<{member_id: string, total_salary: number}> => {
+      const response: any = await axios.get(
+        `${API_URL}/members/${memberId}/total-salary`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Get total salary for all members
+    getAllTotalSalary: async (): Promise<{total_salary: number}> => {
+      const response: any = await axios.get(
+        `${API_URL}/members/total-salary`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Get total salary for a specific member with filter
+    getTotalSalaryWithFilter: async (memberId: string, year?: string, month?: string): Promise<{member_id: string, year: string, month: string, total_salary: number}> => {
+      const params = new URLSearchParams();
+      if (year) params.append('year', year);
+      if (month) params.append('month', month);
+      
+      const response: any = await axios.get(
+        `${API_URL}/members/${memberId}/total-salary/filter?${params.toString()}`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Get total salary for all members with filter
+    getAllTotalSalaryWithFilter: async (year?: string, month?: string): Promise<{year: string, month: string, total_salary: number}> => {
+      const params = new URLSearchParams();
+      if (year) params.append('year', year);
+      if (month) params.append('month', month);
+      
+      const response: any = await axios.get(
+        `${API_URL}/members/total-salary/filter?${params.toString()}`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Get all members with salary info (with filter and sort)
+    getAllWithSalaryInfo: async (year?: string, month?: string, order: 'asc' | 'desc' = 'desc'): Promise<{
+      member_id: string;
+      full_name: string;
+      role: string;
+      total_salary: number;
+      is_active: boolean;
+    }[]> => {
+      const params = new URLSearchParams();
+      if (year) params.append('year', year);
+      if (month) params.append('month', month);
+      params.append('order', order);
+      
+      const response: any = await axios.get(
+        `${API_URL}/members/salary-info?${params.toString()}`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data;
+    },
+
+    // Get member monthly salary details
+    getMonthlySalaryDetails: async (memberId: string, year?: string): Promise<{
+      month: string;
+      salary: number;
+      loan: number;
+      net_salary: number;
+      gross_salary: number;
+      status: string;
+      created_at: string;
+    }[]> => {
+      const params = new URLSearchParams();
+      if (year) params.append('year', year);
+      
+      const response: any = await axios.get(
+        `${API_URL}/members/${memberId}/monthly-salary-details?${params.toString()}`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+      return response.data.data || [];
+    },
   },
 
   // Salary related endpoints

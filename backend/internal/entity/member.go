@@ -23,14 +23,17 @@ type Document struct {
 
 // Hapus struct Document dan modifikasi field Files & Documents
 type Member struct {
-	ID           string         `gorm:"primaryKey;type:varchar(255)" json:"id"`
-	FullName     string         `gorm:"size:255" json:"fullName"`
-	Role         string         `gorm:"size:100" json:"role"`
-	PhoneNumber  string         `gorm:"size:50" json:"phoneNumber"`
-	Address      string         `gorm:"type:text" json:"address"`
-	JoinDate     string         `json:"joinDate"`
-	ProfileImage string         `json:"profileImage"`                // Hanya menyimpan nama file
-	Documents    datatypes.JSON `gorm:"type:jsonb" json:"documents"` // Menyimpan array string
-	Files        datatypes.JSON `gorm:"type:jsonb" json:"files"`     // Menyimpan array string
-	Salaries     []Salary       `gorm:"foreignKey:MemberID" json:"salaries"`
+	ID                 string         `gorm:"primaryKey;type:varchar(255)" json:"id"`
+	FullName           string         `gorm:"size:255" json:"fullName"`
+	Role               string         `gorm:"size:100" json:"role"`
+	PhoneNumber        string         `gorm:"size:50" json:"phoneNumber"`
+	Address            string         `gorm:"type:text" json:"address"`
+	JoinDate           string         `json:"joinDate"`
+	ProfileImage       string         `json:"profileImage"`                // Hanya menyimpan nama file
+	Documents          datatypes.JSON `gorm:"type:jsonb" json:"documents"` // Menyimpan array string
+	Files              datatypes.JSON `gorm:"type:jsonb" json:"files"`     // Menyimpan array string
+	IsActive           bool           `gorm:"default:true" json:"isActive"`
+	DeactivationReason string         `gorm:"type:text" json:"deactivationReason,omitempty"`
+	DeactivatedAt      *string        `json:"deactivatedAt,omitempty"`
+	Salaries           []Salary       `gorm:"foreignKey:MemberID" json:"salaries"`
 }

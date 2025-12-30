@@ -444,9 +444,9 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         const isEditing = editMode.id === item.id && editMode.type === type;
 
         return (
-            <tr key={item.id}>
-                <td className="border px-4 py-2 text-center">{index + 1}</td>
-                <td className="border px-4 py-2">
+            <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
+                <td className="border border-gray-200 px-4 py-3 text-center font-medium text-gray-700">{index + 1}</td>
+                <td className="border border-gray-200 px-4 py-3">
                     {isEditing ? (
                         <input
                             type="date"
@@ -455,13 +455,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 ...prev,
                                 data: { ...prev.data, tanggal: e.target.value }
                             }))}
-                            className="border p-1 rounded w-full"
+                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     ) : (
-                        item.tanggal.split('T')[0]
+                        <span className="text-gray-700">{item.tanggal.split('T')[0]}</span>
                     )}
                 </td>
-                <td className="border px-4 py-2 text-right">
+                <td className="border border-gray-200 px-4 py-3 text-right">
                     {isEditing ? (
                         <input
                             type="number"
@@ -470,13 +470,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 ...prev,
                                 data: { ...prev.data, unit: Number(e.target.value) }
                             }))}
-                            className="border p-1 rounded w-20"
+                            className="border border-gray-300 p-2 rounded-lg w-24 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     ) : (
-                        item.unit
+                        <span className="text-gray-700 font-medium">{item.unit}</span>
                     )}
                 </td>
-                <td className="border px-4 py-2 text-right">
+                <td className="border border-gray-200 px-4 py-3 text-right">
                     {isEditing ? (
                         <input
                             type="number"
@@ -485,16 +485,16 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 ...prev,
                                 data: { ...prev.data, hargaPerUnit: Number(e.target.value) }
                             }))}
-                            className="border p-1 rounded w-32"
+                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     ) : (
-                        `Rp ${item.hargaPerUnit.toLocaleString()}`
+                        <span className="text-gray-700 font-medium">Rp {item.hargaPerUnit.toLocaleString()}</span>
                     )}
                 </td>
-                <td className="border px-4 py-2 text-right">
-                    Rp {(item.unit * item.hargaPerUnit).toLocaleString()}
+                <td className="border border-gray-200 px-4 py-3 text-right">
+                    <span className="text-gray-800 font-bold">Rp {(item.unit * item.hargaPerUnit).toLocaleString()}</span>
                 </td>
-                <td className="border px-4 py-2">
+                <td className="border border-gray-200 px-4 py-3">
                     {isEditing ? (
                         <input
                             type="text"
@@ -503,29 +503,29 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 ...prev,
                                 data: { ...prev.data, keterangan: e.target.value }
                             }))}
-                            className="border p-1 rounded w-full"
+                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     ) : (
-                        item.keterangan
+                        <span className="text-gray-700">{item.keterangan}</span>
                     )}
                 </td>
-                <td className="border px-4 py-2">
+                <td className="border border-gray-200 px-4 py-3">
                     {isEditing ? (
                         <div className="w-full">
                             <CategoryAutocomplete
                                 value={(editMode.data.category as string) || item.category}
                                 onChange={(v) => setEditMode(prev => ({ ...prev, data: { ...prev.data, category: v } }))}
                                 placeholder="Kategori"
-                                inputClassName="p-1"
+                                inputClassName="p-2"
                                 debounceMs={1000}
                             />
                         </div>
                     ) : (
-                        item.category
+                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">{item.category}</span>
                     )}
                 </td>
                 {/* Di dalam EditableRow */}
-                <td className="border px-4 py-2">
+                <td className="border border-gray-200 px-4 py-3 text-center">
                     {isEditing ? (
                         <select
                             value={editMode.data.status || item.status}
@@ -533,49 +533,57 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                 ...prev,
                                 data: { ...prev.data, status: e.target.value as 'Paid' | 'Unpaid' }
                             }))}
-                            className="border p-1 rounded w-full"
+                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="Paid">Paid</option>
                             <option value="Unpaid">Unpaid</option>
                         </select>
                     ) : (
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${item.status === 'Paid' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${item.status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'
                             }`}>
                             {item.status}
                         </span>
                     )}
                 </td>
-                <td className="border px-4 py-2 space-x-2">
+                <td className="border border-gray-200 px-4 py-2">
                     {isEditing ? (
-                        <>
+                        <div className="flex gap-2">
                             <button
                                 onClick={handleSaveEdit}
-                                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1.5 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
                             >
-                                💾
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
                             </button>
                             <button
                                 onClick={() => setEditMode({ id: null, type: null, data: {} })}
-                                className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600"
+                                className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-3 py-1.5 rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
                             >
-                                ✖
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                             </button>
-                        </>
+                        </div>
                     ) : (
-                        <>
+                        <div className="flex gap-2">
                             <button
                                 onClick={() => handleEdit(item.id, type)}
-                                className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+                                className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
                             >
-                                ✏️
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
                             </button>
                             <button
                                 onClick={() => handleDelete(item.id)}
-                                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                                className="bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-1.5 rounded-lg hover:from-red-600 hover:to-rose-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
                             >
-                                🗑
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                             </button>
-                        </>
+                        </div>
                     )}
                 </td>
             </tr>
@@ -583,18 +591,33 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     };
 
     return (
-        <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-            <div className="max-w-7xl mx-auto p-6">
-                <h1 className="text-3xl font-bold text-gray-800 mb-6">Finance Management</h1>
+        <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-72'} bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50 min-h-screen`}>
+            <div className="max-w-7xl mx-auto p-8">
+                {/* Modern Header */}
+                <div className="mb-8 animate-fadeInUp">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                                Manajemen Keuangan
+                            </h1>
+                            <p className="text-gray-600 mt-1">Kelola pemasukan dan pengeluaran perusahaan</p>
+                        </div>
+                    </div>
+                </div>
 
                 {/* Filter Section */}
-                <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 mb-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
                         </svg>
-                        Filter & Pencarian
-                    </h3>
+                        <h3 className="text-lg font-semibold text-gray-900">Filter & Pencarian</h3>
+                    </div>
                     
                     {/* Basic Filters */}
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
@@ -655,43 +678,66 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         <div className="flex gap-2">
                             <button
                                 onClick={resetFilters}
-                                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm"
+                                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200 font-medium flex items-center gap-2 border border-gray-300"
                             >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
                                 Reset
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setShowManageCategories(v => !v)}
-                                className="bg-white border px-4 py-2 rounded hover:bg-gray-50 transition-colors duration-200 font-medium shadow-sm"
+                                className="text-gray-600 hover:text-gray-800 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 font-medium text-sm flex items-center gap-2"
                             >
-                                {showManageCategories ? 'Tutup Kategori' : 'Kelola Kategori'}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showManageCategories ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                                </svg>
+                                Kategori
                             </button>
                         </div>
                     </div>
 
                     {showManageCategories && (
-                        <div className="mb-6 border rounded-md p-3 bg-gray-50">
-                            <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-sm font-semibold text-gray-700">Kategori (klik hapus untuk menghapus)</h4>
+                        <div className="mb-6 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                    </svg>
+                                    Daftar Kategori
+                                </h4>
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{categories.length} kategori</span>
                             </div>
                             {categories.length === 0 ? (
-                                <p className="text-sm text-gray-500">Belum ada kategori.</p>
+                                <div className="text-center py-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                    </svg>
+                                    <p className="text-sm text-gray-500">Belum ada kategori</p>
+                                    <p className="text-xs text-gray-400 mt-1">Kategori akan dibuat otomatis saat menambah data</p>
+                                </div>
                             ) : (
                                 <div className="flex flex-wrap gap-2">
                                     {categories.map(c => (
-                                        <span key={c.id} className="inline-flex items-center gap-2 bg-white border border-gray-200 px-3 py-1 rounded-full text-sm shadow-sm">
-                                            <span>{c.name}</span>
+                                        <div 
+                                            key={c.id} 
+                                            className="group inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-3 py-1.5 rounded-lg text-sm hover:shadow-md transition-all duration-200"
+                                        >
+                                            <span className="font-medium text-gray-700">{c.name}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     if (confirm(`Hapus kategori "${c.name}"?`)) handleDeleteCategory(c.id);
                                                 }}
-                                                className="text-red-600 hover:text-red-800"
+                                                className="text-gray-400 hover:text-red-600 transition-colors duration-200 opacity-0 group-hover:opacity-100"
                                                 aria-label={`Hapus ${c.name}`}
                                             >
-                                                ✕
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
                                             </button>
-                                        </span>
+                                        </div>
                                     ))}
                                 </div>
                             )}
@@ -759,10 +805,22 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         <div className="flex items-end">
                             <button
                                 onClick={() => fetchData(true)}
-                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full disabled:opacity-50 transition-colors duration-200 font-medium shadow-sm"
+                                className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-700 w-full disabled:opacity-50 transition-all duration-200 font-semibold shadow-md flex items-center justify-center gap-2"
                                 disabled={isLoading}
                             >
-                                {isLoading ? 'Loading...' : 'Refresh Data'}
+                                {isLoading ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                        Loading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Refresh Data
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -854,33 +912,89 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     )}
 
                     {/* Total Cards */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                            <h3 className="text-sm font-semibold text-green-600">TOTAL PEMASUKAN</h3>
-                            <p className="text-2xl font-bold text-green-700">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group hover:scale-105">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-sm font-semibold text-gray-600">Total Pemasukan</h3>
+                                </div>
+                            </div>
+                            <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                                 Rp {totalPemasukan.toLocaleString('id-ID')}
                             </p>
+                            <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                </svg>
+                                Total pendapatan
+                            </div>
                         </div>
-                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                            <h3 className="text-sm font-semibold text-red-600">TOTAL PENGELUARAN</h3>
-                            <p className="text-2xl font-bold text-red-700">
+                        
+                        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group hover:scale-105">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-sm font-semibold text-gray-600">Total Pengeluaran</h3>
+                                </div>
+                            </div>
+                            <p className="text-3xl font-bold bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">
                                 Rp {totalPengeluaran.toLocaleString('id-ID')}
                             </p>
+                            <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                </svg>
+                                Total biaya operasional
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group hover:scale-105">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-12 h-12 bg-gradient-to-br ${totalPemasukan - totalPengeluaran >= 0 ? 'from-blue-500 to-indigo-500' : 'from-orange-500 to-red-500'} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-sm font-semibold text-gray-600">Saldo Bersih</h3>
+                                </div>
+                            </div>
+                            <p className={`text-3xl font-bold ${totalPemasukan - totalPengeluaran >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                Rp {(totalPemasukan - totalPengeluaran).toLocaleString('id-ID')}
+                            </p>
+                            <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                {totalPemasukan - totalPengeluaran >= 0 ? 'Surplus' : 'Defisit'}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Navigation Tabs */}
-                <div className="flex gap-2 mb-6">
+                <div className="flex gap-3 mb-6">
                     <button
                         onClick={() => handleActiveSectionChange('income')}
-                        className={`px-6 py-3 rounded-lg flex items-center gap-2 font-medium transition-all duration-200 ${
+                        className={`px-6 py-3 rounded-xl flex items-center gap-3 font-semibold transition-all duration-300 ${
                             activeSection === 'income'
-                                ? 'bg-blue-500 text-white shadow-lg'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-200 scale-105'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:scale-105'
                         }`}
                         disabled={isLoading}
                     >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                         Pemasukan
                         {isLoading && activeSection === 'income' && (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
@@ -888,13 +1002,16 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     </button>
                     <button
                         onClick={() => handleActiveSectionChange('expense')}
-                        className={`px-6 py-3 rounded-lg flex items-center gap-2 font-medium transition-all duration-200 ${
+                        className={`px-6 py-3 rounded-xl flex items-center gap-3 font-semibold transition-all duration-300 ${
                             activeSection === 'expense'
-                                ? 'bg-blue-500 text-white shadow-lg'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-200 scale-105'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:scale-105'
                         }`}
                         disabled={isLoading}
                     >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                        </svg>
                         Pengeluaran
                         {isLoading && activeSection === 'expense' && (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
@@ -912,12 +1029,19 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 </div>
 
                 {/* Active Section Content */}
-                <div className="bg-white rounded-lg shadow">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
                     {/* Add New Form */}
-                    <div className="p-6 border-b">
-                        <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                            Tambah {activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}
-                        </h2>
+                    <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className={`w-10 h-10 ${activeSection === 'income' ? 'bg-green-100' : 'bg-red-100'} rounded-lg flex items-center justify-center`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${activeSection === 'income' ? 'text-green-600' : 'text-red-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                            </div>
+                            <h2 className="text-lg font-semibold text-gray-800">
+                                Tambah {activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}
+                            </h2>
+                        </div>
 
                         <form
                             onSubmit={(e) => handleAddEntry(e, activeSection)}
@@ -970,8 +1094,11 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             </select>
                             <button
                                 type="submit"
-                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium"
+                                className={`${activeSection === 'income' ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700' : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700'} text-white px-4 py-2 rounded-xl transition-all duration-200 font-semibold shadow-md hover:shadow-lg flex items-center gap-2`}
                             >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
                                 Tambah
                             </button>
                         </form>
@@ -980,54 +1107,84 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     {/* Data Table */}
                     <div className="overflow-x-auto">
                         {/* Table Summary */}
-                        <div className="bg-gray-50 p-3 border-b">
+                        <div className={`${activeSection === 'income' ? 'bg-gradient-to-r from-green-50 to-emerald-50' : 'bg-gradient-to-r from-red-50 to-rose-50'} p-4 border-b border-gray-200`}>
                             <div className="flex items-center justify-between">
-                                <div className="text-sm text-gray-600">
-                                    <span className="font-medium">{activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}</span>
+                                <div className="text-sm text-gray-700">
+                                    <span className="font-semibold">{activeSection === 'income' ? '📊 Data Pemasukan' : '📊 Data Pengeluaran'}</span>
                                     {totalRecords > 0 && (
-                                        <span className="ml-2">
+                                        <span className="ml-2 text-gray-600">
                                             • Halaman {currentPage} dari {totalPages} • Total {totalRecords} data
                                         </span>
                                     )}
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                    {isLoading ? 'Memuat data...' : 'Data siap'}
+                                <div className="flex items-center gap-2">
+                                    {isLoading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                            <span className="text-sm text-gray-600 font-medium">Memuat data...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                            <span className="text-sm text-gray-600 font-medium">Data siap</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
                         
                         <table className="w-full">
-                            <thead className="bg-gray-50">
+                            <thead className={`${activeSection === 'income' ? 'bg-gradient-to-r from-green-100 to-emerald-100' : 'bg-gradient-to-r from-red-100 to-rose-100'}`}>
                                 <tr>
                                     <th
-                                        className="border px-4 py-3 w-12 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
+                                        className="border border-gray-200 px-4 py-3 w-12 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
                                         onClick={() => handleSort('id')}
                                     >
-                                        No {sortBy === 'id' && (sortOrder === 'ASC' ? '↑' : '↓')}
+                                        <div className="flex items-center justify-center gap-1">
+                                            No
+                                            {sortBy === 'id' && (
+                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                            )}
+                                        </div>
                                     </th>
                                     <th
-                                        className="border px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
+                                        className="border border-gray-200 px-4 py-3 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
                                         onClick={() => handleSort('tanggal')}
                                     >
-                                        Tanggal {sortBy === 'tanggal' && (sortOrder === 'ASC' ? '↑' : '↓')}
+                                        <div className="flex items-center justify-center gap-1">
+                                            Tanggal
+                                            {sortBy === 'tanggal' && (
+                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                            )}
+                                        </div>
                                     </th>
-                                    <th className="border px-4 py-3 font-medium text-gray-700">Unit</th>
-                                    <th className="border px-4 py-3 font-medium text-gray-700">Harga/Unit</th>
+                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Unit</th>
+                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Harga/Unit</th>
                                     <th
-                                        className="border px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
+                                        className="border border-gray-200 px-4 py-3 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
                                         onClick={() => handleSort('jumlah')}
                                     >
-                                        Jumlah {sortBy === 'jumlah' && (sortOrder === 'ASC' ? '↑' : '↓')}
+                                        <div className="flex items-center justify-center gap-1">
+                                            Jumlah
+                                            {sortBy === 'jumlah' && (
+                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                            )}
+                                        </div>
                                     </th>
-                                    <th className="border px-4 py-3 font-medium text-gray-700">Keterangan</th>
-                                    <th className="border px-4 py-3 font-medium text-gray-700">Kategori</th>
+                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Keterangan</th>
+                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Kategori</th>
                                     <th
-                                        className="border px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200 font-medium text-gray-700"
+                                        className="border border-gray-200 px-4 py-3 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
                                         onClick={() => handleSort('status')}
                                     >
-                                        Status {sortBy === 'status' && (sortOrder === 'ASC' ? '↑' : '↓')}
+                                        <div className="flex items-center justify-center gap-1">
+                                            Status
+                                            {sortBy === 'status' && (
+                                                <span className="text-green-600">{sortOrder === 'ASC' ? '↑' : '↓'}</span>
+                                            )}
+                                        </div>
                                     </th>
-                                    <th className="border px-4 py-3 w-32 font-medium text-gray-700">Aksi</th>
+                                    <th className="border border-gray-200 px-4 py-3 w-32 font-semibold text-gray-800">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1066,20 +1223,20 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         </table>
 
                         {/* Pagination Controls */}
-                        <div className="bg-white p-6 border-t">
+                        <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-6 border-t border-gray-200">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-gray-600">
-                                        Menampilkan {((currentPage - 1) * pageSize) + 1} sampai {Math.min(currentPage * pageSize, totalRecords)} dari {totalRecords} hasil
+                                    <span className="text-sm font-medium text-gray-700">
+                                        Menampilkan <span className="font-bold text-gray-900">{((currentPage - 1) * pageSize) + 1}</span> sampai <span className="font-bold text-gray-900">{Math.min(currentPage * pageSize, totalRecords)}</span> dari <span className="font-bold text-gray-900">{totalRecords}</span> hasil
                                     </span>
                                 </div>
                                 
-                                <div className="flex items-center space-x-3">
+                                <div className="flex items-center space-x-2">
                                     {/* Previous Button */}
                                     <button
                                         onClick={() => handlePageChange(currentPage - 1)}
                                         disabled={!hasPrev || isLoading}
-                                        className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+                                        className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-sm"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1105,10 +1262,10 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                                 <button
                                                     key={pageNum}
                                                     onClick={() => handlePageChange(pageNum)}
-                                                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                                                    className={`px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 ${
                                                         currentPage === pageNum
-                                                            ? 'bg-blue-600 text-white shadow-md'
-                                                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                                                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg scale-110'
+                                                            : 'text-gray-700 bg-white border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 hover:scale-105'
                                                     }`}
                                                 >
                                                     {pageNum}
@@ -1121,7 +1278,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     <button
                                         onClick={() => handlePageChange(currentPage + 1)}
                                         disabled={!hasNext || isLoading}
-                                        className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+                                        className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-sm"
                                     >
                                         Selanjutnya
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

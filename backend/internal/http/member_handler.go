@@ -342,3 +342,158 @@ func (h *MemberHandler) DeleteDocument(c echo.Context) error {
 
 	return h.service.UpdateMember(member)
 }
+
+// DeactivateMember handles deactivating a member with a reason
+func (h *MemberHandler) DeactivateMember(c echo.Context) error {
+	id := c.Param("id")
+	
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	
+	if err := c.Bind(&req); err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+	
+	if req.Reason == "" {
+		return response.Error(c, http.StatusBadRequest, errors.New("reason is required"))
+	}
+	
+	if err := h.service.DeactivateMember(id, req.Reason); err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	// Log activity
+	member, _ := h.service.GetMemberByID(id)
+	_ = h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Member Dinonaktifkan",
+		fmt.Sprintf("Member %s dinonaktifkan. Alasan: %s", member.FullName, req.Reason),
+	)
+	
+	return response.Success(c, http.StatusOK, map[string]string{
+		"message": "Member deactivated successfully",
+	})
+}
+
+// ActivateMember handles activating a member
+func (h *MemberHandler) ActivateMember(c echo.Context) error {
+	id := c.Param("id")
+	
+	if err := h.service.ActivateMember(id); err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	// Log activity
+	member, _ := h.service.GetMemberByID(id)
+	_ = h.activityService.LogActivity(
+		entity.ActivityUpdate,
+		"Member Diaktifkan",
+		fmt.Sprintf("Member %s diaktifkan kembali", member.FullName),
+	)
+	
+	return response.Success(c, http.StatusOK, map[string]string{
+		"message": "Member activated successfully",
+	})
+}
+
+// GetMemberTotalSalary handles getting total salary paid for a member
+func (h *MemberHandler) GetMemberTotalSalary(c echo.Context) error {
+	memberID := c.Param("id")
+	
+	total, err := h.service.GetMemberTotalSalary(memberID)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	return response.Success(c, http.StatusOK, map[string]interface{}{
+		"member_id":    memberID,
+		"total_salary": total,
+	})
+}
+
+// GetAllMembersTotalSalary handles getting total salary paid for all members
+func (h *MemberHandler) GetAllMembersTotalSalary(c echo.Context) error {
+	total, err := h.service.GetAllMembersTotalSalary()
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	return response.Success(c, http.StatusOK, map[string]interface{}{
+		"total_salary": total,
+	})
+}
+
+// GetMemberTotalSalaryWithFilter handles getting total salary paid for a member with filters
+func (h *MemberHandler) GetMemberTotalSalaryWithFilter(c echo.Context) error {
+	memberID := c.Param("id")
+	year := c.QueryParam("year")
+	month := c.QueryParam("month")
+	
+	total, err := h.service.GetMemberTotalSalaryWithFilter(memberID, year, month)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	return response.Success(c, http.StatusOK, map[string]interface{}{
+		"member_id":    memberID,
+		"year":         year,
+		"month":        month,
+		"total_salary": total,
+	})
+}
+
+// GetAllMembersTotalSalaryWithFilter handles getting total salary with filters
+func (h *MemberHandler) GetAllMembersTotalSalaryWithFilter(c echo.Context) error {
+	year := c.QueryParam("year")
+	month := c.QueryParam("month")
+	
+	total, err := h.service.GetAllMembersTotalSalaryWithFilter(year, month)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	return response.Success(c, http.StatusOK, map[string]interface{}{
+		"year":         year,
+		"month":        month,
+		"total_salary": total,
+	})
+}
+
+// GetAllMembersWithSalaryInfo handles getting all members with their salary info, with filter and sort
+func (h *MemberHandler) GetAllMembersWithSalaryInfo(c echo.Context) error {
+	year := c.QueryParam("year")
+	month := c.QueryParam("month")
+	orderBy := c.QueryParam("order")
+	
+	// Log filter parameters
+	fmt.Printf("Filter params - Year: %s, Month: %s, Order: %s\n", year, month, orderBy)
+	
+	// Default to desc if not specified
+	if orderBy != "asc" && orderBy != "desc" {
+		orderBy = "desc"
+	}
+	
+	members, err := h.service.GetAllMembersWithSalaryInfo(year, month, orderBy)
+	if err != nil {
+		fmt.Printf("Error getting members with salary info: %v\n", err)
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	fmt.Printf("Found %d members\n", len(members))
+	
+	return response.Success(c, http.StatusOK, members)
+}
+
+// GetMemberMonthlySalaryDetails handles getting monthly salary breakdown for a member
+func (h *MemberHandler) GetMemberMonthlySalaryDetails(c echo.Context) error {
+	memberID := c.Param("id")
+	year := c.QueryParam("year")
+	
+	details, err := h.service.GetMemberMonthlySalaryDetails(memberID, year)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	
+	return response.Success(c, http.StatusOK, details)
+}

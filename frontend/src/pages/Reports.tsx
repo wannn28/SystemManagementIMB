@@ -560,36 +560,63 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
     // const chartData = getTimeRangeData(project);
     const volumeData = getVolumeData(project);
 
+    const chartTitles = {
+      'revenue': 'Revenue Analysis',
+      'volume-progress': 'Volume Progress',
+      'volume-data': 'Volume Data Analysis'
+    };
+
     return (
-      <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-lg w-full h-full max-w-9xl max-h-[90vh] flex flex-col">
-          <button
-            onClick={() => setFullscreenChart(null)}
-            className="self-end mb-4 px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
-          >
-            Close
-          </button>
-          <div className="flex-1">
-            {fullscreenChart.chartType === 'revenue' && (
-              <RevenueChart
-                data={getAggregatedRevenueData(project, timeRange)}
-                timeRange={timeRange}
-                showTotals={showTotals}
-              />
-            )}
-            {fullscreenChart.chartType === 'volume-progress' && (
-              <VolumeProgressChart
-                data={volumeData}
-                timeRange={timeRange}
-                showTotals={showTotals}
-              />
-            )}
-            {fullscreenChart.chartType === 'volume-data' && (
-              <VolumeDataChart
-                data={volumeData}
-                timeRange={timeRange}
-              />
-            )}
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+        <div className="bg-white rounded-2xl shadow-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden animate-scaleIn">
+          {/* Modal Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">{chartTitles[fullscreenChart.chartType as keyof typeof chartTitles]}</h2>
+                <p className="text-sm text-blue-100">{project.name}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setFullscreenChart(null)}
+              className="bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2 rounded-xl transition-all duration-200 font-semibold text-white flex items-center gap-2 border border-white/30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Close
+            </button>
+          </div>
+          
+          {/* Chart Content */}
+          <div className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-50 to-blue-50/30">
+            <div className="h-full bg-white rounded-xl p-4 shadow-inner">
+              {fullscreenChart.chartType === 'revenue' && (
+                <RevenueChart
+                  data={getAggregatedRevenueData(project, timeRange)}
+                  timeRange={timeRange}
+                  showTotals={showTotals}
+                />
+              )}
+              {fullscreenChart.chartType === 'volume-progress' && (
+                <VolumeProgressChart
+                  data={volumeData}
+                  timeRange={timeRange}
+                  showTotals={showTotals}
+                />
+              )}
+              {fullscreenChart.chartType === 'volume-data' && (
+                <VolumeDataChart
+                  data={volumeData}
+                  timeRange={timeRange}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -597,52 +624,149 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   };
   return (
     <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-7xl mx-auto p-6">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-4xl font-bold text-gray-800 mb-2">📊 Project Reports</h1>
-                <p className="text-gray-600">Comprehensive project analytics and performance metrics</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="max-w-7xl mx-auto p-8">
+          {/* Modern Header with Stats */}
+          <div className="mb-8 animate-fadeInUp">
+            {/* Page Title */}
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Project Reports
+                  </h1>
+                  <p className="text-gray-600 mt-1">Comprehensive analytics and performance metrics</p>
+                </div>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="bg-white rounded-lg shadow-sm px-4 py-2">
-                  <span className="text-sm text-gray-600">Total Projects: {projects.length}</span>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-5 border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Total Projects</p>
+                    <p className="text-3xl font-bold text-gray-800">{projects.length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-5 border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Active Reports</p>
+                    <p className="text-3xl font-bold text-green-600">{projects.filter(p => p.status === 'active').length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-5 border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Total Revenue</p>
+                    <p className="text-3xl font-bold text-purple-600">
+                      {(projects.reduce((sum, p) => sum + (p.totalRevenue || 0), 0) / 1000000).toFixed(1)}M
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-5 border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Avg Progress</p>
+                    <p className="text-3xl font-bold text-orange-600">
+                      {projects.length > 0 ? (projects.reduce((sum, p) => sum + getProgress(p), 0) / projects.length).toFixed(1) : 0}%
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Filter Controls */}
-            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center space-x-2">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm p-6 border border-gray-100">
+              <div className="flex flex-wrap items-center gap-6">
+                {/* Time Range Filter */}
+                <div className="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   <span className="text-sm font-semibold text-gray-700">Time Range:</span>
-                  {['daily', 'weekly', 'monthly'].map((range) => (
-                    <button
-                      key={range}
-                      onClick={() => setTimeRange(range as any)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                        timeRange === range 
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg' 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {range.charAt(0).toUpperCase() + range.slice(1)}
-                    </button>
-                  ))}
+                  <div className="flex gap-2">
+                    {['daily', 'weekly', 'monthly'].map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setTimeRange(range as any)}
+                        className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
+                          timeRange === range 
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200 scale-105' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                        }`}
+                      >
+                        {range.charAt(0).toUpperCase() + range.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
+
+                {/* Divider */}
+                <div className="h-8 w-px bg-gray-300"></div>
+
+                {/* Display Toggle */}
+                <div className="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
                   <span className="text-sm font-semibold text-gray-700">Display:</span>
                   <button
                     onClick={() => setShowTotals(!showTotals)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                    className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
                       showTotals 
-                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-200 scale-105' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
                     }`}
                   >
-                    {showTotals ? '✅ Show Totals' : '📊 Show Totals'}
+                    {showTotals ? (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Show Totals
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Show Totals
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -661,32 +785,108 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
           {renderFullscreenChart()}
 
           {/* Projects List */}
-          <div className="space-y-8">
-            {projects.map((project) => (
-              <div key={project.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                {/* Project Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-2xl font-bold mb-1 text-white drop-shadow-sm">{project.name}</h2>
-                      <p className="text-blue-50 font-medium">Project ID: {project.id}</p>
+          <div className="space-y-6">
+            {projects.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Projects Found</h3>
+                <p className="text-gray-600">Start by creating your first project report.</p>
+              </div>
+            ) : (
+              projects.map((project, index) => (
+                <div 
+                  key={project.id} 
+                  className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 animate-fadeInUp"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  {/* Modern Project Header */}
+                  <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-6 overflow-hidden">
+                    {/* Background Pattern */}
+                    <div className="absolute inset-0 opacity-10">
+                      <div className="absolute inset-0" style={{ 
+                        backgroundImage: 'radial-gradient(circle at 20px 20px, white 1px, transparent 1px)',
+                        backgroundSize: '40px 40px'
+                      }}></div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
-                        className="bg-white bg-opacity-25 hover:bg-opacity-35 text-blue-700 px-4 py-2 rounded-lg transition-all duration-200 font-semibold shadow-sm"
-                      >
-                        {selectedProject === project.id ? '👁️ Hide Details' : '📊 Show Details'}
-                      </button>
-                      <button
-                        onClick={() => setEditingProject(project)}
-                        className="bg-white bg-opacity-25 hover:bg-opacity-35 text-blue-700 px-4 py-2 rounded-lg transition-all duration-200 font-semibold shadow-sm"
-                      >
-                        ✏️ Edit Reports
-                      </button>
+                    
+                    <div className="relative z-10 flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-bold text-white drop-shadow-md">{project.name}</h2>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-blue-100 text-sm font-medium">ID: {project.id}</span>
+                              <span className="w-1 h-1 bg-blue-300 rounded-full"></span>
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                project.status === 'active' 
+                                  ? 'bg-green-400 text-green-900' 
+                                  : 'bg-yellow-400 text-yellow-900'
+                              }`}>
+                                {project.status || 'Active'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Quick Stats */}
+                        <div className="grid grid-cols-3 gap-4 mt-4">
+                          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                            <p className="text-blue-100 text-xs mb-1">Total Revenue</p>
+                            <p className="text-white text-lg font-bold">Rp {(project.totalRevenue / 1000000).toFixed(1)}M</p>
+                          </div>
+                          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                            <p className="text-blue-100 text-xs mb-1">Progress</p>
+                            <p className="text-white text-lg font-bold">{getProgress(project).toFixed(1)}%</p>
+                          </div>
+                          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                            <p className="text-blue-100 text-xs mb-1">Total Volume</p>
+                            <p className="text-white text-lg font-bold">{(project.totalVolume / 1000).toFixed(1)}K</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2 ml-6">
+                        <button
+                          onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
+                          className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2 border border-white/30"
+                        >
+                          {selectedProject === project.id ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                              </svg>
+                              Hide Details
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              Show Details
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setEditingProject(project)}
+                          className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2 border border-white/30"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit Reports
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Project Content */}
                 {selectedProject === project.id && (
@@ -694,163 +894,252 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                     {/* Charts Section */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Revenue Chart */}
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 relative">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
-                              <span className="text-white font-bold">💰</span>
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
+                        {/* Background gradient overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">Revenue Analysis</h3>
+                                <p className="text-sm text-gray-500">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} overview</p>
+                              </div>
                             </div>
-                            <div>
-                              <h3 className="text-lg font-bold text-gray-800">Revenue Analysis</h3>
-                              <p className="text-sm text-gray-600">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} view</p>
-                            </div>
+                            <button
+                              onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'revenue' })}
+                              className="bg-gray-100 hover:bg-blue-500 hover:text-white p-2.5 rounded-xl transition-all duration-200 group/btn"
+                              title="Fullscreen"
+                            >
+                              <svg className="w-5 h-5 text-gray-600 group-hover/btn:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                              </svg>
+                            </button>
                           </div>
-                          <button
-                            onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'revenue' })}
-                            className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-lg transition-all duration-200 shadow-sm"
-                          >
-                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                            </svg>
-                          </button>
-                        </div>
-                        <div className="h-64">
-                          <RevenueChart
-                            data={getAggregatedRevenueData(project, timeRange)}
-                            timeRange={timeRange}
-                            showTotals={showTotals}
-                          />
+                          <div className="h-64 bg-gradient-to-br from-blue-50/30 to-transparent rounded-xl p-2">
+                            <RevenueChart
+                              data={getAggregatedRevenueData(project, timeRange)}
+                              timeRange={timeRange}
+                              showTotals={showTotals}
+                            />
+                          </div>
                         </div>
                       </div>
 
                       {/* Volume Progress Chart */}
-                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 relative">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
-                              <span className="text-white font-bold">📈</span>
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
+                        {/* Background gradient overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-emerald-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">Volume Progress</h3>
+                                <p className="text-sm text-gray-500">Performance tracking</p>
+                              </div>
                             </div>
-                            <div>
-                              <h3 className="text-lg font-bold text-gray-800">Volume Progress</h3>
-                              <p className="text-sm text-gray-600">Progress tracking</p>
-                            </div>
+                            <button
+                              onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-progress' })}
+                              className="bg-gray-100 hover:bg-green-500 hover:text-white p-2.5 rounded-xl transition-all duration-200 group/btn"
+                              title="Fullscreen"
+                            >
+                              <svg className="w-5 h-5 text-gray-600 group-hover/btn:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                              </svg>
+                            </button>
                           </div>
-                          <button
-                            onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-progress' })}
-                            className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-lg transition-all duration-200 shadow-sm"
-                          >
-                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                            </svg>
-                          </button>
-                        </div>
-                        <div className="h-64">
-                          <VolumeProgressChart
-                            data={getVolumeData(project)}
-                            timeRange={timeRange}
-                            showTotals={showTotals}
-                          />
+                          <div className="h-64 bg-gradient-to-br from-green-50/30 to-transparent rounded-xl p-2">
+                            <VolumeProgressChart
+                              data={getVolumeData(project)}
+                              timeRange={timeRange}
+                              showTotals={showTotals}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     {/* Volume Data Chart - Full Width */}
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 relative">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-white font-bold">📊</span>
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
+                      {/* Background gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-pink-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-gray-800">Volume Data Analysis</h3>
+                              <p className="text-sm text-gray-500">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} detailed breakdown</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-800">Volume Data Analysis</h3>
-                            <p className="text-sm text-gray-600">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} detailed view</p>
-                          </div>
+                          <button
+                            onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-data' })}
+                            className="bg-gray-100 hover:bg-purple-500 hover:text-white p-2.5 rounded-xl transition-all duration-200 group/btn"
+                            title="Fullscreen"
+                          >
+                            <svg className="w-5 h-5 text-gray-600 group-hover/btn:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setFullscreenChart({ projectId: project.id, chartType: 'volume-data' })}
-                          className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-lg transition-all duration-200 shadow-sm"
-                        >
-                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="h-96">
-                        <VolumeDataChart
-                          data={getVolumeData(project)}
-                          timeRange={timeRange}
-                        />
+                        <div className="h-96 bg-gradient-to-br from-purple-50/30 to-transparent rounded-xl p-2">
+                          <VolumeDataChart
+                            data={getVolumeData(project)}
+                            timeRange={timeRange}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {/* Key Metrics Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-200">
-                        <div className="flex items-center mb-4">
-                          <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-white font-bold">📋</span>
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group hover:scale-105">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <h4 className="text-sm font-semibold text-gray-600">Accumulated Plan</h4>
                           </div>
-                          <h4 className="text-lg font-bold text-gray-800">Accumulated Plan</h4>
                         </div>
-                        <p className="text-3xl font-bold text-yellow-700">
+                        <p className="text-3xl font-bold bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent">
                           {getTimeRangeData(project).reduce((acc, item) => acc + item.plan, 0).toLocaleString()}
                         </p>
-                      </div>
-                      <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-6 border border-red-200">
-                        <div className="flex items-center mb-4">
-                          <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-white font-bold">✅</span>
-                          </div>
-                          <h4 className="text-lg font-bold text-gray-800">Accumulated Actual</h4>
+                        <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                          Total planned volume
                         </div>
-                        <p className="text-3xl font-bold text-red-700">
+                      </div>
+                      
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group hover:scale-105">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <h4 className="text-sm font-semibold text-gray-600">Accumulated Actual</h4>
+                          </div>
+                        </div>
+                        <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                           {getTimeRangeData(project).reduce((acc, item) => acc + item.aktual, 0).toLocaleString()}
                         </p>
-                      </div>
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-                        <div className="flex items-center mb-4">
-                          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-white font-bold">📊</span>
-                          </div>
-                          <h4 className="text-lg font-bold text-gray-800">Deviation</h4>
+                        <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Total completed volume
                         </div>
-                        <p className="text-3xl font-bold text-blue-700">
+                      </div>
+                      
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group hover:scale-105">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                              </svg>
+                            </div>
+                            <h4 className="text-sm font-semibold text-gray-600">Deviation</h4>
+                          </div>
+                        </div>
+                        <p className={`text-3xl font-bold ${
+                          getTimeRangeData(project).reduce((acc, item) => acc + (item.aktual - item.plan), 0) >= 0
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}>
+                          {getTimeRangeData(project).reduce((acc, item) => acc + (item.aktual - item.plan), 0) >= 0 ? '+' : ''}
                           {getTimeRangeData(project).reduce((acc, item) => acc + (item.aktual - item.plan), 0).toLocaleString()}
                         </p>
+                        <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                          </svg>
+                          Actual vs planned
+                        </div>
                       </div>
                     </div>
 
                     {/* Volume Details */}
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
-                      <div className="flex items-center mb-6">
-                        <div className="w-10 h-10 bg-gray-500 rounded-lg flex items-center justify-center mr-3">
-                          <span className="text-white font-bold">📦</span>
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
                         </div>
-                        <h3 className="text-lg font-bold text-gray-800">Volume Details</h3>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-800">Volume Details</h3>
+                          <p className="text-sm text-gray-500">Comprehensive volume metrics</p>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <p className="text-sm text-gray-600 mb-1">Target Volume</p>
-                          <p className="text-xl font-bold text-gray-800">
+                        <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-5 border border-blue-200 hover:shadow-md transition-all duration-300">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <p className="text-sm font-medium text-blue-700">Target Volume</p>
+                          </div>
+                          <p className="text-2xl font-bold text-blue-900">
                             {getTimeRangeData(project).reduce((acc, item) => acc + (item.targetVolume ?? 0), 0).toLocaleString()}
                           </p>
                         </div>
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <p className="text-sm text-gray-600 mb-1">Total Volume</p>
-                          <p className="text-xl font-bold text-gray-800">
+                        
+                        <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl p-5 border border-green-200 hover:shadow-md transition-all duration-300">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm font-medium text-green-700">Total Volume</p>
+                          </div>
+                          <p className="text-2xl font-bold text-green-900">
                             {getTimeRangeData(project).reduce((acc, item) => acc + (item.volume ?? 0), 0).toLocaleString()}
                           </p>
                         </div>
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <p className="text-sm text-gray-600 mb-1">Remaining Volume</p>
-                          <p className="text-xl font-bold text-gray-800">
+                        
+                        <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl p-5 border border-orange-200 hover:shadow-md transition-all duration-300">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm font-medium text-orange-700">Remaining Volume</p>
+                          </div>
+                          <p className="text-2xl font-bold text-orange-900">
                             {(getTimeRangeData(project).reduce((acc, item) => acc + (item.targetVolume ?? 0), 0) -
                               getTimeRangeData(project).reduce((acc, item) => acc + (item.volume ?? 0), 0)).toLocaleString()}
                           </p>
                         </div>
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <p className="text-sm text-gray-600 mb-1">Progress</p>
-                          <p className="text-xl font-bold text-green-600">
+                        
+                        <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-5 border border-purple-200 hover:shadow-md transition-all duration-300">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            <p className="text-sm font-medium text-purple-700">Progress</p>
+                          </div>
+                          <p className="text-2xl font-bold text-purple-900">
                             {getProgress(project).toFixed(2)}%
                           </p>
                         </div>
@@ -860,12 +1149,17 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                     {/* Summary Tables */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Daily Summary */}
-                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                        <div className="flex items-center mb-6">
-                          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-white font-bold">📅</span>
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                           </div>
-                          <h3 className="text-lg font-bold text-gray-800">Daily Summary</h3>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-800">Daily Summary</h3>
+                            <p className="text-sm text-gray-500">Workforce & equipment totals</p>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-6">
                           {/* Man Power Summary */}
@@ -967,12 +1261,17 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                       </div>
 
                       {/* Weekly Summary */}
-                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
-                        <div className="flex items-center mb-6">
-                          <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-white font-bold">📊</span>
+                      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
                           </div>
-                          <h3 className="text-lg font-bold text-gray-800">Weekly Summary</h3>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-800">Weekly Summary</h3>
+                            <p className="text-sm text-gray-500">Average workforce & equipment</p>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-6">
                           {/* Weekly Man Power Summary */}
@@ -1092,7 +1391,8 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                   </div>
                 )}
               </div>
-            ))}
+            ))
+            )}
           </div>
         </div>
       </div>

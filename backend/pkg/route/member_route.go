@@ -37,6 +37,18 @@ func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, sal
 	g.GET("/:id", handler.GetMemberByID)
 	g.PUT("/:id", handler.UpdateMember)
 	g.DELETE("/:id", handler.DeleteMember)
+	
+	// Member Status Routes
+	g.POST("/:id/deactivate", handler.DeactivateMember)
+	g.POST("/:id/activate", handler.ActivateMember)
+	
+	// Salary Summary Routes
+	g.GET("/:id/total-salary", handler.GetMemberTotalSalary)
+	g.GET("/:id/total-salary/filter", handler.GetMemberTotalSalaryWithFilter)
+	g.GET("/:id/monthly-salary-details", handler.GetMemberMonthlySalaryDetails)
+	g.GET("/total-salary", handler.GetAllMembersTotalSalary)
+	g.GET("/total-salary/filter", handler.GetAllMembersTotalSalaryWithFilter)
+	g.GET("/salary-info", handler.GetAllMembersWithSalaryInfo)
 
 	// Salary Routes under Member
 	g.POST("/:id/salaries", salaryHandler.CreateSalary)

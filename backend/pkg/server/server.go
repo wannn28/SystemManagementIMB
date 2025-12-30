@@ -89,6 +89,7 @@ func StartServer() {
 	route.RegisterFinanceRoutes(e, financeService, cfg, activityService, financeCategoryService)
 	route.RegisterRoutes(e, userService, cfg)
 	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
+	route.RegisterActivityRoutes(e, activityService, cfg)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

@@ -58,6 +58,10 @@ export interface Member {
   profileImage: string;
   documents: string[];  // Array nama file dokumen
   salaries: SalaryRecord[];
+  isActive?: boolean;
+  deactivationReason?: string;
+  deactivatedAt?: string;
+  totalSalary?: number;  // Total gaji yang sudah dibayarkan
 }
 
 export interface DailyReportImage {

@@ -135,20 +135,28 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   };
 
   return (
-    <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Projects</h1>
-          <button onClick={() => setIsAddingProject(true)} className="flex items-center px-4 py-2 text-white bg-indigo-600 rounded-lg">
-            <FiPlus className="mr-2" /> Add Project
+    <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-72'} bg-gradient-to-br from-gray-50 via-orange-50/20 to-amber-50/30 min-h-screen`}>
+      <div className="max-w-7xl mx-auto p-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-orange-900 to-amber-900 bg-clip-text text-transparent mb-2">
+              Manajemen Proyek
+            </h1>
+            <p className="text-gray-600 text-sm">Kelola dan monitor semua proyek konstruksi Anda</p>
+          </div>
+          <button 
+            onClick={() => setIsAddingProject(true)} 
+            className="flex items-center px-6 py-3 text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200 hover:scale-105"
+          >
+            <FiPlus className="mr-2 w-5 h-5" /> Tambah Proyek
           </button>
         </div>
 
         {/* Add Project Modal */}
         {isAddingProject && (
-          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-xl p-6 w-2/3">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Add New Project</h2>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 w-2/3 max-h-[90vh] overflow-y-auto shadow-2xl">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Tambah Proyek Baru</h2>
               <form>
                 <div className="flex gap-6">
                   <div className="flex-1 space-y-4">
@@ -270,12 +278,20 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                   </div>
                 </div>
 
-                <div className="mt-6 flex justify-end space-x-4">
-                  <button type="button" onClick={() => setIsAddingProject(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-                    Cancel
+                <div className="mt-8 flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsAddingProject(false)} 
+                    className="px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-xl font-semibold transition-all duration-200"
+                  >
+                    Batal
                   </button>
-                  <button type="button" onClick={addProject} className="px-4 py-2 text-white bg-indigo-600 rounded-lg">
-                    Save
+                  <button 
+                    type="button" 
+                    onClick={addProject} 
+                    className="px-6 py-3 text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200"
+                  >
+                    Simpan Proyek
                   </button>
                 </div>
               </form>
@@ -284,47 +300,65 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
         )}
 
         {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm p-6 overflow-x-auto">
+        <div className="bg-white rounded-2xl shadow-lg p-6 overflow-x-auto border border-gray-100">
           <table className="min-w-full text-sm">
             <thead>
-              <tr>
-                <th className="py-2 text-left">No</th>
-                <th className="py-2 text-left">Project Name</th>
-                <th className="py-2 text-left">Description</th>
-                <th className="py-2 text-left">Status</th>
-                <th className="py-2 text-left">Start Date</th>
-                <th className="py-2 text-left">End Date</th>
-                <th className="py-2 text-left">Max Duration</th>
-                <th className="py-2 text-left">Total Revenue</th>
-                <th className="py-2 text-left">Amount Paid</th>
-                <th className="py-2 text-left">Unit Price</th>
-                <th className="py-2 text-left">Unit</th>
-                <th className="py-2 text-left">Total Volume</th>
-                <th className="py-2 text-left">Actions</th>
+              <tr className="border-b-2 border-gray-200">
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">No</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Nama Proyek</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Deskripsi</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Tanggal Mulai</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Tanggal Selesai</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Durasi Max</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Total Revenue</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Terbayar</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Harga/Unit</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Unit</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Volume</th>
+                <th className="py-4 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {projects.map((project, index) => (
-                <tr key={project.id} className="border-b">
-                  <td className="py-2">{index + 1}</td>
-                  <td className="py-2">{project.name}</td>
-                  <td className="py-2">{project.description}</td>
-                  <td className="py-2">{project.status}</td>
-                  <td className="py-2">{project.startDate}</td>
-                  <td className="py-2">{project.endDate}</td>
-                  <td className="py-2">{project.maxDuration}</td>
-                  <td className="py-2">Rp {project.totalRevenue.toLocaleString()}</td>
-                  <td className="py-2">Rp {project.amountPaid.toLocaleString()}</td>
-                  <td className="py-2">Rp {project.unitPrice.toLocaleString()}</td>
-                  <td className="py-2">{project.unit}</td>
-                  <td className="py-2">{project.totalVolume}</td>
-                  <td className="py-2">
-                    <button onClick={() => deleteProject(project.id)} className="text-red-500 hover:underline">
-                      <FiTrash />
-                    </button>
-                    <button onClick={() => startEditing(project)} className="ml-2 text-blue-500 hover:underline">
-                      <FiEdit />
-                    </button>
+                <tr key={project.id} className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-orange-50/30 hover:to-amber-50/30 transition-all duration-200">
+                  <td className="py-4 px-4 font-medium text-gray-900">{index + 1}</td>
+                  <td className="py-4 px-4 font-semibold text-gray-900">{project.name}</td>
+                  <td className="py-4 px-4 text-gray-600 max-w-xs truncate">{project.description}</td>
+                  <td className="py-4 px-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      project.status === 'active' ? 'bg-green-100 text-green-700' :
+                      project.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {project.status === 'active' ? 'Aktif' : project.status === 'completed' ? 'Selesai' : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="py-4 px-4 text-gray-600">{project.startDate}</td>
+                  <td className="py-4 px-4 text-gray-600">{project.endDate}</td>
+                  <td className="py-4 px-4 text-gray-600">{project.maxDuration}</td>
+                  <td className="py-4 px-4 font-semibold text-green-600">Rp {project.totalRevenue.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-semibold text-blue-600">Rp {project.amountPaid.toLocaleString()}</td>
+                  <td className="py-4 px-4 text-gray-600">Rp {project.unitPrice.toLocaleString()}</td>
+                  <td className="py-4 px-4 text-gray-600">{project.unit}</td>
+                  <td className="py-4 px-4 text-gray-600">{project.totalVolume}</td>
+                  <td className="py-4 px-4">
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => startEditing(project)} 
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                        title="Edit"
+                      >
+                        <FiEdit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => deleteProject(project.id)} 
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                        title="Hapus"
+                      >
+                        <FiTrash className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -334,9 +368,9 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
         {/* Edit Project Modal */}
         {editingProject && (
-          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-xl p-6 w-2/3">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Edit Project</h2>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 w-2/3 max-h-[90vh] overflow-y-auto shadow-2xl">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Edit Proyek</h2>
               <form>
                 <div className="flex gap-6">
                   <div className="flex-1 space-y-4">
@@ -458,12 +492,20 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                   </div>
                 </div>
 
-                <div className="mt-6 flex justify-end space-x-4">
-                  <button type="button" onClick={cancelEdit} className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-                    Cancel
+                <div className="mt-8 flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                  <button 
+                    type="button" 
+                    onClick={cancelEdit} 
+                    className="px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-xl font-semibold transition-all duration-200"
+                  >
+                    Batal
                   </button>
-                  <button type="button" onClick={saveEdit} className="px-4 py-2 text-white bg-indigo-600 rounded-lg">
-                    Save
+                  <button 
+                    type="button" 
+                    onClick={saveEdit} 
+                    className="px-6 py-3 text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200"
+                  >
+                    Simpan Perubahan
                   </button>
                 </div>
               </form>

@@ -8,6 +8,7 @@ import { SalaryDetailsTable } from './SalaryDetailsTable';
 import { PDFGeneratorButton } from '../component/PDFGeneratorButton';
 import { IDCardGeneratorButton } from '../component/IDCardGeneratorButton';
 import { PaginatedTable } from '../component/PaginatedTable';
+import DeactivateMemberModal from '../component/DeactivateMemberModal';
 interface TeamProps {
   isCollapsed: boolean;
 }
@@ -25,7 +26,6 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     hasPrev: false
   });
   const [loading, setLoading] = useState(false);
-  const [showPaginatedView, setShowPaginatedView] = useState(true);
   const [selectedTab, setSelectedTab] = useState('Personal');
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | 'profile'>('profile');
@@ -56,6 +56,45 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   // const [salaryDetails, setSalaryDetails] = useState<SalaryDetail[]>([]);
   // const [kasbonDetails, setKasbonDetails] = useState<Kasbon[]>([]);
+  const [deactivateModal, setDeactivateModal] = useState<{
+    isOpen: boolean;
+    member: Member | null;
+  }>({
+    isOpen: false,
+    member: null
+  });
+  const [totalTeamSalary, setTotalTeamSalary] = useState<number>(0);
+  const [salaryFilter, setSalaryFilter] = useState<{
+    year: string;
+    month: string;
+    order: 'asc' | 'desc';
+  }>({
+    year: '',
+    month: '',
+    order: 'desc'
+  });
+  const [membersWithSalary, setMembersWithSalary] = useState<Array<{
+    member_id: string;
+    full_name: string;
+    role: string;
+    total_salary: number;
+    is_active: boolean;
+  }>>([]);
+  const [showSalaryTable, setShowSalaryTable] = useState(false);
+  const [selectedMemberForSalary, setSelectedMemberForSalary] = useState<{
+    member_id: string;
+    full_name: string;
+    role: string;
+  } | null>(null);
+  const [monthlySalaryDetails, setMonthlySalaryDetails] = useState<Array<{
+    month: string;
+    salary: number;
+    loan: number;
+    net_salary: number;
+    gross_salary: number;
+    status: string;
+    created_at: string;
+  }>>([]);
 
   const handleAddSalaryDetail = async (salaryId: number, newData: SalaryDetail) => {
     const tempId = Date.now().toString(); // ID sementara
@@ -275,24 +314,14 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   const fetchTeamMembers = async (params: QueryParams = { page: 1, limit: 10 }) => {
     setLoading(true);
     try {
-      if (showPaginatedView) {
-        const paginatedResponse = await teamAPI.members.getPaginated(params);
-        const membersWithSalaries = paginatedResponse.data.map((member: any) => ({
-          ...member,
-          // Pastikan salaries selalu array
-          salaries: Array.isArray(member.salaries) ? member.salaries : []
-        }));
-        setTeamMembersData(membersWithSalaries);
-        setPagination(paginatedResponse.pagination);
-      } else {
-        const members = await teamAPI.members.getAll();
-        const membersWithSalaries = members.map((member: any) => ({
-          ...member,
-          // Pastikan salaries selalu array
-          salaries: Array.isArray(member.salaries) ? member.salaries : []
-        }));
-        setTeamMembersData(membersWithSalaries);
-      }
+      const paginatedResponse = await teamAPI.members.getPaginated(params);
+      const membersWithSalaries = paginatedResponse.data.map((member: any) => ({
+        ...member,
+        // Pastikan salaries selalu array
+        salaries: Array.isArray(member.salaries) ? member.salaries : []
+      }));
+      setTeamMembersData(membersWithSalaries);
+      setPagination(paginatedResponse.pagination);
     } catch (error) {
       console.error('Error fetching team members:', error);
       setTeamMembersData(teamMembers);
@@ -307,7 +336,130 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
   useEffect(() => {
     fetchTeamMembers();
-  }, [showPaginatedView]);
+    fetchTotalTeamSalary();
+    fetchMembersWithSalary();
+  }, []);
+
+  const fetchTotalTeamSalary = async (year?: string, month?: string) => {
+    try {
+      if (year || month) {
+        const result = await teamAPI.members.getAllTotalSalaryWithFilter(year, month);
+        setTotalTeamSalary(result.total_salary);
+      } else {
+        const result = await teamAPI.members.getAllTotalSalary();
+        setTotalTeamSalary(result.total_salary);
+      }
+    } catch (error) {
+      console.error('Error fetching total team salary:', error);
+    }
+  };
+
+  const fetchMembersWithSalary = async () => {
+    try {
+      const result = await teamAPI.members.getAllWithSalaryInfo(
+        salaryFilter.year || undefined,
+        salaryFilter.month || undefined,
+        salaryFilter.order
+      );
+      setMembersWithSalary(result || []);
+    } catch (error) {
+      console.error('Error fetching members with salary:', error);
+      setMembersWithSalary([]);
+    }
+  };
+
+  const handleSalaryFilterApply = async () => {
+    try {
+      await fetchTotalTeamSalary(salaryFilter.year || undefined, salaryFilter.month || undefined);
+      await fetchMembersWithSalary();
+    } catch (error) {
+      console.error('Error applying filter:', error);
+    }
+  };
+
+  const handleResetSalaryFilter = async () => {
+    setSalaryFilter({ year: '', month: '', order: 'desc' });
+    try {
+      await fetchTotalTeamSalary();
+      await fetchMembersWithSalary();
+    } catch (error) {
+      console.error('Error resetting filter:', error);
+    }
+  };
+
+  const handleMemberSalaryClick = async (member: {
+    member_id: string;
+    full_name: string;
+    role: string;
+  }) => {
+    try {
+      setSelectedMemberForSalary(member);
+      const details = await teamAPI.members.getMonthlySalaryDetails(
+        member.member_id,
+        salaryFilter.year || undefined
+      );
+      setMonthlySalaryDetails(details || []);
+    } catch (error) {
+      console.error('Error fetching monthly salary details:', error);
+      setMonthlySalaryDetails([]);
+    }
+  };
+
+  const handleDeactivateMember = async (reason: string) => {
+    if (!deactivateModal.member) return;
+    
+    try {
+      await teamAPI.members.deactivate(deactivateModal.member.id, reason);
+      
+      // Refresh data
+      await fetchTeamMembers({ page: pagination.page, limit: pagination.limit });
+      
+      // Update selected member if it's the one being deactivated
+      if (selectedMember?.id === deactivateModal.member.id) {
+        setSelectedMember({
+          ...selectedMember,
+          isActive: false,
+          deactivationReason: reason,
+          deactivatedAt: new Date().toISOString()
+        });
+      }
+      
+      // Close modal
+      setDeactivateModal({ isOpen: false, member: null });
+      
+      alert(`Member ${deactivateModal.member.fullName} berhasil dinonaktifkan`);
+    } catch (error) {
+      console.error('Error deactivating member:', error);
+      alert('Gagal menonaktifkan member. Silakan coba lagi.');
+    }
+  };
+
+  const handleActivateMember = async (member: Member) => {
+    const confirmed = window.confirm(`Aktifkan kembali ${member.fullName}?`);
+    if (!confirmed) return;
+    
+    try {
+      await teamAPI.members.activate(member.id);
+      
+      // Refresh data
+      await fetchTeamMembers({ page: pagination.page, limit: pagination.limit });
+      
+      // Update selected member if it's the one being activated
+      if (selectedMember?.id === member.id) {
+        setSelectedMember({
+          ...selectedMember,
+          isActive: true,
+          deactivationReason: '',
+          deactivatedAt: ''
+        });
+      }
+      
+      alert(`Member ${member.fullName} berhasil diaktifkan kembali`);
+    } catch (error) {
+      console.error('Error activating member:', error);
+      alert('Gagal mengaktifkan member. Silakan coba lagi.');
+    }
+  };
 
   const handleCreateMember = async (memberData: Omit<Member, 'id' | 'profileImage'>, profileImageFile?: File) => {
     try {
@@ -315,7 +467,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       await teamAPI.members.create(memberData, profileImageFile);
 
       // Refresh data setelah create
-      await fetchTeamMembers(showPaginatedView ? { page: pagination.page, limit: pagination.limit } : {});
+      await fetchTeamMembers({ page: pagination.page, limit: pagination.limit });
       
       setIsAddMemberModal(false); // Tutup modal
       
@@ -413,7 +565,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       }
 
       // Refresh data setelah delete
-      await fetchTeamMembers(showPaginatedView ? { page: pagination.page, limit: pagination.limit } : {});
+      await fetchTeamMembers({ page: pagination.page, limit: pagination.limit });
 
       setIsDeleteModalOpen(false);
     } catch (error: any) {
@@ -810,17 +962,280 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
 
 
   return (
-    <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Team Members</h2>
-          <button
-            onClick={() => setIsAddMemberModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Add New Member
-          </button>
+    <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-72'} bg-gradient-to-br from-gray-50 via-orange-50/20 to-amber-50/30 min-h-screen`}>
+      <div className="max-w-7xl mx-auto p-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-orange-900 to-amber-900 bg-clip-text text-transparent mb-2">
+              Manajemen Tim
+            </h2>
+            <p className="text-gray-600 text-sm">Kelola anggota tim dan informasi karyawan</p>
+            
+            {/* Total Team Salary Card */}
+            <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="inline-flex items-center space-x-4 bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-3 rounded-xl border border-green-200">
+                <div>
+                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">
+                    Total Gaji Tim {salaryFilter.year && `- ${salaryFilter.year}${salaryFilter.month ? `-${salaryFilter.month}` : ''}`}
+                  </p>
+                  <p className="text-2xl font-bold text-green-900">
+                    Rp {totalTeamSalary.toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => setShowSalaryTable(!showSalaryTable)}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                {showSalaryTable ? 'Sembunyikan' : 'Lihat'} Laporan Gaji
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsAddMemberModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200 hover:scale-105"
+            >
+              Tambah Anggota Tim
+            </button>
+          </div>
         </div>
+
+        {/* Salary Report Section */}
+        {showSalaryTable && (
+          <div className="mb-8 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Laporan Gaji Tim
+                  </h3>
+                  <p className="text-blue-100 text-sm mt-1">Analisis pembayaran gaji karyawan</p>
+                </div>
+                <button
+                  onClick={() => setShowSalaryTable(false)}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Filter Controls */}
+            <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50/30 border-b border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Tahun
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="contoh: 2025"
+                    value={salaryFilter.year}
+                    onChange={(e) => setSalaryFilter({ ...salaryFilter, year: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Bulan
+                  </label>
+                  <select
+                    value={salaryFilter.month}
+                    onChange={(e) => setSalaryFilter({ ...salaryFilter, month: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                  >
+                    <option value="">Semua Bulan</option>
+                    <option value="01">Januari</option>
+                    <option value="02">Februari</option>
+                    <option value="03">Maret</option>
+                    <option value="04">April</option>
+                    <option value="05">Mei</option>
+                    <option value="06">Juni</option>
+                    <option value="07">Juli</option>
+                    <option value="08">Agustus</option>
+                    <option value="09">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                    Urutan
+                  </label>
+                  <select
+                    value={salaryFilter.order}
+                    onChange={(e) => setSalaryFilter({ ...salaryFilter, order: e.target.value as 'asc' | 'desc' })}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                  >
+                    <option value="desc">Tertinggi ke Terendah</option>
+                    <option value="asc">Terendah ke Tertinggi</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={handleSalaryFilterApply}
+                    className="flex-1 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Filter
+                  </button>
+                  <button
+                    onClick={handleResetSalaryFilter}
+                    className="px-4 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-semibold transition-all"
+                    title="Reset Filter"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Members Salary Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gradient-to-r from-gray-100 to-gray-200 border-b-2 border-gray-300">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Nama Karyawan
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        Jabatan
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <div className="flex items-center justify-end gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Total Gaji
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {!membersWithSalary || membersWithSalary.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center justify-center text-gray-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                          </svg>
+                          <p className="text-lg font-semibold text-gray-500">Tidak ada data gaji</p>
+                          <p className="text-sm text-gray-400 mt-1">Silakan ubah filter atau tambahkan data gaji</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    membersWithSalary.map((member, index) => (
+                      <tr 
+                        key={member.member_id} 
+                        className="hover:bg-blue-50/50 transition-colors cursor-pointer"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                        onClick={() => handleMemberSalaryClick(member)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold">
+                              {member.full_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="ml-3">
+                              <div className="text-sm font-bold text-gray-900">
+                                {member.full_name}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600 font-medium">
+                            {member.role}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {member.is_active ? (
+                            <span className="px-3 py-1 text-xs font-bold bg-green-100 text-green-700 rounded-full flex items-center gap-1 w-fit">
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 text-xs font-bold bg-red-100 text-red-700 rounded-full flex items-center gap-1 w-fit">
+                              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                              Nonaktif
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-bold text-gray-900">
+                            Rp {member.total_salary.toLocaleString('id-ID')}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {membersWithSalary && membersWithSalary.length > 0 && (
+                  <tfoot className="bg-gradient-to-r from-blue-600 to-indigo-600 border-t-4 border-blue-700">
+                    <tr>
+                      <td colSpan={3} className="px-6 py-5 text-right">
+                        <span className="text-sm font-bold text-white uppercase tracking-wide flex items-center justify-end gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          Total Keseluruhan
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="text-2xl font-bold text-white">
+                          Rp {membersWithSalary.reduce((sum, m) => sum + m.total_salary, 0).toLocaleString('id-ID')}
+                        </div>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        )}
+
         {isAddMemberModal && (
           <div className="fixed inset-0 bg-white-800 bg-opacity-30 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -942,27 +1357,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             </div>
           </div>
         )}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Team</h1>
-            <p className="text-gray-500">Collaborate with your team members.</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setShowPaginatedView(!showPaginatedView)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              {showPaginatedView ? 'Simple View' : 'Advanced View'}
-            </button>
-            <AddButtonCategory
-                  text="Add Member"
-                  setShowModal={setIsAddMemberModal}
-                />
-          </div>
-        </div>
-
-        {showPaginatedView ? (
-          <PaginatedTable<Member>
+        <PaginatedTable<Member>
             data={teamMembersData}
             pagination={pagination}
             onQueryChange={handleQueryChange}
@@ -1068,77 +1463,95 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             )}
             className="mt-6"
           />
-        ) : (
-          <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">Team Members</h2>
-              <AddButtonCategory
-                text="Add Member"
-                setShowModal={setIsAddMemberModal}
-              />
-            </div>
-            <div className="space-y-4">
-              {teamMembersData.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center p-4 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-                  onClick={() => handleMemberClick(member)}
-                >
-                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
-                    {member.profileImage ? (
+
+        {selectedMember && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm z-50 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 px-6 py-4 flex justify-between items-center">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    {selectedMember.profileImage ? (
                       <img
-                        src={`${import.meta.env.VITE_API_URL}/uploads/${member.profileImage}`}
-                        alt={member.fullName}
-                        className="w-10 h-10 rounded-full object-cover"
+                        src={`${import.meta.env.VITE_API_URL}/uploads/${selectedMember.profileImage}`}
+                        alt={selectedMember.fullName}
+                        className="w-full h-full rounded-full object-cover ring-2 ring-white/50"
                       />
                     ) : (
-                      <span className="text-indigo-600">{member.fullName.charAt(0)}</span>
+                      <span className="text-white text-xl font-bold">
+                        {selectedMember.fullName.charAt(0)}
+                      </span>
                     )}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-800">{member.fullName}</p>
-                    <p className="text-sm text-gray-500">{member.role}</p>
+                    <h3 className="text-xl font-bold text-white">Detail Anggota Tim</h3>
+                    <p className="text-white/80 text-sm">{selectedMember.fullName}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {selectedMember && (
-          <div className="fixed inset-0 bg-white-800 bg-opacity-30 flex items-center justify-center p-4 backdrop-blur-sm z-50">
-            <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Member Details</h3>
                 <button
-                  onClick={() => setSelectedMember(null)}
-                  className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                  onClick={() => {
+                    setSelectedMember(null);
+                    setIsEditMode(false);
+                  }}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
                 >
-                  ×
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
-            <div className="mb-4">
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => handleTabClick('Personal')}
-                  className={`px-4 py-2 rounded-md ${selectedTab === 'Personal' ? 'bg-blue-100 text-blue-600' : 'text-gray-600'}`}
-                >
-                  Personal
-                </button>
-                <button
-                  onClick={() => handleTabClick('Salary')}
-                  className={`px-4 py-2 rounded-md ${selectedTab === 'Salary' ? 'bg-blue-100 text-blue-600' : 'text-gray-600'}`}
-                >
-                  Salary
-                </button>
-                <button
-                  onClick={() => handleTabClick('Documents')}
-                  className={`px-4 py-2 rounded-md ${selectedTab === 'Documents' ? 'bg-blue-100 text-blue-600' : 'text-gray-600'}`}
-                >
-                  Documents
-                </button>
-              </div>
-            </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Tabs */}
+                <div className="border-b border-gray-200 mb-6">
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => handleTabClick('Personal')}
+                      className={`px-6 py-3 font-semibold rounded-t-lg transition-all ${
+                        selectedTab === 'Personal' 
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' 
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Personal
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleTabClick('Salary')}
+                      className={`px-6 py-3 font-semibold rounded-t-lg transition-all ${
+                        selectedTab === 'Salary' 
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' 
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Gaji
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleTabClick('Documents')}
+                      className={`px-6 py-3 font-semibold rounded-t-lg transition-all ${
+                        selectedTab === 'Documents' 
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' 
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Dokumen
+                      </div>
+                    </button>
+                  </div>
+                </div>
 
             {selectedTab === 'Personal' && (
               <form className="space-y-4" onSubmit={handleEditSubmit}>
@@ -1194,6 +1607,82 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                     <span>{selectedMember.role}</span>
                   )}
                 </div>
+                
+                {/* Status Information - Always visible */}
+                <div className="border-t pt-4 mt-4">
+                  <label className="block text-sm font-semibold text-gray-800 mb-3">Status Keanggotaan</label>
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="flex items-center space-x-3">
+                      {selectedMember.isActive !== false ? (
+                        <>
+                          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          <span className="px-4 py-1.5 bg-green-100 text-green-700 text-sm font-bold rounded-full">
+                            Aktif
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                          <span className="px-4 py-1.5 bg-red-100 text-red-700 text-sm font-bold rounded-full">
+                            Nonaktif
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div>
+                      {selectedMember.isActive !== false ? (
+                        <button
+                          onClick={() => setDeactivateModal({ isOpen: true, member: selectedMember })}
+                          className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 text-sm flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                          </svg>
+                          Nonaktifkan
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleActivateMember(selectedMember)}
+                          className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 text-sm flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Aktifkan
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {selectedMember.isActive === false && selectedMember.deactivationReason && (
+                    <div className="mt-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-amber-900">Alasan Nonaktif:</p>
+                          <p className="text-sm text-amber-800 mt-1">{selectedMember.deactivationReason}</p>
+                          {selectedMember.deactivatedAt && (
+                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              Dinonaktifkan pada: {new Date(selectedMember.deactivatedAt).toLocaleDateString('id-ID', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 <div>
                   <label className="block font-medium text-gray-700">Phone Number:</label>
                   {isEditMode ? (
@@ -1801,22 +2290,62 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             )}
 
 
-            {selectedTab === "Personal" && (
-              <div className="mt-4">
-                {isEditMode ? (
-                  <>
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-md" onClick={() => handleUpdateMember(editFormData!)}>Save</button>
-                    <button className="px-4 py-2 bg-gray-500 text-white rounded-md ml-4" onClick={() => setIsEditMode(false)}>Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-md" onClick={() => setIsEditMode(true)}>Edit</button>
-                    <IDCardGeneratorButton member={selectedMember} />
-                    <button className="px-4 py-2 bg-red-600 text-white rounded-md ml-4" onClick={() => setIsDeleteModalOpen(true)}>Delete</button>
-                  </>
-                )}
               </div>
-            )}
+              
+              {/* Modal Footer - Action Buttons */}
+              {selectedTab === "Personal" && (
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+                  <div className="flex gap-2">
+                    <IDCardGeneratorButton member={selectedMember} />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {isEditMode ? (
+                      <>
+                        <button 
+                          className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2" 
+                          onClick={() => handleUpdateMember(editFormData!)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Simpan
+                        </button>
+                        <button 
+                          className="px-6 py-2.5 bg-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-400 transition-all duration-200 flex items-center gap-2" 
+                          onClick={() => setIsEditMode(false)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Batal
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2" 
+                          onClick={() => setIsEditMode(true)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button 
+                          className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2" 
+                          onClick={() => setIsDeleteModalOpen(true)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Hapus
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1922,6 +2451,147 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                   </span>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Member Modal */}
+      <DeactivateMemberModal
+        isOpen={deactivateModal.isOpen}
+        member={deactivateModal.member}
+        onClose={() => setDeactivateModal({ isOpen: false, member: null })}
+        onConfirm={handleDeactivateMember}
+      />
+
+      {/* Monthly Salary Details Modal */}
+      {selectedMemberForSalary && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 px-6 py-4 flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">
+                    {selectedMemberForSalary.full_name.charAt(0)}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Detail Gaji Per Bulan</h3>
+                  <p className="text-white/90 text-sm">
+                    {selectedMemberForSalary.full_name} - {selectedMemberForSalary.role}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedMemberForSalary(null);
+                  setMonthlySalaryDetails([]);
+                }}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {monthlySalaryDetails.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-xl font-semibold text-gray-400">Belum ada data gaji</p>
+                  <p className="text-sm text-gray-400 mt-2">Tambahkan data gaji untuk member ini</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {monthlySalaryDetails.map((detail, index) => (
+                    <div 
+                      key={index}
+                      className="border-2 border-gray-200 rounded-xl p-5 hover:border-green-400 hover:shadow-lg transition-all duration-200 bg-gradient-to-r from-white to-green-50/30"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            {detail.month}
+                          </h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Dibuat: {new Date(detail.created_at).toLocaleDateString('id-ID', { 
+                              weekday: 'long', 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          detail.status === 'Paid' 
+                            ? 'bg-green-100 text-green-700' 
+                            : detail.status === 'Pending'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {detail.status}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 mb-1">Gaji Pokok</p>
+                          <p className="text-sm font-bold text-gray-800">
+                            Rp {detail.salary.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                        
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 mb-1">Kasbon</p>
+                          <p className="text-sm font-bold text-red-600">
+                            Rp {detail.loan.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                        
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 mb-1">Gaji Kotor</p>
+                          <p className="text-sm font-bold text-gray-800">
+                            Rp {detail.gross_salary.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                        
+                        <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-3 rounded-lg border-2 border-green-600">
+                          <p className="text-xs text-white/90 mb-1">Gaji Bersih</p>
+                          <p className="text-sm font-bold text-white">
+                            Rp {detail.net_salary.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  Total: {monthlySalaryDetails.length} bulan
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedMemberForSalary(null);
+                    setMonthlySalaryDetails([]);
+                  }}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
