@@ -1,7 +1,8 @@
 package server
 
 import (
-	"dashboardadminimb/config" // Import dengan alias
+	"dashboardadminimb/config"
+	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/database"
@@ -95,6 +96,35 @@ func StartServer() {
 	route.RegisterInventoryRoutes(e, inventoryService, cfg.UploadDir, cfg.BaseURL, cfg, activityService)
 
 	route.RegisterFinanceRoutes(e, financeService, cfg, activityService, financeCategoryService, projectIncomeService, projectExpenseService)
+
+	invoiceTemplateRepo := repository.NewInvoiceTemplateRepository(db)
+	invoiceTemplateService := service.NewInvoiceTemplateService(invoiceTemplateRepo)
+	// Seed default templates if none exist
+	if list, _ := invoiceTemplateRepo.FindAll(); len(list) == 0 {
+		for _, t := range []struct{ name, desc, layout string }{
+			{"Standard", "Template invoice sederhana dengan header dan tabel item", "standard"},
+			{"Minimal", "Template minimal, cocok untuk nota cepat", "minimal"},
+			{"Professional", "Template formal dengan ruang logo dan footer", "professional"},
+		} {
+			_ = invoiceTemplateRepo.Create(&entity.InvoiceTemplate{Name: t.name, Description: t.desc, Layout: t.layout})
+		}
+	}
+	invoiceRepo := repository.NewInvoiceRepository(db)
+	invoiceService := service.NewInvoiceService(invoiceRepo)
+	route.RegisterInvoiceRoutes(e, cfg, invoiceTemplateService, invoiceService)
+
+	customerRepo := repository.NewCustomerRepository(db)
+	customerService := service.NewCustomerService(customerRepo)
+	route.RegisterCustomerRoutes(e, cfg, customerService)
+
+	equipmentRepo := repository.NewEquipmentRepository(db)
+	equipmentService := service.NewEquipmentService(equipmentRepo)
+	route.RegisterEquipmentRoutes(e, cfg, equipmentService)
+
+	itemTemplateRepo := repository.NewItemTemplateRepository(db)
+	itemTemplateService := service.NewItemTemplateService(itemTemplateRepo)
+	route.RegisterItemTemplateRoutes(e, cfg, itemTemplateService)
+
 	route.RegisterRoutes(e, userService, cfg)
 	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
 	route.RegisterActivityRoutes(e, activityService, cfg)

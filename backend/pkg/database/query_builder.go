@@ -198,3 +198,15 @@ func (qb *QueryBuilder) BuildActivityQuery(params response.QueryParams) *gorm.DB
 
 	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Activity{})
 }
+
+// BuildInvoiceQuery builds a query for invoices
+func (qb *QueryBuilder) BuildInvoiceQuery(params response.QueryParams) *gorm.DB {
+	searchFields := []string{"invoice_number", "customer_name", "customer_email"}
+	allowedSortFields := []string{"id", "invoice_number", "invoice_date", "created_at", "total", "status"}
+	allowedFilterFields := map[string]string{
+		"status":      "status",
+		"template_id": "template_id",
+	}
+
+	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Invoice{})
+}

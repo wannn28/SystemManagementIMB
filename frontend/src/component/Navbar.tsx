@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiLogOut, FiChevronLeft, FiCreditCard, FiFileText } from 'react-icons/fi';
+import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiLogOut, FiChevronLeft, FiCreditCard, FiFileText, FiFile, FiTruck, FiList } from 'react-icons/fi';
 import Logo from '../assets/images/logo.png';
 
 interface NavbarProps {
@@ -18,6 +18,9 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
     { name: 'Reports', icon: <FiFlag />, path: '/reports' },
     { name: 'Finance', icon: <FiCreditCard />, path: '/finance' },
     { name: 'Smart Nota', icon: <FiFileText />, path: '/smart-nota' },
+    { name: 'Invoice', icon: <FiFile />, path: '/invoices' },
+    { name: 'Alat Berat', icon: <FiTruck />, path: '/equipment' },
+    { name: 'Item / Keterangan', icon: <FiList />, path: '/item-templates' },
     { name: 'Settings', icon: <FiSettings />, path: '/settings' },
   ];
 

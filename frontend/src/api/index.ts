@@ -8,3 +8,4 @@ export * from './projects';
 export * from './projectExpenses';
 export * from './projectIncomes';
 export * from './team';
+export { invoiceApi } from './invoice';

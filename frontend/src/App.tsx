@@ -9,6 +9,9 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Finance from './pages/Finance';
 import SmartNotaInvoices from './pages/SmartNotaInvoices';
+import Invoices from './pages/Invoices';
+import EquipmentMaster from './pages/EquipmentMaster';
+import ItemTemplates from './pages/ItemTemplates';
 import Login from './pages/Login';
 import ProtectedRoute from './component/ProtectedRoute';
 
@@ -45,6 +48,9 @@ const App: React.FC = () => {
             <Route path="/reports" element={<Reports isCollapsed={isCollapsed} />} />
             <Route path="/settings" element={<Settings isCollapsed={isCollapsed} />} />
             <Route path="/smart-nota" element={<SmartNotaInvoices isCollapsed={isCollapsed} />} />
+            <Route path="/invoices" element={<Invoices isCollapsed={isCollapsed} />} />
+            <Route path="/equipment" element={<EquipmentMaster isCollapsed={isCollapsed} />} />
+            <Route path="/item-templates" element={<ItemTemplates isCollapsed={isCollapsed} />} />
           </Route>
         </Route>
       </Routes>
