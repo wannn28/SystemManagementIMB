@@ -235,14 +235,21 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     for (const groupKey of orderedGroupKeys) {
       ensureSpace(35);
       const groupItems = itemsList.filter((i) => getGroupKey(i) === groupKey);
+      const groupItemsSorted = [...groupItems].sort((a, b) => {
+        const da = (a.row_date || '').trim();
+        const db = (b.row_date || '').trim();
+        if (!da) return 1;
+        if (!db) return -1;
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
       const g = groupByUnit[groupKey];
       const label = (g && g.label) ? g.label.toUpperCase() : (groupKey === '__default__' ? 'UNIT 1' : groupKey.toUpperCase());
 
-      const tableData = groupItems.map((item, idx) => {
+      const tableData = groupItemsSorted.map((item, idx) => {
         const tot = Number(item.total ?? 0);
         const no = String(idx + 1);
-        const tanggalBbm = (item.row_date || '').trim() || '-';
-        const tanggalSimple = (item.row_date || '').trim() || '-';
+        const tanggalBbm = (item.row_date || '').trim() ? formatDateOnly(String(item.row_date)) : '-';
+        const tanggalSimple = (item.row_date || '').trim() ? formatDateOnly(String(item.row_date)) : '-';
         if (useBbm) {
           return [
             no,

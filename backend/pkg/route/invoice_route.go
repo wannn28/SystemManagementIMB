@@ -11,7 +11,7 @@ import (
 
 func RegisterInvoiceRoutes(e *echo.Echo, cfg config.Config, templateService service.InvoiceTemplateService, invoiceService service.InvoiceService) {
 	templateHandler := http.NewInvoiceTemplateHandler(templateService)
-	invoiceHandler := http.NewInvoiceHandler(invoiceService)
+	invoiceHandler := http.NewInvoiceHandler(invoiceService, cfg)
 
 	g := e.Group("/api/invoices")
 	g.Use(middleware.AdminAuth(cfg))
@@ -30,4 +30,8 @@ func RegisterInvoiceRoutes(e *echo.Echo, cfg config.Config, templateService serv
 	g.POST("", invoiceHandler.Create)
 	g.PUT("/:id", invoiceHandler.Update)
 	g.DELETE("/:id", invoiceHandler.Delete)
+	g.POST("/extract-from-image", invoiceHandler.ExtractFromImage)
+	g.POST("/extract-row-from-image", invoiceHandler.ExtractRowFromImage)
+	g.POST("/parse-timesheet", invoiceHandler.ParseTimesheetText)
+	g.POST("/parse-timesheet-from-image", invoiceHandler.ParseTimesheetFromImage)
 }

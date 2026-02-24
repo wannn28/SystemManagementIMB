@@ -15,7 +15,7 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
   const [filterType, setFilterType] = useState<string>('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<CreateEquipmentRequest>({ name: '', type: 'alat_berat' });
+  const [form, setForm] = useState<CreateEquipmentRequest>({ name: '', type: 'alat_berat', price_per_day: 0, price_per_hour: 0 });
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const fetchList = useCallback(async () => {
@@ -38,10 +38,10 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
   const openModal = (item?: Equipment) => {
     if (item) {
       setEditingId(item.id);
-      setForm({ name: item.name, type: item.type });
+      setForm({ name: item.name, type: item.type, price_per_day: item.price_per_day ?? 0, price_per_hour: item.price_per_hour ?? 0 });
     } else {
       setEditingId(null);
-      setForm({ name: '', type: 'alat_berat' });
+      setForm({ name: '', type: 'alat_berat', price_per_day: 0, price_per_hour: 0 });
     }
     setShowModal(true);
   };
@@ -99,7 +99,7 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
           >
             <option value="">Semua tipe</option>
             <option value="alat_berat">Alat berat</option>
-            <option value="dump_truck">Dump truck</option>
+            <option value="dump_truck">Dumptruck</option>
           </select>
           <button type="button" onClick={() => fetchList()} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
             Cari
@@ -122,6 +122,8 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga/Hari</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga/Jam</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
                   </tr>
                 </thead>
@@ -130,7 +132,9 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{idx + 1}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{item.type === 'dump_truck' ? 'Dump truck' : 'Alat berat'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{item.type === 'dump_truck' ? 'Dumptruck' : 'Alat berat'}</td>
+                      <td className="px-4 py-3 text-right text-sm">{(item.price_per_day ?? 0) > 0 ? `Rp ${Number(item.price_per_day).toLocaleString('id-ID')}` : '-'}</td>
+                      <td className="px-4 py-3 text-right text-sm">{(item.price_per_hour ?? 0) > 0 ? `Rp ${Number(item.price_per_hour).toLocaleString('id-ID')}` : '-'}</td>
                       <td className="px-4 py-3 text-right">
                         <button type="button" onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-700 text-sm mr-2">
                           <FiEdit2 className="inline" /> Edit
@@ -176,8 +180,32 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
                   <option value="alat_berat">Alat berat</option>
-                  <option value="dump_truck">Dump truck</option>
+                  <option value="dump_truck">Dumptruck</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Harga/Hari (default di invoice)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={form.price_per_day ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, price_per_day: parseFloat(e.target.value) || 0 }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Harga/Jam (default di invoice)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={form.price_per_hour ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, price_per_hour: parseFloat(e.target.value) || 0 }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="0"
+                />
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg">

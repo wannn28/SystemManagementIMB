@@ -8,7 +8,8 @@ import type {
   CreateInvoiceRequest,
 } from '../types/invoice';
 import type { Customer } from '../types/customer';
-import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers } from 'react-icons/fi';
+import type { Equipment } from '../types/equipment';
+import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage } from 'react-icons/fi';
 import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
 
@@ -20,8 +21,9 @@ const formatRupiah = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
 const MONTHS_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-const formatDateToId = (isoDate: string) => {
-  if (!isoDate) return '';
+/** Format YYYY-MM-DD ke tampilan Indonesia, e.g. "3 Februari 2026". */
+const formatDateToIndonesian = (isoDate: string) => {
+  if (!isoDate || !isoDate.trim()) return '';
   const [y, m, d] = isoDate.split('T')[0].split('-');
   const mi = parseInt(m || '1', 10) - 1;
   return `${d} ${MONTHS_ID[mi]} ${y}`;
@@ -104,6 +106,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     bbm_quantity?: number;
     bbm_unit_price?: number;
     equipment_group?: string;
+    /** Satuan baris ini (hari/jam/unit/jerigen). Kosong = pakai default invoice. */
+    quantity_unit?: 'hari' | 'jam' | 'unit' | 'jerigen';
+    /** Data URL atau blob URL gambar nota yang dipakai untuk generate baris ini (untuk cek) */
+    row_image?: string;
   };
   const [items, setItems] = useState<FormItem[]>([
     { item_name: '', description: '', quantity: 1, price: 0, row_date: '', days: 0, bbm_quantity: 0, bbm_unit_price: 0 },
@@ -118,34 +124,44 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [location, setLocation] = useState('Batam');
   const [subject, setSubject] = useState('Invoice');
   const [equipmentNames, setEquipmentNames] = useState<string[]>([]);
-  const [equipmentList, setEquipmentList] = useState<{ id: number; name: string; type: string }[]>([]);
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [newEquipmentInput, setNewEquipmentInput] = useState('');
-  const [includeDumpTruck, setIncludeDumpTruck] = useState(false);
-  const [dumpTruckRoda, setDumpTruckRoda] = useState('6');
 
   const formatEquipmentNamesForParagraph = (arr: string[]) => {
     if (arr.length === 0) return '';
     if (arr.length === 1) return arr[0];
     return arr.slice(0, -1).join(', ') + ' dan ' + arr[arr.length - 1];
   };
-  const equipmentNamesForKeterangan = [...equipmentNames, includeDumpTruck ? `Dump Truck ${dumpTruckRoda} Roda` : null].filter(Boolean) as string[];
+  /** Daftar alat terurut: tipe Dumptruck selalu paling belakang. */
+  const equipmentNamesForKeterangan = (() => {
+    return [...equipmentNames].sort((a, b) => {
+      const typeA = equipmentList.find((e) => e.name === a)?.type;
+      const typeB = equipmentList.find((e) => e.name === b)?.type;
+      if (typeA === 'dump_truck' && typeB !== 'dump_truck') return 1;
+      if (typeA !== 'dump_truck' && typeB === 'dump_truck') return -1;
+      return 0;
+    });
+  })();
 
-  const getEquipmentNameForPayload = () => {
-    const dumpPart = includeDumpTruck ? `Dump Truck Roda ${dumpTruckRoda}` : '';
-    // Jika sertakan dump truck: alat berat dipisah koma, lalu " dan Dump Truck ..."
-    if (equipmentNames.length > 0 && dumpPart) {
-      return `Alat berat berupa ${equipmentNames.join(', ')} dan ${dumpPart}`;
-    }
-    const alatPart = formatEquipmentNamesForParagraph(equipmentNames);
-    if (alatPart) return alatPart;
-    if (dumpPart) return dumpPart;
-    return '';
-  };
+  const getEquipmentNameForPayload = () => formatEquipmentNamesForParagraph(equipmentNamesForKeterangan);
   const [introParagraph, setIntroParagraph] = useState('');
   const [bankAccount, setBankAccount] = useState('1090021332523 (PT INDIRA MAJU BERSAMA) Bank Mandiri');
   const [terbilangCustom, setTerbilangCustom] = useState('');
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [extractingRowIndex, setExtractingRowIndex] = useState<number | null>(null);
+  /** Unit mana yang sedang ekstrak banyak gambar (per unit, agar unit lain bisa ekstrak bersamaan). */
+  const [extractingByGroup, setExtractingByGroup] = useState<Record<string, boolean>>({});
+  const extractRowInputRef = useRef<HTMLInputElement>(null);
+  const extractMultiRowInputRef = useRef<HTMLInputElement>(null);
+  const extractMultiRowForGroupRef = useRef<string>('__default__');
+  const itemsRef = useRef<FormItem[]>(items);
+  itemsRef.current = items;
+  useEffect(() => () => {
+    itemsRef.current.forEach((i) => {
+      if (i.row_image && typeof i.row_image === 'string' && i.row_image.startsWith('blob:')) URL.revokeObjectURL(i.row_image);
+    });
+  }, []);
 
   // Preview
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
@@ -170,7 +186,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         limit: pagination.limit,
         search: filterSearch || undefined,
         sort: 'created_at',
-        order: 'desc',
+        order: 'asc',
         filter: filterParts.length ? filterParts.join(',') : undefined,
       });
       setInvoices(res.data);
@@ -223,8 +239,24 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
   useEffect(() => {
     if (step !== 'fill-form') return;
-    equipmentApi.getList(undefined, 'alat_berat').then((list) => setEquipmentList(list.map((e) => ({ id: e.id, name: e.name, type: e.type })))).catch(() => setEquipmentList([]));
+    equipmentApi.getList(undefined, undefined).then((list) => setEquipmentList(list)).catch(() => setEquipmentList([]));
   }, [step]);
+
+  // Isi harga otomatis untuk baris yang sudah punya item_name dari alat tapi harga masih 0 (mis. setelah equipmentList selesai dimuat atau dari load invoice).
+  useEffect(() => {
+    if (equipmentList.length === 0 || step !== 'fill-form') return;
+    setItems((prev) =>
+      prev.map((row) => {
+        if (!(row.item_name || '').trim() || (row.price ?? 0) > 0) return row;
+        const eq = equipmentList.find((e) => e.name === row.item_name);
+        if (!eq) return row;
+        const rowUnit = (row.quantity_unit ?? quantityUnit) as 'hari' | 'jam' | 'unit' | 'jerigen';
+        const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
+        if (p <= 0) return row;
+        return { ...row, price: p };
+      })
+    );
+  }, [equipmentList, quantityUnit, step]);
 
   const handleSelectTemplate = (template: InvoiceTemplate) => {
     setSelectedTemplate(template);
@@ -238,8 +270,6 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setQuantityUnit('hari');
     setPriceUnitLabel('Harga/Hari');
     setEquipmentNames([]);
-    setIncludeDumpTruck(false);
-    setDumpTruckRoda('6');
     setItemColumnLabel('Keterangan');
     setTerbilangCustom('');
   };
@@ -277,35 +307,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setUseBbmColumns(inv.use_bbm_columns ?? false);
     setLocation(inv.location || 'Batam');
     setSubject(inv.subject || 'Invoice');
-    const eqName = (inv.equipment_name || '').trim();
-    const dumpMatch = eqName.match(/\s+dan\s+Dump Truck\s+(?:Roda\s+)?(\d+)(?:\s+Roda)?$/i)
-      || eqName.match(/^Dump Truck\s+(?:Roda\s+)?(\d+)(?:\s+Roda)?$/i)
-      || eqName.match(/Dump Truck\s+(\d+)\s+Roda/i);
-    if (dumpMatch) {
-      setDumpTruckRoda(dumpMatch[1] || '6');
-      setIncludeDumpTruck(true);
+    const eqName = (inv.equipment_name || '').replace(/^Alat berat berupa\s+/i, '').trim();
+    if (eqName) {
+      const arr = eqName.split(/\s+dan\s+|,/).map((s) => s.trim()).filter(Boolean);
+      setEquipmentNames(arr);
     } else {
-      setIncludeDumpTruck(false);
+      setEquipmentNames([]);
     }
-    const withoutDump = eqName
-      .replace(/\s+dan\s+Dump Truck\s+(?:Roda\s+)?\d+(?:\s+Roda)?$/i, '')
-      .replace(/^Dump Truck\s+(?:Roda\s+)?\d+(?:\s+Roda)?$/i, '')
-      .replace(/^Alat berat berupa\s+/i, '')
-      .trim();
-    if (withoutDump) {
-      const prefix = 'Alat berat berupa ';
-      const str = withoutDump.startsWith(prefix) ? withoutDump.slice(prefix.length) : withoutDump;
-      const danSplit = str.split(/\s+dan\s+/);
-      const arr = danSplit.length >= 2
-        ? (() => {
-            const last = danSplit.pop()?.trim() ?? '';
-            const rest = danSplit.join(' dan ').split(',').map((s) => s.trim()).filter(Boolean);
-            return [...rest, last].filter(Boolean);
-          })()
-        : (str ? str.split(',').map((s) => s.trim()).filter(Boolean) : []);
-      setEquipmentNames(arr.length > 0 ? arr : (str ? [str] : []));
-    }
-    if (!eqName) setEquipmentNames([]);
     setIntroParagraph(inv.intro_paragraph || '');
     setBankAccount(inv.bank_account || '');
     setTerbilangCustom(inv.terbilang_custom || '');
@@ -348,7 +356,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const addItemEmptyForGroup = (groupKey: string, defaultItemName?: string) => {
     const indices = groupIndices[groupKey] || [];
     const insertAfter = indices.length > 0 ? Math.max(...indices) : -1;
-    const newRow: FormItem = { ...emptyFormItem(defaultItemName), equipment_group: groupKey === '__default__' ? '' : groupKey };
+    let newRow: FormItem = { ...emptyFormItem(defaultItemName), equipment_group: groupKey === '__default__' ? '' : groupKey };
+    if (defaultItemName) {
+      const eq = equipmentList.find((e) => e.name === defaultItemName);
+      if (eq) {
+        const p = quantityUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
+        if (p > 0) newRow = { ...newRow, price: p };
+      }
+    }
     setItems((prev) => [...prev.slice(0, insertAfter + 1), newRow, ...prev.slice(insertAfter + 1)]);
   };
   const addItemCopyFromAboveForGroup = (groupKey: string) => {
@@ -359,8 +374,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     }
     const lastIdx = indices[indices.length - 1];
     const last = items[lastIdx];
+    const { row_image: _dropped, ...rest } = last;
     const copy: FormItem = {
-      ...last,
+      ...rest,
       equipment_group: groupKey === '__default__' ? '' : groupKey,
     };
     setItems((prev) => [...prev.slice(0, lastIdx + 1), copy, ...prev.slice(lastIdx + 1)]);
@@ -376,7 +392,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         const priceFilled = Number(r.price ?? 0) > 0;
         const skipUpdate = moreThanOneRow || dateFilled || priceFilled;
         const newItemName = skipUpdate ? r.item_name : val;
-        return { ...r, equipment_group: groupKey === '__default__' ? val : val, item_name: newItemName };
+        let next = { ...r, equipment_group: groupKey === '__default__' ? val : val, item_name: newItemName };
+        if (newItemName && !skipUpdate) {
+          const eq = equipmentList.find((e) => e.name === newItemName);
+          if (eq) {
+            const rowUnit = (r.quantity_unit ?? quantityUnit) as 'hari' | 'jam' | 'unit' | 'jerigen';
+            const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
+            if (p > 0) next = { ...next, price: p };
+          }
+        }
+        return next;
       })
     );
   };
@@ -388,16 +413,136 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     });
     const firstUnused = equipmentNamesForKeterangan.find((n) => !usedNames.has(n));
     const newGroup = firstUnused || `Unit ${usedNames.size + 1}`;
-    setItems((prev) => [...prev, { ...emptyFormItem(newGroup), equipment_group: newGroup }]);
+    let newRow: FormItem = { ...emptyFormItem(newGroup), equipment_group: newGroup };
+    const eq = equipmentList.find((e) => e.name === newGroup);
+    if (eq) {
+      const p = quantityUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
+      if (p > 0) newRow = { ...newRow, price: p };
+    }
+    setItems((prev) => [...prev, newRow]);
   };
 
   const removeItem = (index: number) => {
     if (items.length <= 1) return;
-    setItems((prev) => prev.filter((_, i) => i !== index));
+    setItems((prev) => {
+      const removed = prev[index];
+      if (removed?.row_image && removed.row_image.startsWith('blob:')) URL.revokeObjectURL(removed.row_image);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const updateItem = (index: number, field: string, value: string | number) => {
     setItems((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const handleExtractRowFromImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const idx = extractingRowIndex;
+    if (!file || idx == null) {
+      e.target.value = '';
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setExtractingRowIndex(null);
+      e.target.value = '';
+      return;
+    }
+    try {
+      const data = await invoiceApi.extractRowFromImage(file, quantityUnit);
+      const prevRow = items[idx];
+      if (prevRow?.row_image && prevRow.row_image.startsWith('blob:')) URL.revokeObjectURL(prevRow.row_image);
+      const newUrl = URL.createObjectURL(file);
+      setItems((prev) => prev.map((row, i) => (i === idx ? { ...row, row_date: data.row_date || '', days: data.days ?? 0, row_image: newUrl } : row)));
+      setMessage({ type: 'success', text: 'Tanggal dan hari/jam berhasil diisi dari gambar.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.message || err?.message || 'Gagal ekstrak baris.' });
+    } finally {
+      setExtractingRowIndex(null);
+      e.target.value = '';
+    }
+  };
+
+  const handleExtractMultiRowsFromImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList?.length) {
+      e.target.value = '';
+      return;
+    }
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) {
+      setMessage({ type: 'error', text: 'Pilih minimal satu file gambar.' });
+      e.target.value = '';
+      return;
+    }
+    const groupKey = extractMultiRowForGroupRef.current ?? '__default__';
+    setExtractingByGroup((prev) => ({ ...prev, [groupKey]: true }));
+    setMessage(null);
+    try {
+      const results = await invoiceApi.extractRowsFromImages(
+        files,
+        quantityUnit,
+        (current, total) => setMessage({ type: 'info', text: `[${groupKey}] Mengolah gambar ${current}/${total}...` })
+      );
+      setItems((prev) => {
+        const groupIndicesHere: Record<string, number[]> = {};
+        prev.forEach((r, i) => {
+          const k = getGroupKey(r);
+          if (!groupIndicesHere[k]) groupIndicesHere[k] = [];
+          groupIndicesHere[k].push(i);
+        });
+        const indicesInGroup = groupIndicesHere[groupKey] || [];
+        const emptyIndices = indicesInGroup
+          .filter((i) => (prev[i].row_date ?? '').trim() === '' && (prev[i].days ?? 0) === 0)
+          .sort((a, b) => a - b);
+        const displayName = groupKey === '__default__'
+          ? (prev.find((r) => getGroupKey(r) === '__default__')?.equipment_group ?? '') || 'Unit 1'
+          : groupKey;
+        const defaultItemName = equipmentNames.includes(displayName) ? displayName : (equipmentNames[0] || displayName);
+        const defaultEq = equipmentList.find((eq) => eq.name === defaultItemName);
+        const defaultPrice = defaultEq
+          ? quantityUnit === 'jam'
+            ? (defaultEq.price_per_hour ?? 0)
+            : (defaultEq.price_per_day ?? 0)
+          : 0;
+        let next = [...prev];
+        let resultIdx = 0;
+        for (const idx of emptyIndices) {
+          if (resultIdx >= results.length) break;
+          const res = results[resultIdx];
+          const file = files[resultIdx];
+          const rowImageUrl = file && file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+          next[idx] = { ...next[idx], row_date: res.row_date || '', days: res.days ?? 0, item_name: defaultItemName, price: defaultPrice, row_image: rowImageUrl };
+          resultIdx += 1;
+        }
+        let insertAfter = indicesInGroup.length > 0 ? Math.max(...indicesInGroup) : -1;
+        while (resultIdx < results.length) {
+          const res = results[resultIdx];
+          const file = files[resultIdx];
+          const rowImageUrl = file && file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+          const newRow: FormItem = {
+            ...emptyFormItem(defaultItemName),
+            equipment_group: groupKey === '__default__' ? '' : groupKey,
+            row_date: res.row_date || '',
+            days: res.days ?? 0,
+            price: defaultPrice,
+            row_image: rowImageUrl,
+          };
+          next = [...next.slice(0, insertAfter + 1), newRow, ...next.slice(insertAfter + 1)];
+          insertAfter += 1;
+          resultIdx += 1;
+        }
+        return next;
+      });
+      setMessage({ type: 'success', text: `${results.length} baris diisi di unit ini dari ${files.length} gambar.` });
+    } catch (err: any) {
+      const msg = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
+        ? 'Ekstrak timeout (backend/Ollama lama). Coba lagi atau periksa backend.'
+        : (err?.response?.data?.message || err?.message || 'Gagal ekstrak dari gambar.');
+      setMessage({ type: 'error', text: msg });
+    } finally {
+      setExtractingByGroup((prev) => ({ ...prev, [groupKey]: false }));
+      e.target.value = '';
+    }
   };
 
   const handleSubmitInvoice = async (e: React.FormEvent) => {
@@ -588,7 +733,11 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         {message && (
           <div
             className={`mb-4 p-4 rounded-lg ${
-              message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+              message.type === 'success'
+                ? 'bg-green-50 text-green-800 border border-green-200'
+                : message.type === 'info'
+                  ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
             }`}
           >
             {message.text}
@@ -773,6 +922,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
             {step === 'fill-form' && selectedTemplate && (
               <form onSubmit={handleSubmitInvoice} className="space-y-6">
+                <input ref={extractRowInputRef} type="file" accept="image/*" className="hidden" onChange={handleExtractRowFromImage} />
+                <input ref={extractMultiRowInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleExtractMultiRowsFromImages} />
                 <div className="flex items-center justify-between">
                   <button type="button" onClick={handleBackToTemplates} className="text-orange-600 hover:text-orange-700 text-sm font-medium">
                     ← Ganti template
@@ -781,6 +932,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     Template: <strong>{selectedTemplate.name}</strong>
                     {editInvoiceId && ' (Edit)'}
                   </span>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-600">Untuk isi <strong>tanggal</strong> dan <strong>hari/jam</strong> dari nota: gunakan ikon 📷 di kolom Tanggal per baris, atau tombol <strong>Upload banyak gambar</strong> di tiap unit. Baris kosong unit tersebut akan diisi; ganti unit lalu upload lagi untuk unit lain. Harga &amp; keterangan dari Nama unit (bisa diedit per baris). Jika pakai Gemini (free tier), ada jeda antargambar agar tidak kena rate limit; untuk banyak gambar tanpa batas gunakan Ollama (<code className="text-xs bg-gray-100 px-1">EXTRACT_PROVIDER=deepseek</code> di backend).</p>
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
@@ -894,10 +1049,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <div>
                         <span className="text-sm font-medium text-gray-600 block mb-1">Alat berat</span>
                         <div className="flex flex-wrap gap-2">
-                          {equipmentNames.map((name, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg text-sm">
+                          {equipmentNamesForKeterangan.map((name) => (
+                            <span key={name} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg text-sm">
                               {name}
-                              <button type="button" onClick={() => setEquipmentNames((prev) => prev.filter((_, j) => j !== i))} className="text-orange-600 hover:text-orange-800" aria-label="Hapus">×</button>
+                              <button type="button" onClick={() => setEquipmentNames((prev) => prev.filter((n) => n !== name))} className="text-orange-600 hover:text-orange-800" aria-label="Hapus">×</button>
                             </span>
                           ))}
                         </div>
@@ -912,7 +1067,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
                           >
                             <option value="">+ Pilih dari daftar</option>
-                            {equipmentList.filter((e) => e.type === 'alat_berat' && !equipmentNames.includes(e.name)).map((e) => (
+                            {equipmentList.filter((e) => (e.type === 'alat_berat' || e.type === 'dump_truck') && !equipmentNames.includes(e.name)).map((e) => (
                               <option key={e.id} value={e.name}>{e.name}</option>
                             ))}
                           </select>
@@ -935,23 +1090,6 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             Tambah
                           </button>
                         </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-200">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={includeDumpTruck} onChange={(e) => setIncludeDumpTruck(e.target.checked)} className="rounded border-gray-300" />
-                          <span className="text-sm font-medium text-gray-600">Sertakan Dump Truck</span>
-                        </label>
-                        {includeDumpTruck && (
-                          <>
-                            <span className="text-sm text-gray-500">Roda:</span>
-                            <select value={dumpTruckRoda} onChange={(e) => setDumpTruckRoda(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500">
-                              {[6, 8, 10, 12].map((n) => (
-                                <option key={n} value={n}>{n} Roda</option>
-                              ))}
-                            </select>
-                            <span className="text-sm text-gray-500">→ Dump Truck Roda {dumpTruckRoda}</span>
-                          </>
-                        )}
                       </div>
                       {getEquipmentNameForPayload() && (
                         <p className="text-xs text-gray-500">Kalimat pembuka: &quot;...berupa {getEquipmentNameForPayload()} dilokasi...&quot;</p>
@@ -990,6 +1128,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   </div>
                   {orderedGroupKeys.map((groupKey, groupIdx) => {
                     const indices = groupIndices[groupKey] || [];
+                    const sortedIndices = [...indices].sort((a, b) => {
+                      const da = (items[a].row_date || '').trim();
+                      const db = (items[b].row_date || '').trim();
+                      if (!da) return 1;
+                      if (!db) return -1;
+                      return da < db ? -1 : da > db ? 1 : 0;
+                    });
                     const isLastGroup = groupIdx === orderedGroupKeys.length - 1;
                     const displayName = groupKey === '__default__' ? (items.find((r) => getGroupKey(r) === '__default__')?.equipment_group ?? '') || 'Unit 1' : groupKey;
                     return (
@@ -1022,12 +1167,25 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               className="min-w-[10rem] border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50"
                             />
                           )}
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button type="button" onClick={() => addItemEmptyForGroup(groupKey, displayName)} className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-sm font-medium border border-gray-300 rounded px-2 py-1">
                               <FiPlus /> Tambah baris kosong
                             </button>
                             <button type="button" onClick={() => addItemCopyFromAboveForGroup(groupKey)} className="flex items-center gap-1 text-orange-600 hover:text-orange-700 text-sm font-medium border border-orange-300 rounded px-2 py-1">
                               <FiPlus /> Copy dari baris atas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                extractMultiRowForGroupRef.current = groupKey;
+                                extractMultiRowInputRef.current?.click();
+                              }}
+                              disabled={!!extractingByGroup[groupKey]}
+                              className="flex items-center gap-1 text-orange-600 hover:text-orange-700 text-sm font-medium border border-orange-300 rounded px-2 py-1 disabled:opacity-50"
+                            >
+                              {extractingByGroup[groupKey] ? 'Memproses...' : (
+                                <>📷 Upload banyak gambar (isi baris kosong unit ini)</>
+                              )}
                             </button>
                             {isLastGroup && (
                               <button type="button" onClick={addDifferentUnit} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm font-medium">
@@ -1041,6 +1199,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             <thead>
                               <tr className="text-left text-sm text-gray-600 border-b">
                                 <th className="pb-2 pr-2 w-10">No</th>
+                                <th className="pb-2 pr-2 w-16">Gambar</th>
                                 <th className="pb-2 pr-2">Tanggal</th>
                                 {useBbmColumns ? (
                                   <>
@@ -1054,8 +1213,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 ) : (
                                   <>
                                     <th className="pb-2 pr-2">{(itemColumnLabel || 'Keterangan').trim() || 'Keterangan'} *</th>
-                                    <th className="pb-2 pr-2 w-24">{quantityUnit === 'jam' ? 'Jam' : quantityUnit === 'unit' ? 'Unit' : quantityUnit === 'jerigen' ? 'Jerigen' : 'Hari'}</th>
-                                    <th className="pb-2 pr-2 w-32">{priceUnitLabel}</th>
+                                    <th className="pb-2 pr-2 w-28">Satuan / Jumlah</th>
+                                    <th className="pb-2 pr-2 w-32">Harga</th>
                                     <th className="pb-2 pr-2 w-28">Jumlah</th>
                                   </>
                                 )}
@@ -1063,8 +1222,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {indices.map((_, rowNum) => {
-                          const index = indices[rowNum];
+                              {sortedIndices.map((_, rowNum) => {
+                          const index = sortedIndices[rowNum];
                           const row = items[index];
                           if (!row) return null;
                           const days = row.days ?? 0;
@@ -1078,22 +1237,32 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           return (
                             <tr key={index} className="border-b border-gray-100">
                               <td className="py-2 pr-2 text-center text-gray-600">{rowNum + 1}</td>
+                              <td className="py-2 pr-2 align-top">
+                                {row.row_image ? (
+                                  <a href={row.row_image} target="_blank" rel="noopener noreferrer" className="inline-block rounded border border-gray-200 overflow-hidden bg-gray-100" title="Lihat gambar nota">
+                                    <img src={row.row_image} alt="" className="w-12 h-12 object-cover" />
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-300 text-xs">—</span>
+                                )}
+                              </td>
                               <td className="py-2 pr-2">
                                 <div className="flex items-center gap-1 relative">
                                   <input
                                     type="text"
-                                    value={row.row_date || ''}
-                                    onChange={(e) => updateItem(index, 'row_date', e.target.value)}
-                                    placeholder="Klik 📅 atau ketik"
-                                    className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
+                                    value={row.row_date ? formatDateToIndonesian(row.row_date) : ''}
+                                    readOnly
+                                    placeholder="Klik 📅 untuk pilih tanggal"
+                                    className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80"
                                   />
                                   <input
                                     type="date"
+                                    value={row.row_date || ''}
                                     ref={(el) => { dateInputRefs.current[index] = el; }}
                                     className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden"
                                     onChange={(e) => {
                                       const v = e.target.value;
-                                      if (v) updateItem(index, 'row_date', formatDateToId(v));
+                                      if (v) updateItem(index, 'row_date', v);
                                     }}
                                   />
                                   <button
@@ -1106,6 +1275,15 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     title="Pilih tanggal"
                                   >
                                     <FiCalendar className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setExtractingRowIndex(index); extractRowInputRef.current?.click(); }}
+                                    disabled={extractingRowIndex !== null}
+                                    className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0 disabled:opacity-50"
+                                    title="Upload gambar nota – isi tanggal & hari/jam"
+                                  >
+                                    {extractingRowIndex === index ? <span className="text-xs">...</span> : <FiImage className="w-4 h-4" />}
                                   </button>
                                 </div>
                               </td>
@@ -1124,6 +1302,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                             updateItem(index, 'item_name', alreadyCustom ? row.item_name : ' ');
                                           } else {
                                             updateItem(index, 'item_name', v);
+                                            const eq = equipmentList.find((e) => e.name === v);
+                                            if (eq) {
+                                              const rowUnit = row.quantity_unit ?? quantityUnit;
+                                              const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
+                                              if (p > 0) updateItem(index, 'price', p);
+                                            }
                                           }
                                         }}
                                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
@@ -1150,7 +1334,15 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               {useBbmColumns ? (
                                 <>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} step="any" value={days || ''} onChange={(e) => updateItem(index, 'days', parseFloat(e.target.value.replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <div className="flex gap-1 items-center">
+                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                        <option value="hari">Hari</option>
+                                        <option value="jam">Jam</option>
+                                        <option value="unit">Unit</option>
+                                        <option value="jerigen">Jerigen</option>
+                                      </select>
+                                      <input type="number" min={0} step="any" value={days || ''} onChange={(e) => updateItem(index, 'days', parseFloat(e.target.value.replace(',', '.')) || 0)} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    </div>
                                   </td>
                                   <td className="py-2 pr-2">
                                     <input type="number" min={0} value={price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
@@ -1172,10 +1364,18 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               ) : (
                                 <>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} step="any" value={row.quantity} onChange={(e) => updateItem(index, 'quantity', parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <div className="flex gap-1 items-center">
+                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                        <option value="hari">Hari</option>
+                                        <option value="jam">Jam</option>
+                                        <option value="unit">Unit</option>
+                                        <option value="jerigen">Jerigen</option>
+                                      </select>
+                                      <input type="number" min={0} step="any" value={row.quantity} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; updateItem(index, 'quantity', v); updateItem(index, 'days', v); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    </div>
                                   </td>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <input type="number" min={0} value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
                                   </td>
                                   <td className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>
                                 </>
@@ -1472,6 +1672,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   <>
                     {orderedKeys.map((groupKey) => {
                       const groupItems = list.filter((i) => getKey(i) === groupKey);
+                      const groupItemsSorted = [...groupItems].sort((a, b) => {
+                        const da = (a.row_date || '').trim();
+                        const db = (b.row_date || '').trim();
+                        if (!da) return 1;
+                        if (!db) return -1;
+                        return da < db ? -1 : da > db ? 1 : 0;
+                      });
                       const g = groupByUnitPreview[groupKey];
                       const label = g?.label ? g.label.toUpperCase() : (groupKey === '__default__' ? 'UNIT 1' : groupKey.toUpperCase());
                       return (
@@ -1501,11 +1708,11 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {groupItems.map((item, i) => (
+                              {groupItemsSorted.map((item, i) => (
                                 <tr key={i}>
                                   <td className="border border-black px-3 py-2 text-center">{i + 1}</td>
                                   <td className="border border-black px-3 py-2">
-                                    {(item.row_date || '').trim() || '-'}
+                                    {(item.row_date || '').trim() ? formatDateToIndonesian(String(item.row_date)) : '-'}
                                   </td>
                                   {useBbmT ? (
                                     <>

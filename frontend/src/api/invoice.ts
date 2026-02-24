@@ -193,4 +193,95 @@ export const invoiceApi = {
   async deleteInvoice(id: number | string): Promise<void> {
     await axios.delete(getUrl(`/${id}`), { headers: getAuthHeaders() });
   },
+
+  /** Ekstrak data invoice dari gambar nota/timesheet (Gemini). Bisa banyak gambar (1 gambar = 1 hari). */
+  async extractFromImage(
+    files: File[],
+    config: { quantity_unit: string; use_bbm_columns: boolean; bbm_unit_price?: number; location: string; equipment_name: string }
+  ): Promise<ExtractFromImageResponse> {
+    const form = new FormData();
+    for (const f of files) form.append('image', f);
+    form.append('quantity_unit', config.quantity_unit);
+    form.append('use_bbm_columns', config.use_bbm_columns ? 'true' : 'false');
+    if (config.bbm_unit_price != null) form.append('bbm_unit_price', String(config.bbm_unit_price));
+    form.append('location', config.location);
+    form.append('equipment_name', config.equipment_name);
+    const res = await axios.post<ApiRes<ExtractFromImageResponse>>(getUrl('/extract-from-image'), form, {
+      headers: getAuthHeaders(),
+    });
+    return res.data?.data ?? (res.data as unknown as ExtractFromImageResponse);
+  },
+
+  /** Ekstrak hanya tanggal dan hari/jam dari satu gambar (untuk satu baris item). Harga diambil dari alat berat. */
+  async extractRowFromImage(file: File, quantity_unit: string): Promise<{ row_date: string; days: number }> {
+    const form = new FormData();
+    form.append('image', file);
+    form.append('quantity_unit', quantity_unit);
+    const res = await axios.post<ApiRes<{ row_date: string; days: number }>>(getUrl('/extract-row-from-image'), form, {
+      headers: getAuthHeaders(),
+      timeout: 120000*100, // 120 detik (Ollama/Gemini bisa lama); kalau timeout tombol "Memproses" akan reset
+    });
+    return res.data?.data ?? (res.data as unknown as { row_date: string; days: number });
+  },
+
+  /**
+   * Ekstrak banyak gambar; mengembalikan array { row_date, days } (urutan = urutan file).
+   * - VITE_EXTRACT_DELAY_MS=0: semua gambar dikirim paralel (tanpa antre). Cocok untuk Gemini/limit tinggi.
+   * - VITE_EXTRACT_DELAY_MS>0 (mis. 13000): kirim satu per satu + jeda, untuk hindari rate limit.
+   */
+  async extractRowsFromImages(
+    files: File[],
+    quantity_unit: string,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<{ row_date: string; days: number }[]> {
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    const total = imageFiles.length;
+    const envDelay = (import.meta as any).env?.VITE_EXTRACT_DELAY_MS;
+    const delayMs = envDelay !== undefined && String(envDelay).trim() !== '' ? Math.max(0, Number(envDelay)) : 13000;
+
+    if (delayMs === 0) {
+      let completed = 0;
+      const promises = imageFiles.map((file) =>
+        this.extractRowFromImage(file, quantity_unit).then((res) => {
+          completed += 1;
+          onProgress?.(completed, total);
+          return res;
+        })
+      );
+      return Promise.all(promises);
+    }
+
+    const results: { row_date: string; days: number }[] = [];
+    for (let i = 0; i < imageFiles.length; i++) {
+      onProgress?.(i + 1, total);
+      const one = await this.extractRowFromImage(imageFiles[i], quantity_unit);
+      results.push(one);
+      if (i < imageFiles.length - 1) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    return results;
+  },
 };
+
+export interface ExtractFromImageResponse {
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  invoice_date: string;
+  location: string;
+  equipment_name: string;
+  quantity_unit: string;
+  use_bbm_columns: boolean;
+  notes: string;
+  items: Array<{
+    item_name: string;
+    quantity: number;
+    days: number;
+    price: number;
+    row_date: string;
+    bbm_quantity?: number;
+    bbm_unit_price?: number;
+  }>;
+  total: number;
+}

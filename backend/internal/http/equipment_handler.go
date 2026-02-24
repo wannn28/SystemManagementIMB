@@ -51,6 +51,12 @@ func (h *EquipmentHandler) Create(c echo.Context) error {
 	if body.Type != "alat_berat" && body.Type != "dump_truck" {
 		body.Type = "alat_berat"
 	}
+	if body.PricePerDay < 0 {
+		body.PricePerDay = 0
+	}
+	if body.PricePerHour < 0 {
+		body.PricePerHour = 0
+	}
 	if err := h.service.Create(&body); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -68,6 +74,8 @@ func (h *EquipmentHandler) Update(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	existing.Name = body.Name
+	existing.PricePerDay = body.PricePerDay
+	existing.PricePerHour = body.PricePerHour
 	if body.Type != "" {
 		if body.Type == "alat_berat" || body.Type == "dump_truck" {
 			existing.Type = body.Type
