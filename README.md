@@ -298,3 +298,12 @@ npm install
 
 Jika mengalami masalah, silakan buat issue di repository atau hubungi tim development.
 
+docker rm -f ollama
+docker pull ollama/ollama:0.13.3
+docker exec -it ollama ollama run qwen2.5vl:7b
+
+docker run -d --gpus all --name ollama `
+  -p 11434:11434 `
+  -v ollama:/root/.ollama `
+  -v "C:\Users\Ridwan\Downloads:/images" `
+  ollama/ollama:0.13.3
