@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Invoice } from '../types/invoice';
+import { invoiceApi } from '../api/invoice';
+import type { Invoice, InvoiceTemplate, TemplateItemColumn } from '../types/invoice';
 
 interface InvoicePDFExportButtonProps {
   invoice: Invoice;
@@ -54,6 +55,91 @@ const KOP_SURAT_URL = '/kopsurathd.png';
 const TTD_SIGNATURE_URL = '/ttd.png';
 const PAGE_WIDTH_MM = 210;
 
+function getTemplateItemColumns(template: InvoiceTemplate | undefined): TemplateItemColumn[] | null {
+  if (!template?.options) return null;
+  const opt = template.options;
+  const parsed =
+    typeof opt === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(opt) as { item_columns?: TemplateItemColumn[] };
+          } catch {
+            return {};
+          }
+        })()
+      : (opt as { item_columns?: TemplateItemColumn[] });
+  if (parsed?.item_columns?.length) return parsed.item_columns;
+  return null;
+}
+
+type TemplateDisplayOptions = {
+  show_no: boolean;
+  show_date: boolean;
+  show_total: boolean;
+  show_bank_account: boolean;
+  use_bbm_columns: boolean;
+  include_bbm_note: boolean;
+  quantity_unit: string;
+  price_unit_label: string;
+  item_column_label: string;
+};
+
+function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): TemplateDisplayOptions | null {
+  if (!template?.options) return null;
+  const opt = template.options;
+  const parsed =
+    typeof opt === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(opt) as Partial<TemplateDisplayOptions>;
+          } catch {
+            return {};
+          }
+        })()
+      : (template.options as Partial<TemplateDisplayOptions>);
+  return {
+    show_no: parsed?.show_no !== false,
+    show_date: parsed?.show_date !== false,
+    show_total: parsed?.show_total !== false,
+    show_bank_account: parsed?.show_bank_account !== false,
+    use_bbm_columns: !!parsed?.use_bbm_columns,
+    include_bbm_note: !!parsed?.include_bbm_note,
+    quantity_unit: parsed?.quantity_unit || 'hari',
+    price_unit_label: parsed?.price_unit_label || 'Harga/Hari',
+    item_column_label: parsed?.item_column_label || 'Keterangan',
+  };
+}
+
+function getItemCellValue(
+  item: Invoice['items'][0],
+  key: string,
+  formatRupiahFn: (n: number) => string,
+  formatDateOnlyFn: (d: string) => string
+): string {
+  switch (key) {
+    case 'item_name':
+      return (item.item_name || '-').trim() || '-';
+    case 'description':
+      return (item.description || '-').trim() || '-';
+    case 'quantity':
+      return String(item.quantity ?? item.days ?? 0);
+    case 'days':
+      return String(item.days ?? item.quantity ?? 0);
+    case 'price':
+      return formatRupiahFn(Number(item.price ?? 0));
+    case 'bbm_quantity':
+      return (item.bbm_quantity ?? 0) > 0 ? String(item.bbm_quantity) : '-';
+    case 'bbm_unit_price':
+      return (item.bbm_quantity ?? 0) > 0 ? formatRupiahFn(Number(item.bbm_unit_price ?? 0)) : '-';
+    case 'total':
+      return formatRupiahFn(Number(item.total ?? 0));
+    case 'row_date':
+      return (item.row_date || '').trim() ? formatDateOnlyFn(String(item.row_date)) : '-';
+    default:
+      return (item as unknown as Record<string, unknown>)[key] != null ? String((item as unknown as Record<string, unknown>)[key]) : '-';
+  }
+}
+
 function loadTtdImage(): Promise<{ dataUrl: string; widthPx: number; heightPx: number } | null> {
   return fetch(TTD_SIGNATURE_URL)
     .then((res) => (res.ok ? res.blob() : Promise.reject(new Error('TTD not found'))))
@@ -106,6 +192,12 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
   children,
 }) => {
   const generatePDF = async () => {
+    let invoiceToUse = invoice;
+    if (invoice.template_id && (!invoice.template || !getTemplateItemColumns(invoice.template))) {
+      const fetched = await invoiceApi.getTemplateById(Number(invoice.template_id));
+      if (fetched) invoiceToUse = { ...invoice, template: fetched };
+    }
+
     const [kop, ttdImg] = await Promise.all([
       loadKopSuratImage().catch(() => null),
       loadTtdImage(),
@@ -149,36 +241,46 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     const tabX = margin + Math.max(doc.getTextWidth(labelNomor), doc.getTextWidth(labelPerihal), doc.getTextWidth(labelKepada)) + 3;
     doc.text(labelNomor, margin, y);
     doc.setFont('times', 'bold');
-    doc.text(": " + (invoice.invoice_number || '-'), tabX, y);
+    doc.text(": " + (invoiceToUse.invoice_number || '-'), tabX, y);
     doc.setFont('times', 'normal');
     doc.text(labelPerihal, margin, y + 5);
     doc.setFont('times', 'bold');
-    doc.text(": " + (invoice.subject || 'Invoice'), tabX, y + 5);
+    doc.text(": " + (invoiceToUse.subject || 'Invoice'), tabX, y + 5);
     doc.setFont('times', 'normal');
     doc.text(labelKepada, margin, y + 10);
     doc.setFont('times', 'bold');
-    doc.text(": " + (invoice.customer_name || '-'), tabX, y + 10);
+    doc.text(": " + (invoiceToUse.customer_name || '-'), tabX, y + 10);
     doc.setFont('times', 'normal');
-    const locDate = ['Batam', formatDateOnly(invoice.invoice_date || '')].filter(Boolean).join(', ');
+    const locDate = ['Batam', formatDateOnly(invoiceToUse.invoice_date || '')].filter(Boolean).join(', ');
     if (locDate) doc.text(locDate, pageWidth - margin, y, { align: 'right' });
     y += 10;
-    if (invoice.customer_email?.trim()) {
+    if (invoiceToUse.customer_email?.trim()) {
       doc.setFontSize(12);
-      doc.text(`Email: ${invoice.customer_email.trim()}`, margin, y + 5);
+      doc.text(`Email: ${invoiceToUse.customer_email.trim()}`, margin, y + 5);
       doc.setTextColor(0, 0, 0);
       y += 5;
     }
     y += 10;
 
+    const template = invoiceToUse.template;
+    const isDumpTruck = (name: string) => /dump\s*truck|dumptruck|roda\s*6/i.test(name);
+    const onlyDumpTruck = (name: string) => isDumpTruck(name) && !name.includes(' dan ');
     const introText = (() => {
-      const customIntro = (invoice.intro_paragraph || '').trim();
+      const customIntro = (invoiceToUse.intro_paragraph || '').trim();
       if (customIntro) return customIntro;
-      const eq = (invoice.equipment_name || '').trim();
-      const loc = (invoice.location || '').trim();
+      const templateIntro = (template?.default_intro || '').trim();
+      if (templateIntro) return templateIntro;
+      const eq = (invoiceToUse.equipment_name || '').trim();
+      const loc = (invoiceToUse.location || '').trim();
       if (eq && loc) {
+        if (onlyDumpTruck(eq)) {
+          return `Dengan Hormat,\n\tBersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan Dumptruck roda 6 dilokasi ${loc} dengan rincian sebagai berikut:`;
+        }
         return `Dengan Hormat,\n\tBersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat berupa ${eq} dilokasi ${loc} dengan rincian sebagai berikut:`;
       }
-      // Default paragraf pembuka jika equipment_name/location belum ada (tetap tampilkan "Dengan Hormat")
+      if (eq && onlyDumpTruck(eq)) {
+        return `Dengan Hormat,\n\tBersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan Dumptruck roda 6 dengan rincian sebagai berikut:`;
+      }
       return 'Dengan Hormat,\n\tBersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat dengan rincian sebagai berikut:';
     })();
     if (introText) {
@@ -196,11 +298,34 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       y += spacingIntroToTable;
     }
 
-    const useBbm = invoice.use_bbm_columns;
-    const qtyLabel = (invoice.quantity_unit === 'jam' ? 'Jam' : invoice.quantity_unit === 'unit' ? 'Unit' : invoice.quantity_unit === 'jerigen' ? 'Jerigen' : 'Hari');
-    const priceLabel = invoice.price_unit_label || (invoice.quantity_unit === 'jam' ? 'Harga/Jam' : invoice.quantity_unit === 'unit' ? 'Harga/Unit' : invoice.quantity_unit === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari');
-    const itemsList = invoice.items || [];
-    const total = invoice.total ?? itemsList.reduce((s, i) => s + (i.total ?? 0), 0);
+    const templateOpts = getTemplateDisplayOptions(template);
+    const templateColumnsRaw = getTemplateItemColumns(template);
+    const showNo = templateOpts?.show_no !== false;
+    const showDate = templateOpts?.show_date !== false;
+    const showTotal = templateOpts?.show_total !== false;
+    const templateColumns =
+      templateColumnsRaw?.length
+        ? templateColumnsRaw.filter((c) => (c.key === 'row_date' && !showDate) || (c.key === 'total' && !showTotal) ? false : true)
+        : null;
+    const hasRowDateInTemplate = templateColumns?.some((c) => c.key === 'row_date');
+    const injectDateColumn = !!templateColumns?.length && showDate && !hasRowDateInTemplate;
+    const useBbm = !templateColumns && (templateOpts?.use_bbm_columns ?? invoiceToUse.use_bbm_columns);
+    const qtyLabel =
+      (templateOpts?.quantity_unit || invoiceToUse.quantity_unit) === 'jam'
+        ? 'Jam'
+        : (templateOpts?.quantity_unit || invoiceToUse.quantity_unit) === 'unit'
+          ? 'Unit'
+          : (templateOpts?.quantity_unit || invoiceToUse.quantity_unit) === 'jerigen'
+            ? 'Jerigen'
+            : (templateOpts?.quantity_unit || invoiceToUse.quantity_unit) === 'volume'
+              ? 'Volume'
+              : 'Hari';
+    const priceLabel =
+      templateOpts?.price_unit_label ||
+      invoiceToUse.price_unit_label ||
+      (invoiceToUse.quantity_unit === 'jam' ? 'Harga/Jam' : invoiceToUse.quantity_unit === 'unit' ? 'Harga/Unit' : invoiceToUse.quantity_unit === 'jerigen' ? 'Harga/Jerigen' : invoiceToUse.quantity_unit === 'volume' ? 'Harga/Volume' : 'Harga/Hari');
+    const itemsList = invoiceToUse.items || [];
+    const total = invoiceToUse.total ?? itemsList.reduce((s, i) => s + (i.total ?? 0), 0);
 
     const getGroupKey = (item: typeof itemsList[0]) => {
       const eg = (item.equipment_group || '').trim();
@@ -222,16 +347,24 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     }, {});
     Object.keys(groupByUnit).forEach((k) => { if (k === '__default__' && groupByUnit[k]) groupByUnit[k].label = groupByUnit[k].label || 'Unit 1'; });
 
-    const headRow = useBbm
-      ? ['No', 'Tanggal', qtyLabel, priceLabel, 'Bbm (Jerigen)', 'Harga/Bbm', 'Jumlah']
-      : ['No', 'Tanggal', (invoice.item_column_label || 'Keterangan').trim() || 'Keterangan', qtyLabel, priceLabel, 'Jumlah'];
+    const itemColLabel = (templateOpts?.item_column_label || invoiceToUse.item_column_label || 'Keterangan').trim() || 'Keterangan';
+    const headRow = templateColumns?.length
+      ? [...(showNo ? ['No'] : []), ...(injectDateColumn ? ['Tanggal'] : []), ...templateColumns.map((c) => c.label)]
+      : useBbm
+        ? [...['No', ...(showDate ? ['Tanggal'] : []), qtyLabel, priceLabel, 'Bbm (Jerigen)', 'Harga/Bbm'], ...(showTotal ? ['Jumlah'] : [])]
+        : [...['No', ...(showDate ? ['Tanggal'] : []), itemColLabel, qtyLabel, priceLabel], ...(showTotal ? ['Jumlah'] : [])];
 
-    // Ketinggian jarak (mm): jarak antar tabel unit / ke Grand Total
     const spacingAfterTable = 3;
-
     doc.setFontSize(12);
     const showUnitTitles = orderedGroupKeys.length >= 2;
-    const numCols = useBbm ? 7 : 6;
+    const numCols = templateColumns?.length
+      ? (showNo ? 1 : 0) + (injectDateColumn ? 1 : 0) + templateColumns.length
+      : useBbm
+        ? 5 + (showDate ? 1 : 0) + (showTotal ? 1 : 0)
+        : 4 + (showDate ? 1 : 0) + (showTotal ? 1 : 0);
+    const qtyColIdx = templateColumns ? templateColumns.findIndex((c) => c.key === 'quantity' || c.key === 'days') : -1;
+    const qtyColIndexTemplate = templateColumns && qtyColIdx >= 0 ? (showNo ? 1 : 0) + (injectDateColumn ? 1 : 0) + qtyColIdx : -1;
+
     for (const groupKey of orderedGroupKeys) {
       ensureSpace(35);
       const groupItems = itemsList.filter((i) => getGroupKey(i) === groupKey);
@@ -244,39 +377,49 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       });
       const g = groupByUnit[groupKey];
       const label = (g && g.label) ? g.label.toUpperCase() : (groupKey === '__default__' ? 'UNIT 1' : groupKey.toUpperCase());
+      const sumT = g ? g.total : 0;
 
-      const tableData = groupItemsSorted.map((item, idx) => {
-        const tot = Number(item.total ?? 0);
-        const no = String(idx + 1);
-        const tanggalBbm = (item.row_date || '').trim() ? formatDateOnly(String(item.row_date)) : '-';
-        const tanggalSimple = (item.row_date || '').trim() ? formatDateOnly(String(item.row_date)) : '-';
-        if (useBbm) {
-          return [
-            no,
-            tanggalBbm,
-            String(item.days ?? 0),
-            formatRupiah(Number(item.price ?? 0)),
-            (item.bbm_quantity ?? 0) > 0 ? String(item.bbm_quantity) : '-',
-            (item.bbm_quantity ?? 0) > 0 ? formatRupiah(Number(item.bbm_unit_price ?? 0)) : '-',
-            formatRupiah(tot),
-          ];
-        }
-        return [no, tanggalSimple, item.item_name || '-', String(item.quantity ?? item.days ?? 0), formatRupiah(Number(item.price ?? 0)), formatRupiah(tot)];
-      });
+      const tableData = templateColumns?.length
+        ? groupItemsSorted.map((item, idx) => [
+            ...(showNo ? [String(idx + 1)] : []),
+            ...(injectDateColumn ? [getItemCellValue(item, 'row_date', formatRupiah, formatDateOnly)] : []),
+            ...templateColumns.map((c) => getItemCellValue(item, c.key, formatRupiah, formatDateOnly)),
+          ])
+        : groupItemsSorted.map((item, idx) => {
+            const tot = Number(item.total ?? 0);
+            const no = String(idx + 1);
+            const tanggalBbm = (item.row_date || '').trim() ? formatDateOnly(String(item.row_date)) : '-';
+            const tanggalSimple = (item.row_date || '').trim() ? formatDateOnly(String(item.row_date)) : '-';
+            if (useBbm) {
+              return [
+                no,
+                ...(showDate ? [tanggalBbm] : []),
+                String(item.days ?? 0),
+                formatRupiah(Number(item.price ?? 0)),
+                (item.bbm_quantity ?? 0) > 0 ? String(item.bbm_quantity) : '-',
+                (item.bbm_quantity ?? 0) > 0 ? formatRupiah(Number(item.bbm_unit_price ?? 0)) : '-',
+                ...(showTotal ? [formatRupiah(tot)] : []),
+              ];
+            }
+            return [...[no], ...(showDate ? [tanggalSimple] : []), item.item_name || '-', String(item.quantity ?? item.days ?? 0), formatRupiah(Number(item.price ?? 0)), ...(showTotal ? [formatRupiah(tot)] : [])];
+          });
+
       const sumH = g ? g.days : 0;
       const sumB = g ? g.bbm : 0;
-      const sumT = g ? g.total : 0;
-      // Total: label di-merge ke kiri (colSpan), isi putih seperti baris data
-      const totalRow = useBbm
-        ? [{ content: 'Total', colSpan: 2 }, String(sumH), '', String(sumB), '', formatRupiah(sumT)]
-        : [{ content: 'Total', colSpan: 3 }, String(sumH), '', formatRupiah(sumT)];
-      const bodyWithTotal = [...tableData, totalRow];
+      const totalRow = showTotal
+        ? (templateColumns?.length
+            ? [{ content: 'Total', colSpan: (showNo ? 1 : 0) + (injectDateColumn ? 1 : 0) + templateColumns.length - 1 }, formatRupiah(sumT)]
+            : useBbm
+              ? [{ content: 'Total', colSpan: showDate ? 2 : 1 }, String(sumH), '', String(sumB), ...(showDate ? ['', formatRupiah(sumT)] : [formatRupiah(sumT)])]
+              : [{ content: 'Total', colSpan: showDate ? 3 : 2 }, String(sumH), '', formatRupiah(sumT)])
+        : null;
+      const bodyWithTotal = totalRow ? [...tableData, totalRow] : tableData;
 
       const tableHead: (string[] | { content: string; colSpan: number; styles: Record<string, unknown> }[])[] = showUnitTitles
         ? [[{ content: label, colSpan: numCols, styles: { halign: 'center', fontStyle: 'bold', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1, fontSize: 11, font: 'times' } }], headRow]
         : [headRow];
 
-      const qtyColIndex = useBbm ? 2 : 3; // kolom Hari / quantity
+      const qtyColIndex = templateColumns?.length ? (qtyColIndexTemplate >= 0 ? qtyColIndexTemplate : showNo ? 1 : 0) : useBbm ? 2 : 3;
       autoTable(doc, {
         startY: y,
         head: tableHead as any,
@@ -290,7 +433,7 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
         tableLineWidth: 0.1,
         showHead: 'everyPage',
         didParseCell: (data) => {
-          if (data.section === 'body' && data.row.index === bodyWithTotal.length - 1) {
+          if (totalRow && data.section === 'body' && data.row.index === bodyWithTotal.length - 1) {
             data.cell.styles.fillColor = [255, 255, 255];
             data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = 'bold';
@@ -301,7 +444,7 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     }
 
     const jmlJenisAlat = orderedGroupKeys.length >= 2 ? orderedGroupKeys.length : 0;
-    if (jmlJenisAlat >= 2) {
+    if (showTotal && jmlJenisAlat >= 2) {
       ensureSpace(30);
       const grandHeadRow = useBbm ? ['No', 'Keterangan', 'Jumlah ' + qtyLabel, 'Jumlah BBM', 'Jumlah'] : ['No', 'Keterangan', 'Jumlah'];
       const grandNumCols = useBbm ? 5 : 3;
@@ -347,13 +490,13 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     ensureSpace(45);
     doc.setFontSize(12);
     y += 2;
-    if (invoice.include_bbm_note) {
+    if (templateOpts?.include_bbm_note ?? invoiceToUse.include_bbm_note) {
       doc.setFontSize(12);
       doc.text('Note: Sudah termasuk BBM', margin, y);
       y += 2;
     }
-    const terbilangWords = (invoice.terbilang_custom || '').trim()
-      ? (invoice.terbilang_custom || '').trim()
+    const terbilangWords = (invoiceToUse.terbilang_custom || '').trim()
+      ? (invoiceToUse.terbilang_custom || '').trim()
       : `${terbilang(Math.round(total))} Rupiah`;
     const terbilangStr = `Terbilang: (${terbilangWords})`;
     const terbilangLines = doc.splitTextToSize(terbilangStr, pageWidth - 2 * margin);
@@ -363,13 +506,14 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       y += lineHeightTerbilang;
     }
     y += 4;
-    if (invoice.bank_account) {
+    const showBankAccount = templateOpts?.show_bank_account !== false;
+    if (showBankAccount && invoiceToUse.bank_account) {
       doc.setFont('times', 'bold');
-      doc.text('No Rekening: ' + invoice.bank_account, margin, y);
+      doc.text('No Rekening: ' + invoiceToUse.bank_account, margin, y);
       doc.setFont('times', 'normal');
       y += 6;
     }
-    if (invoice.notes) doc.text(invoice.notes, margin, y);
+    if (invoiceToUse.notes) doc.text(invoiceToUse.notes, margin, y);
     y += 8;
 
     ensureSpace(60);
@@ -377,7 +521,8 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     doc.text('Demikian surat tagihan ini kami sampaikan, atas kerjasamanya kami ucapkan terimakasih.', margin, y);
     y += 14;
 
-    const colRightX = 155;
+    const sigCount = template?.signature_count === 1 ? 1 : 2;
+    const colRightX = 145;
     const leftBlockX = margin;
     const sigBlockTopY = y;
 
@@ -387,49 +532,70 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     doc.setFontSize(12);
     doc.setFont('times', 'normal');
     const hormatWidth = doc.getTextWidth('Hormat Kami,');
-    const hormatX = leftBlockX + (ptWidth - hormatWidth) / 2;
-    doc.text('Hormat Kami,', hormatX, y);
-    y += 8;
 
-    doc.setFontSize(12);
-    doc.setFont('times', 'bold');
-    doc.text('PT. INDIRA MAJU BERSAMA', leftBlockX, y-3);
-    y += 10;
-
-    // Ruang untuk tanda tangan (dan gambar TTD jika ada)
-    const ttdHeightMm = 40;
-    if (ttdImg) y += ttdHeightMm + 4;
-    y += 14;
-
-    let rusliY = y;
-    if (ttdImg) {
-      const ttdWidthMm = ttdHeightMm * (ttdImg.widthPx / ttdImg.heightPx);
-      const ttdX = leftBlockX + (ptWidth - ttdWidthMm) / 2;
-      const ttdY = rusliY - ttdHeightMm - 4;
-      doc.addImage(ttdImg.dataUrl, 'PNG', ttdX, ttdY-36, ttdWidthMm, ttdHeightMm);
+    if (sigCount === 2) {
+      const hormatX = leftBlockX + (ptWidth - hormatWidth) / 2;
+      doc.text('Hormat Kami,', hormatX, y);
+      y += 8;
+      doc.setFont('times', 'bold');
+      doc.text('PT. INDIRA MAJU BERSAMA', leftBlockX, y - 3);
+      y += 10;
+      const ttdHeightMm = 40;
+      if (ttdImg) y += ttdHeightMm + 4;
+      y += 14;
+      let rusliY = y;
+      if (ttdImg) {
+        const ttdWidthMm = ttdHeightMm * (ttdImg.widthPx / ttdImg.heightPx);
+        const ttdX = leftBlockX + (ptWidth - ttdWidthMm) / 2;
+        const ttdY = rusliY - ttdHeightMm - 4;
+        doc.addImage(ttdImg.dataUrl, 'PNG', ttdX, ttdY - 36, ttdWidthMm, ttdHeightMm);
+      }
+      doc.setFont('times', 'bold');
+      doc.setFontSize(12);
+      const rusliW = doc.getTextWidth('RUSLI');
+      const rusliX = leftBlockX + (ptWidth - rusliW) / 2;
+      y -= 45;
+      rusliY = y;
+      doc.text('RUSLI', rusliX, rusliY);
+      doc.setDrawColor(0, 0, 0);
+      doc.line(rusliX - 2, rusliY + 1.5, rusliX + rusliW + 4, rusliY + 1.5);
+      y += 6;
+      doc.setFont('times', 'normal');
+      doc.setFontSize(12);
+      const direkturW = doc.getTextWidth('Direktur');
+      const direkturX = leftBlockX + (ptWidth - direkturW) / 2;
+      doc.text('Direktur', direkturX, y);
+      doc.setFontSize(12);
+      doc.text('Diterima Oleh,', colRightX + 6, sigBlockTopY);
+      doc.setTextColor(0, 0, 0);
+      doc.text('___________________', colRightX, sigBlockTopY + 32);
+    } else {
+      // 1 TTD: kanan saja — satu blok di sisi kanan
+      const blockCenterX = colRightX + 25;
+      doc.text('Hormat Kami,', blockCenterX, sigBlockTopY, { align: 'center' });
+      y = sigBlockTopY + 8;
+      doc.setFont('times', 'bold');
+      doc.text('PT. INDIRA MAJU BERSAMA', blockCenterX, y - 3, { align: 'center' });
+      y += 10;
+      const ttdHeightMm = 40;
+      if (ttdImg) y += ttdHeightMm + 4;
+      y += 14;
+      if (ttdImg) {
+        const ttdWidthMm = ttdHeightMm * (ttdImg.widthPx / ttdImg.heightPx);
+        const ttdX = blockCenterX - ttdWidthMm / 2;
+        const ttdY = y - ttdHeightMm - 4;
+        doc.addImage(ttdImg.dataUrl, 'PNG', ttdX, ttdY - 36, ttdWidthMm, ttdHeightMm);
+      }
+      doc.setFont('times', 'bold');
+      doc.setFontSize(12);
+      const rusliW = doc.getTextWidth('RUSLI');
+      doc.text('RUSLI', blockCenterX, y - 45, { align: 'center' });
+      doc.setDrawColor(0, 0, 0);
+      doc.line(blockCenterX - rusliW / 2 - 2, y - 45 + 1.5, blockCenterX + rusliW / 2 + 4, y - 45 + 1.5);
+      doc.setFont('times', 'normal');
+      doc.setFontSize(12);
+      doc.text('Direktur', blockCenterX, y - 45 + 6, { align: 'center' });
     }
-
-    doc.setFont('times', 'bold');
-    doc.setFontSize(12);
-    const rusliW = doc.getTextWidth('RUSLI');
-    const rusliX = leftBlockX + (ptWidth - rusliW) / 2;
-    y-= 45;
-    rusliY = y;
-    doc.text('RUSLI', rusliX, rusliY);
-    doc.setDrawColor(0, 0, 0);
-    doc.line(rusliX - 2, rusliY + 1.5, rusliX + rusliW + 4, rusliY + 1.5);
-    y += 6;
-
-    doc.setFont('times', 'normal');
-    doc.setFontSize(12);
-    const direkturW = doc.getTextWidth('Direktur');
-    const direkturX = leftBlockX + (ptWidth - direkturW) / 2;
-    doc.text('Direktur', direkturX, y);
-
-    doc.setFontSize(12);
-    doc.text('Diterima Oleh,', colRightX + 6, sigBlockTopY);
-    doc.setTextColor(0, 0, 0);
-    doc.text('___________________', colRightX, sigBlockTopY + 32);
 
     doc.save(fileName);
   };

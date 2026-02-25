@@ -36,14 +36,30 @@ export const invoiceApi = {
     }
   },
 
-  async createTemplate(body: { name: string; description?: string; layout?: string }): Promise<InvoiceTemplate> {
+  async createTemplate(body: {
+    name: string;
+    description?: string;
+    layout?: string;
+    document_type?: string;
+    default_intro?: string;
+    signature_count?: number;
+    options?: { item_columns?: { key: string; label: string }[] };
+  }): Promise<InvoiceTemplate> {
     const res = await axios.post<ApiRes<InvoiceTemplate>>(getUrl('/templates'), body, { headers: getAuthHeaders() });
     return res.data?.data ?? (res.data as unknown as InvoiceTemplate);
   },
 
   async updateTemplate(
     id: number | string,
-    body: { name: string; description?: string; layout?: string }
+    body: {
+      name: string;
+      description?: string;
+      layout?: string;
+      document_type?: string;
+      default_intro?: string;
+      signature_count?: number;
+      options?: { item_columns?: { key: string; label: string }[] };
+    }
   ): Promise<InvoiceTemplate> {
     const res = await axios.put<ApiRes<InvoiceTemplate>>(getUrl(`/templates/${id}`), body, { headers: getAuthHeaders() });
     return res.data?.data ?? (res.data as unknown as InvoiceTemplate);

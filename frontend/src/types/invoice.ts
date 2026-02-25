@@ -22,12 +22,46 @@ export interface InvoiceItem {
   equipment_group?: string;
 }
 
+/** Kolom tabel item yang bisa dikonfigurasi per template */
+export interface TemplateItemColumn {
+  key: string;
+  label: string;
+}
+
 export interface InvoiceTemplate {
   id: number | string;
   name: string;
   description?: string;
   layout?: string;
-  options?: Record<string, unknown>;
+  /** Tipe dokumen: invoice, penawaran, pre_order, dll. */
+  document_type?: string;
+  /** Kalimat default pembuka */
+  default_intro?: string;
+  /** Jumlah TTD: 1 = kanan saja, 2 = kiri & kanan */
+  signature_count?: number;
+  /** Konfigurasi tambahan: item_columns, opsi BBM & format */
+  options?: {
+    item_columns?: TemplateItemColumn[];
+    /** Tampilkan kolom tanggal di tabel */
+    show_date?: boolean;
+    /** Tampilkan kolom No di tabel */
+    show_no?: boolean;
+    /** Tampilkan kolom Jumlah/Total di tabel */
+    show_total?: boolean;
+    /** Tampilkan nomor rekening & bank di dokumen */
+    show_bank_account?: boolean;
+    /** Tampilkan kolom BBM per baris */
+    use_bbm_columns?: boolean;
+    /** Catatan "Sudah termasuk BBM" di bawah total */
+    include_bbm_note?: boolean;
+    /** Satuan quantity default: hari, jam, unit, jerigen, volume */
+    quantity_unit?: string;
+    /** Label harga: Harga/Hari, Harga/Volume, dll */
+    price_unit_label?: string;
+    /** Label kolom item: Keterangan, Pekerjaan, dll */
+    item_column_label?: string;
+    [k: string]: unknown;
+  };
   created_at?: string;
   updated_at?: string;
 }

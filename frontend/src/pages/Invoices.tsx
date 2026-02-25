@@ -6,6 +6,7 @@ import type {
   Invoice,
   InvoiceTemplate,
   CreateInvoiceRequest,
+  TemplateItemColumn,
 } from '../types/invoice';
 import type { Customer } from '../types/customer';
 import type { Equipment } from '../types/equipment';
@@ -61,6 +62,41 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Dibatalkan' },
 ];
 
+const DOCUMENT_TYPE_OPTIONS = [
+  { value: 'invoice', label: 'Invoice' },
+  { value: 'penawaran', label: 'Penawaran' },
+  { value: 'pre_order', label: 'Pre Order' },
+  { value: 'surat_jalan', label: 'Surat Jalan' },
+  { value: 'lainnya', label: 'Lainnya' },
+];
+
+const ITEM_COLUMN_KEYS: { value: string; label: string }[] = [
+  { value: 'item_name', label: 'Item / Keterangan' },
+  { value: 'description', label: 'Deskripsi' },
+  { value: 'quantity', label: 'Qty' },
+  { value: 'days', label: 'Hari' },
+  { value: 'price', label: 'Harga' },
+  { value: 'bbm_quantity', label: 'BBM (Jerigen)' },
+  { value: 'bbm_unit_price', label: 'Harga/BBM' },
+  { value: 'total', label: 'Total' },
+];
+
+const DEFAULT_ITEM_COLUMNS: TemplateItemColumn[] = [
+  { key: 'item_name', label: 'Item/Keterangan' },
+  { key: 'quantity', label: 'Qty' },
+  { key: 'price', label: 'Harga' },
+  { key: 'total', label: 'Total' },
+];
+
+const INVOICE_SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'created_at_desc', label: 'Terbaru dibuat' },
+  { value: 'created_at_asc', label: 'Terlama dibuat' },
+  { value: 'invoice_date_desc', label: 'Tanggal invoice terbaru' },
+  { value: 'invoice_date_asc', label: 'Tanggal invoice terlama' },
+  { value: 'customer_name_asc', label: 'Customer A–Z' },
+  { value: 'customer_name_desc', label: 'Customer Z–A' },
+];
+
 const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'templates' | 'customers'>('list');
 
@@ -72,6 +108,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterSortKey, setFilterSortKey] = useState('created_at_desc');
 
   // Create form
   const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
@@ -107,7 +144,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     bbm_unit_price?: number;
     equipment_group?: string;
     /** Satuan baris ini (hari/jam/unit/jerigen). Kosong = pakai default invoice. */
-    quantity_unit?: 'hari' | 'jam' | 'unit' | 'jerigen';
+    quantity_unit?: 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume';
     /** Data URL atau blob URL gambar nota yang dipakai untuk generate baris ini (untuk cek) */
     row_image?: string;
   };
@@ -119,7 +156,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [notes, setNotes] = useState('');
   const [includeBbmNote, setIncludeBbmNote] = useState(false);
   const [useBbmColumns, setUseBbmColumns] = useState(false);
-  const [quantityUnit, setQuantityUnit] = useState<'hari' | 'jam' | 'unit' | 'jerigen'>('hari');
+  const [quantityUnit, setQuantityUnit] = useState<'hari' | 'jam' | 'unit' | 'jerigen' | 'volume'>('hari');
   const [priceUnitLabel, setPriceUnitLabel] = useState('Harga/Hari');
   const [location, setLocation] = useState('Batam');
   const [subject, setSubject] = useState('Invoice');
@@ -167,7 +204,46 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
 
   // Template CRUD
-  const [templateForm, setTemplateForm] = useState({ name: '', description: '', layout: 'standard' });
+  type TemplateFormState = {
+    name: string;
+    description: string;
+    layout: string;
+    document_type: string;
+    default_intro: string;
+    signature_count: number;
+    options: {
+      item_columns: TemplateItemColumn[];
+      show_date?: boolean;
+      show_no?: boolean;
+      show_total?: boolean;
+      show_bank_account?: boolean;
+      use_bbm_columns?: boolean;
+      include_bbm_note?: boolean;
+      quantity_unit?: string;
+      price_unit_label?: string;
+      item_column_label?: string;
+    };
+  };
+  const [templateForm, setTemplateForm] = useState<TemplateFormState>({
+    name: '',
+    description: '',
+    layout: 'standard',
+    document_type: 'invoice',
+    default_intro: '',
+    signature_count: 1,
+    options: {
+      item_columns: [...DEFAULT_ITEM_COLUMNS],
+      show_date: true,
+      show_no: true,
+      show_total: true,
+      show_bank_account: true,
+      use_bbm_columns: false,
+      include_bbm_note: false,
+      quantity_unit: 'hari',
+      price_unit_label: 'Harga/Hari',
+      item_column_label: 'Keterangan',
+    },
+  });
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(null);
@@ -181,12 +257,15 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       if (filterStatus) filterParts.push(`status:${filterStatus}`);
       if (filterStartDate) filterParts.push(`start_date:${filterStartDate}`);
       if (filterEndDate) filterParts.push(`end_date:${filterEndDate}`);
+      const sortOrderMatch = filterSortKey.match(/^(.+)_(asc|desc)$/);
+      const sortField = sortOrderMatch ? sortOrderMatch[1] : 'created_at';
+      const sortOrder = (sortOrderMatch ? sortOrderMatch[2] : 'desc') as 'asc' | 'desc';
       const res = await invoiceApi.getInvoices({
         page: pagination.page,
         limit: pagination.limit,
         search: filterSearch || undefined,
-        sort: 'created_at',
-        order: 'asc',
+        sort: sortField,
+        order: sortOrder,
         filter: filterParts.length ? filterParts.join(',') : undefined,
       });
       setInvoices(res.data);
@@ -202,7 +281,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     } finally {
       setListLoading(false);
     }
-  }, [pagination.page, pagination.limit, filterSearch, filterStatus, filterStartDate, filterEndDate]);
+  }, [pagination.page, pagination.limit, filterSearch, filterStatus, filterStartDate, filterEndDate, filterSortKey]);
 
   useEffect(() => {
     if (activeTab === 'list') fetchInvoices();
@@ -261,6 +340,32 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const handleSelectTemplate = (template: InvoiceTemplate) => {
     setSelectedTemplate(template);
     setStep('fill-form');
+    const rawOpt = template.options;
+    const opts =
+      rawOpt == null
+        ? {}
+        : typeof rawOpt === 'string'
+          ? (() => {
+              try {
+                return (JSON.parse(rawOpt) as Record<string, unknown>) || {};
+              } catch {
+                return {};
+              }
+            })()
+          : (rawOpt as Record<string, unknown>);
+    setUseBbmColumns(!!opts.use_bbm_columns);
+    setIncludeBbmNote(!!opts.include_bbm_note);
+    const qu = (opts.quantity_unit as string) || 'hari';
+    setQuantityUnit(qu === 'jam' ? 'jam' : qu === 'unit' ? 'unit' : qu === 'jerigen' ? 'jerigen' : qu === 'volume' ? 'volume' : 'hari');
+    setPriceUnitLabel((opts.price_unit_label as string) || (qu === 'jam' ? 'Harga/Jam' : qu === 'volume' ? 'Harga/Volume' : qu === 'unit' ? 'Harga/Unit' : qu === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari'));
+    const itemCols = (opts.item_columns as unknown as { label?: string }[] | undefined) || [];
+    setItemColumnLabel((opts.item_column_label as string) || itemCols[0]?.label || 'Keterangan');
+    const docLabel =
+      (template.document_type || 'invoice')
+        .replace('_', ' ')
+        .replace(/^\w/, (c) => c.toUpperCase());
+    setSubject(docLabel);
+    setIntroParagraph(template.default_intro || '');
   };
 
   const handleBackToTemplates = () => {
@@ -317,9 +422,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setIntroParagraph(inv.intro_paragraph || '');
     setBankAccount(inv.bank_account || '');
     setTerbilangCustom(inv.terbilang_custom || '');
-    const qu = (inv.quantity_unit as 'hari' | 'jam' | 'unit' | 'jerigen') || 'hari';
+    const qu = (inv.quantity_unit as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume') || 'hari';
     setQuantityUnit(qu);
-    setPriceUnitLabel(inv.price_unit_label || (qu === 'jam' ? 'Harga/Jam' : qu === 'unit' ? 'Harga/Unit' : qu === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari'));
+    setPriceUnitLabel(inv.price_unit_label || (qu === 'jam' ? 'Harga/Jam' : qu === 'unit' ? 'Harga/Unit' : qu === 'jerigen' ? 'Harga/Jerigen' : qu === 'volume' ? 'Harga/Volume' : 'Harga/Hari'));
     const t = templates.find((x) => Number(x.id) === Number(inv.template_id));
     if (t) setSelectedTemplate(t);
     setStep('fill-form');
@@ -343,6 +448,21 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const nonEmpty = keys.filter((k) => (groupIndices[k]?.length ?? 0) > 0);
     return nonEmpty.length > 0 ? nonEmpty : ['__default__'];
   })();
+  const { templateShowDate, templateShowTotal, templateShowBankAccount, templateHasBbm } = (() => {
+    const raw = selectedTemplate?.options;
+    const opts = raw != null
+      ? (typeof raw === 'string' ? (() => { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; } })() : (raw as Record<string, unknown>))
+      : {};
+    return {
+      templateShowDate: opts.show_date !== false,
+      templateShowTotal: opts.show_total !== false,
+      templateShowBankAccount: opts.show_bank_account !== false,
+      templateHasBbm: !!(opts.use_bbm_columns || opts.include_bbm_note),
+    };
+  })();
+  const documentTypeLabel = selectedTemplate?.document_type
+    ? selectedTemplate.document_type.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase())
+    : 'Invoice';
   const emptyFormItem = (defaultItemName?: string): FormItem => ({
     item_name: defaultItemName ?? '',
     description: '',
@@ -364,6 +484,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         if (p > 0) newRow = { ...newRow, price: p };
       }
     }
+    if (templateShowDate) newRow = { ...newRow, row_date: new Date().toISOString().slice(0, 10) };
     setItems((prev) => [...prev.slice(0, insertAfter + 1), newRow, ...prev.slice(insertAfter + 1)]);
   };
   const addItemCopyFromAboveForGroup = (groupKey: string) => {
@@ -419,6 +540,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       const p = quantityUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
       if (p > 0) newRow = { ...newRow, price: p };
     }
+    if (templateShowDate) newRow = { ...newRow, row_date: new Date().toISOString().slice(0, 10) };
     setItems((prev) => [...prev, newRow]);
   };
 
@@ -616,12 +738,79 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   };
 
   const openTemplateModal = (template?: InvoiceTemplate) => {
+    type TemplateOpts = {
+      item_columns?: TemplateItemColumn[];
+      show_date?: boolean;
+      show_no?: boolean;
+      show_total?: boolean;
+      show_bank_account?: boolean;
+      use_bbm_columns?: boolean;
+      include_bbm_note?: boolean;
+      quantity_unit?: string;
+      price_unit_label?: string;
+      item_column_label?: string;
+    };
     if (template) {
       setEditingTemplateId(Number(template.id));
-      setTemplateForm({ name: template.name, description: template.description || '', layout: template.layout || 'standard' });
+      let itemColumns = DEFAULT_ITEM_COLUMNS;
+      const rawOpt = template.options;
+      let opts: TemplateOpts = {};
+      if (rawOpt != null) {
+        const parsed =
+          typeof rawOpt === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(rawOpt) as TemplateOpts;
+                } catch {
+                  return {};
+                }
+              })()
+            : (rawOpt as TemplateOpts);
+        if (parsed?.item_columns?.length) itemColumns = parsed.item_columns;
+        opts = parsed;
+      }
+      setTemplateForm({
+        name: template.name,
+        description: template.description || '',
+        layout: template.layout || 'standard',
+        document_type: template.document_type || 'invoice',
+        default_intro: template.default_intro || '',
+        signature_count: template.signature_count === 2 ? 2 : 1,
+        options: {
+          item_columns: itemColumns,
+          show_date: opts.show_date !== false,
+          show_no: opts.show_no !== false,
+          show_total: opts.show_total !== false,
+          show_bank_account: opts.show_bank_account !== false,
+          use_bbm_columns: opts.use_bbm_columns ?? false,
+          include_bbm_note: opts.include_bbm_note ?? false,
+          quantity_unit: opts.quantity_unit || 'hari',
+          price_unit_label: opts.price_unit_label || 'Harga/Hari',
+          item_column_label: opts.item_column_label || (opts.item_columns && opts.item_columns[0]?.label) || 'Keterangan',
+        },
+      });
     } else {
       setEditingTemplateId(null);
-      setTemplateForm({ name: '', description: '', layout: 'standard' });
+      setTemplateForm({
+        name: '',
+        description: '',
+        layout: 'standard',
+        document_type: 'invoice',
+        default_intro: '',
+        signature_count: 1,
+        options: {
+          item_columns: [...DEFAULT_ITEM_COLUMNS],
+          show_date: true,
+          show_no: true,
+          show_total: true,
+          show_bank_account: true,
+          use_bbm_columns: false,
+          include_bbm_note: false,
+          quantity_unit: 'hari',
+          price_unit_label: 'Harga/Hari',
+          item_column_label: 'Keterangan',
+        },
+      });
     }
     setShowTemplateModal(true);
   };
@@ -629,10 +818,19 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const saveTemplate = async () => {
     if (!templateForm.name.trim()) return;
     try {
+      const payload = {
+        name: templateForm.name,
+        description: templateForm.description,
+        layout: templateForm.layout,
+        document_type: templateForm.document_type,
+        default_intro: templateForm.default_intro,
+        signature_count: templateForm.signature_count,
+        options: templateForm.options,
+      };
       if (editingTemplateId) {
-        await invoiceApi.updateTemplate(editingTemplateId, templateForm);
+        await invoiceApi.updateTemplate(editingTemplateId, payload);
       } else {
-        await invoiceApi.createTemplate(templateForm);
+        await invoiceApi.createTemplate(payload);
       }
       setShowTemplateModal(false);
       invoiceApi.getTemplates().then(setTemplates);
@@ -769,6 +967,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                title="Tanggal mulai"
               />
               <span className="text-gray-400">–</span>
               <input
@@ -776,13 +975,27 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                title="Tanggal akhir"
               />
+              <select
+                value={filterSortKey}
+                onChange={(e) => {
+                  setFilterSortKey(e.target.value);
+                  setPagination((p) => ({ ...p, page: 1 }));
+                }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                title="Urutkan"
+              >
+                {INVOICE_SORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
               <button
                 type="button"
-                onClick={() => fetchInvoices()}
+                onClick={() => { setPagination((p) => ({ ...p, page: 1 })); fetchInvoices(); }}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm"
               >
-                Refresh
+                Terapkan
               </button>
             </div>
 
@@ -808,7 +1021,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       {invoices.map((inv) => (
                         <tr key={inv.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">{inv.invoice_number}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{inv.invoice_date}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{formatDateOnly(inv.invoice_date || '')}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{inv.customer_name}</td>
                           <td className="px-4 py-3 text-sm text-gray-600">{formatRupiah(Number(inv.total ?? 0))}</td>
                           <td className="px-4 py-3">
@@ -863,29 +1076,27 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               )}
             </div>
 
-            {pagination.total_pages > 1 && (
-              <div className="flex justify-between items-center mt-4">
-                <button
-                  type="button"
-                  onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
-                  disabled={!pagination.has_prev}
-                  className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                >
-                  Sebelumnya
-                </button>
-                <span className="text-gray-600">
-                  Halaman {pagination.page} dari {pagination.total_pages} ({pagination.total} data)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
-                  disabled={!pagination.has_next}
-                  className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                >
-                  Selanjutnya
-                </button>
-              </div>
-            )}
+            <div className="flex justify-between items-center mt-4 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
+                disabled={!pagination.has_prev}
+                className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 text-sm"
+              >
+                Sebelumnya
+              </button>
+              <span className="text-gray-600 text-sm">
+                Halaman {pagination.page} dari {pagination.total_pages} ({pagination.total} data)
+              </span>
+              <button
+                type="button"
+                onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
+                disabled={!pagination.has_next}
+                className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 text-sm"
+              >
+                Selanjutnya
+              </button>
+            </div>
           </>
         )}
 
@@ -939,10 +1150,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                  <h3 className="font-semibold text-gray-800 border-b pb-2">Informasi Invoice</h3>
+                  <h3 className="font-semibold text-gray-800 border-b pb-2">Informasi {documentTypeLabel}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Invoice</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nomor {documentTypeLabel}</label>
                       <input
                         type="text"
                         value={invoiceNumber}
@@ -1015,25 +1226,30 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                  <h3 className="font-semibold text-gray-800 border-b pb-2">Opsi BBM & Format (sewa alat berat)</h3>
-                  <div className="flex flex-wrap gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={includeBbmNote} onChange={(e) => setIncludeBbmNote(e.target.checked)} className="rounded border-gray-300" />
-                      <span className="text-sm">Sudah termasuk BBM (catatan di bawah total)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={useBbmColumns} onChange={(e) => setUseBbmColumns(e.target.checked)} className="rounded border-gray-300" />
-                      <span className="text-sm">Tampilkan kolom BBM per baris (Bbm Jerigen, Harga/Bbm)</span>
-                    </label>
-                  </div>
+                  <h3 className="font-semibold text-gray-800 border-b pb-2">Opsi BBM & Format (sesuai template)</h3>
+                  <p className="text-xs text-gray-500">Format dan opsi berikut mengikuti template &quot;{selectedTemplate.name}&quot;. Bisa diubah untuk dokumen ini jika perlu.</p>
+                  {templateHasBbm ? (
+                    <div className="flex flex-wrap gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={includeBbmNote} onChange={(e) => setIncludeBbmNote(e.target.checked)} className="rounded border-gray-300" />
+                        <span className="text-sm">Sudah termasuk BBM (catatan di bawah total)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={useBbmColumns} onChange={(e) => setUseBbmColumns(e.target.checked)} className="rounded border-gray-300" />
+                        <span className="text-sm">Tampilkan kolom BBM per baris (Bbm Jerigen, Harga/Bbm)</span>
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Template ini tidak menggunakan BBM.</p>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Satuan quantity & harga</label>
                     <select
                       value={quantityUnit}
                       onChange={(e) => {
-                        const v = e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen';
+                        const v = e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume';
                         setQuantityUnit(v);
-                        setPriceUnitLabel(v === 'jam' ? 'Harga/Jam' : v === 'unit' ? 'Harga/Unit' : v === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari');
+                        setPriceUnitLabel(v === 'jam' ? 'Harga/Jam' : v === 'unit' ? 'Harga/Unit' : v === 'jerigen' ? 'Harga/Jerigen' : v === 'volume' ? 'Harga/Volume' : 'Harga/Hari');
                       }}
                       className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500"
                     >
@@ -1041,6 +1257,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <option value="jam">Jam (Harga/Jam)</option>
                       <option value="unit">Unit (Harga/Unit)</option>
                       <option value="jerigen">Jerigen (Harga/Jerigen)</option>
+                      <option value="volume">Volume (Harga/Volume)</option>
                     </select>
                   </div>
                   <div className="space-y-3">
@@ -1105,14 +1322,20 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Perihal</label>
                       <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invoice" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
                     </div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">No Rekening & Bank</label>
+                      <input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="1090021332523 (PT INDIRA MAJU BERSAMA) Bank Mandiri" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                    </div>
+                    <div className="sm:col-span-2">
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Paragraf pembuka (opsional, override)</label>
                       <textarea value={introParagraph} onChange={(e) => setIntroParagraph(e.target.value)} rows={2} placeholder="Kosongkan agar pakai kalimat otomatis: Dengan Hormat, Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat berupa [nama alat] dilokasi [lokasi] dengan rincian sebagai berikut:" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">No Rekening & Bank</label>
-                      <input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="1090021332523 (PT INDIRA MAJU BERSAMA) Bank Mandiri" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
-                    </div>
+                    {templateShowBankAccount && (
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">No Rekening & Bank</label>
+                        <input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="1090021332523 (PT INDIRA MAJU BERSAMA) Bank Mandiri" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                      </div>
+                    )}
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Terbilang (opsional, custom)</label>
                       <textarea value={terbilangCustom} onChange={(e) => setTerbilangCustom(e.target.value)} rows={2} placeholder="Kosongkan untuk pakai terbilang otomatis dari total. Isi manual jika nominal tidak bisa di-generate (contoh: Sembilan Ratus Miliar ... Rupiah)" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
@@ -1200,7 +1423,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               <tr className="text-left text-sm text-gray-600 border-b">
                                 <th className="pb-2 pr-2 w-10">No</th>
                                 <th className="pb-2 pr-2 w-16">Gambar</th>
-                                <th className="pb-2 pr-2">Tanggal</th>
+                                {templateShowDate && <th className="pb-2 pr-2">Tanggal</th>}
                                 {useBbmColumns ? (
                                   <>
                                     <th className="pb-2 pr-2">Keterangan</th>
@@ -1208,14 +1431,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     <th className="pb-2 pr-2 w-28">{priceUnitLabel}</th>
                                     <th className="pb-2 pr-2 w-20">Bbm (Jerigen)</th>
                                     <th className="pb-2 pr-2 w-28">Harga/Bbm</th>
-                                    <th className="pb-2 pr-2 w-28">Jumlah</th>
+                                    {templateShowTotal && <th className="pb-2 pr-2 w-28">Jumlah</th>}
                                   </>
                                 ) : (
                                   <>
                                     <th className="pb-2 pr-2">{(itemColumnLabel || 'Keterangan').trim() || 'Keterangan'} *</th>
                                     <th className="pb-2 pr-2 w-28">Satuan / Jumlah</th>
                                     <th className="pb-2 pr-2 w-32">Harga</th>
-                                    <th className="pb-2 pr-2 w-28">Jumlah</th>
+                                    {templateShowTotal && <th className="pb-2 pr-2 w-28">Jumlah</th>}
                                   </>
                                 )}
                                 <th className="pb-2 w-10"></th>
@@ -1246,26 +1469,27 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   <span className="text-gray-300 text-xs">—</span>
                                 )}
                               </td>
-                              <td className="py-2 pr-2">
-                                <div className="flex items-center gap-1 relative">
-                                  <input
-                                    type="text"
-                                    value={row.row_date ? formatDateToIndonesian(row.row_date) : ''}
-                                    readOnly
-                                    placeholder="Klik 📅 untuk pilih tanggal"
-                                    className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80"
-                                  />
-                                  <input
-                                    type="date"
-                                    value={row.row_date || ''}
-                                    ref={(el) => { dateInputRefs.current[index] = el; }}
-                                    className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden"
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      if (v) updateItem(index, 'row_date', v);
-                                    }}
-                                  />
-                                  <button
+                              {templateShowDate && (
+                                <td className="py-2 pr-2">
+                                  <div className="flex items-center gap-1 relative">
+                                    <input
+                                      type="text"
+                                      value={row.row_date ? formatDateToIndonesian(row.row_date) : ''}
+                                      readOnly
+                                      placeholder="Klik 📅 untuk pilih tanggal"
+                                      className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80"
+                                    />
+                                    <input
+                                      type="date"
+                                      value={row.row_date || ''}
+                                      ref={(el) => { dateInputRefs.current[index] = el; }}
+                                      className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden"
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (v) updateItem(index, 'row_date', v);
+                                      }}
+                                    />
+                                    <button
                                     type="button"
                                     onClick={() => {
                                       const inp = dateInputRefs.current[index];
@@ -1287,6 +1511,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   </button>
                                 </div>
                               </td>
+                              )}
                               <td className="py-2 pr-2">
                                 {(() => {
                                   const inList = equipmentNamesForKeterangan.includes(row.item_name);
@@ -1335,11 +1560,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 <>
                                   <td className="py-2 pr-2">
                                     <div className="flex gap-1 items-center">
-                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
                                         <option value="hari">Hari</option>
                                         <option value="jam">Jam</option>
                                         <option value="unit">Unit</option>
                                         <option value="jerigen">Jerigen</option>
+                                        <option value="volume">Volume</option>
                                       </select>
                                       <input type="number" min={0} step="any" value={days || ''} onChange={(e) => updateItem(index, 'days', parseFloat(e.target.value.replace(',', '.')) || 0)} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                     </div>
@@ -1353,23 +1579,26 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   <td className="py-2 pr-2">
                                     <input type="number" min={0} value={bbmPrice || ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
-                                  <td className="py-2 pr-2">
-                                    {isFixedRow ? (
-                                      <input type="number" min={0} value={row.price || ''} onChange={(e) => { updateItem(index, 'price', parseFloat(e.target.value) || 0); updateItem(index, 'quantity', 1); }} placeholder="Jumlah tetap" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
-                                    ) : (
-                                      <span className="text-sm text-gray-700">{formatRupiah(lineTotal)}</span>
-                                    )}
-                                  </td>
+                                  {templateShowTotal && (
+                                    <td className="py-2 pr-2">
+                                      {isFixedRow ? (
+                                        <input type="number" min={0} value={row.price || ''} onChange={(e) => { updateItem(index, 'price', parseFloat(e.target.value) || 0); updateItem(index, 'quantity', 1); }} placeholder="Jumlah tetap" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                      ) : (
+                                        <span className="text-sm text-gray-700">{formatRupiah(lineTotal)}</span>
+                                      )}
+                                    </td>
+                                  )}
                                 </>
                               ) : (
                                 <>
                                   <td className="py-2 pr-2">
                                     <div className="flex gap-1 items-center">
-                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
                                         <option value="hari">Hari</option>
                                         <option value="jam">Jam</option>
                                         <option value="unit">Unit</option>
                                         <option value="jerigen">Jerigen</option>
+                                        <option value="volume">Volume</option>
                                       </select>
                                       <input type="number" min={0} step="any" value={row.quantity} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; updateItem(index, 'quantity', v); updateItem(index, 'days', v); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                     </div>
@@ -1377,7 +1606,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   <td className="py-2 pr-2">
                                     <input type="number" min={0} value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
                                   </td>
-                                  <td className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>
+                                  {templateShowTotal && <td className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>}
                                 </>
                               )}
                               <td className="py-2">
@@ -1438,7 +1667,19 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <FiFile className="w-8 h-8" />
                     </div>
                     <span className="font-semibold text-gray-800">{t.name}</span>
+                    {t.document_type && (
+                      <span className="text-xs text-orange-600 mt-0.5 capitalize">{t.document_type.replace('_', ' ')}</span>
+                    )}
                     {t.description && <span className="text-sm text-gray-500 mt-1">{t.description}</span>}
+                    <div className="mt-2 text-xs text-gray-400">
+                      {t.signature_count === 2 ? '2 TTD (kiri & kanan)' : '1 TTD (kanan)'}
+                      {(() => {
+                        const opt = t.options;
+                        const parsed = typeof opt === 'string' ? (() => { try { return JSON.parse(opt) as { item_columns?: unknown[] }; } catch { return {}; } })() : (opt as { item_columns?: unknown[] } | undefined);
+                        if (parsed?.item_columns?.length) return <> · {parsed.item_columns.length} kolom</>;
+                        return null;
+                      })()}
+                    </div>
                     <div className="mt-4 flex gap-2">
                       <button type="button" onClick={() => openTemplateModal(t)} className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1">
                         <FiEdit2 /> Edit
@@ -1548,12 +1789,233 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 <textarea value={templateForm.description} onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Deskripsi singkat" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Layout</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipe dokumen</label>
+                <select
+                  value={templateForm.document_type}
+                  onChange={(e) => setTemplateForm((f) => ({ ...f, document_type: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  {DOCUMENT_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Digunakan untuk Invoice, Penawaran, Pre Order, dll.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kalimat pembuka default</label>
+                <textarea
+                  value={templateForm.default_intro}
+                  onChange={(e) => setTemplateForm((f) => ({ ...f, default_intro: e.target.value }))}
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Contoh: Dengan hormat, berikut kami sampaikan rincian..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah TTD</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="signature_count"
+                      checked={templateForm.signature_count === 1}
+                      onChange={() => setTemplateForm((f) => ({ ...f, signature_count: 1 }))}
+                      className="text-orange-500"
+                    />
+                    <span>1 TTD (kanan saja)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="signature_count"
+                      checked={templateForm.signature_count === 2}
+                      onChange={() => setTemplateForm((f) => ({ ...f, signature_count: 2 }))}
+                      className="text-orange-500"
+                    />
+                    <span>2 TTD (kiri & kanan)</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Layout tampilan</label>
                 <select value={templateForm.layout} onChange={(e) => setTemplateForm((f) => ({ ...f, layout: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2">
                   <option value="standard">Standard</option>
                   <option value="minimal">Minimal</option>
                   <option value="professional">Professional</option>
                 </select>
+              </div>
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Opsi format & BBM</label>
+                <p className="text-xs text-gray-500 mb-3">Saat buat dokumen dengan template ini, opsi berikut dipakai. Ada template yang pakai BBM, ada yang tidak.</p>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.show_no !== false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_no: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Tampilkan kolom No</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.show_date !== false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_date: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Tampilkan kolom Tanggal</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.show_total !== false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_total: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Tampilkan kolom Jumlah/Total</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.show_bank_account !== false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_bank_account: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Tampilkan nomor rekening & bank</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.include_bbm_note ?? false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, include_bbm_note: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Sudah termasuk BBM (catatan)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.use_bbm_columns ?? false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, use_bbm_columns: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Kolom BBM per baris</span>
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Satuan quantity</label>
+                    <select
+                      value={templateForm.options.quantity_unit || 'hari'}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, quantity_unit: e.target.value } }))}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                    >
+                      <option value="hari">Hari</option>
+                      <option value="jam">Jam</option>
+                      <option value="unit">Unit</option>
+                      <option value="jerigen">Jerigen</option>
+                      <option value="volume">Volume</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Label harga</label>
+                    <input
+                      type="text"
+                      value={templateForm.options.price_unit_label || ''}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, price_unit_label: e.target.value } }))}
+                      placeholder="Harga/Hari"
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Label kolom item</label>
+                    <input
+                      type="text"
+                      value={templateForm.options.item_column_label || ''}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, item_column_label: e.target.value } }))}
+                      placeholder="Keterangan"
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kolom tabel item ({templateForm.options.item_columns.length} kolom)</label>
+                <p className="text-xs text-gray-500 mb-2">Urutan dan label kolom yang tampil di tabel item.</p>
+                <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50 max-h-48 overflow-y-auto">
+                  {templateForm.options.item_columns.map((col, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <select
+                        value={col.key}
+                        onChange={(e) =>
+                          setTemplateForm((f) => ({
+                            ...f,
+                            options: {
+                              ...f.options,
+                              item_columns: f.options.item_columns.map((c, i) => (i === idx ? { ...c, key: e.target.value } : c)),
+                            },
+                          }))
+                        }
+                        className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                      >
+                        {ITEM_COLUMN_KEYS.map((k) => (
+                          <option key={k.value} value={k.value}>
+                            {k.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={col.label}
+                        onChange={(e) =>
+                          setTemplateForm((f) => ({
+                            ...f,
+                            options: {
+                              ...f.options,
+                              item_columns: f.options.item_columns.map((c, i) => (i === idx ? { ...c, label: e.target.value } : c)),
+                            },
+                          }))
+                        }
+                        className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        placeholder="Label kolom"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTemplateForm((f) => ({
+                            ...f,
+                            options: {
+                              ...f.options,
+                              item_columns: f.options.item_columns.filter((_, i) => i !== idx),
+                            },
+                          }))
+                        }
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                        title="Hapus kolom"
+                      >
+                        <FiTrash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTemplateForm((f) => ({
+                      ...f,
+                      options: {
+                        ...f.options,
+                        item_columns: [...f.options.item_columns, { key: 'item_name', label: 'Item' }],
+                      },
+                    }))
+                  }
+                  className="mt-2 text-sm text-orange-600 hover:text-orange-700 flex items-center gap-1"
+                >
+                  <FiPlus className="w-4 h-4" /> Tambah kolom
+                </button>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setShowTemplateModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg">
@@ -1646,9 +2108,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 const eq = (previewInvoice.equipment_name || '').trim()
                   || (previewInvoice.items && previewInvoice.items[0] && (previewInvoice.items[0].item_name || '').trim());
                 const loc = (previewInvoice.location || '').trim();
-                const intro = eq && loc
-                  ? <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat berupa <strong>{eq}</strong> dilokasi <strong>{loc}</strong> dengan rincian sebagai berikut:</>
-                  : previewInvoice.intro_paragraph;
+                const isDumpTruck = (n: string) => /dump\s*truck|dumptruck|roda\s*6/i.test(n);
+                const onlyDumpTruck = (n: string) => isDumpTruck(n) && !n.includes(' dan ');
+                let intro: React.ReactNode = previewInvoice.intro_paragraph;
+                if (!intro && eq && loc) {
+                  intro = onlyDumpTruck(eq)
+                    ? <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan <strong>Dumptruck roda 6</strong> dilokasi <strong>{loc}</strong> dengan rincian sebagai berikut:</>
+                    : <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat berupa <strong>{eq}</strong> dilokasi <strong>{loc}</strong> dengan rincian sebagai berikut:</>;
+                } else if (!intro && eq && onlyDumpTruck(eq)) {
+                  intro = <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan <strong>Dumptruck roda 6</strong> dengan rincian sebagai berikut:</>;
+                }
                 return intro ? <p className="mb-4 text-gray-700 break-words max-w-full">{intro}</p> : null;
               })()}
               {(() => {

@@ -8,11 +8,17 @@ CREATE TABLE IF NOT EXISTS `invoice_templates` (
   `name` varchar(200) NOT NULL,
   `description` text,
   `layout` varchar(100) DEFAULT NULL,
+  `document_type` varchar(50) DEFAULT 'invoice',
+  `default_intro` text,
+  `signature_count` tinyint DEFAULT 1,
   `options` json DEFAULT NULL,
   `created_at` datetime(3) DEFAULT NULL,
   `updated_at` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Jika tabel invoice_templates sudah ada tanpa kolom baru, jalankan:
+-- ALTER TABLE invoice_templates ADD COLUMN document_type varchar(50) DEFAULT 'invoice', ADD COLUMN default_intro text, ADD COLUMN signature_count tinyint DEFAULT 1;
 
 -- 2. Invoice
 CREATE TABLE IF NOT EXISTS `invoices` (
