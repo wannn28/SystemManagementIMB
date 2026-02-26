@@ -97,6 +97,9 @@ func (h *InvoiceHandler) Update(c echo.Context) error {
 	existing.Location = body.Location
 	existing.Subject = body.Subject
 	existing.EquipmentName = body.EquipmentName
+	existing.EquipmentNameAlatBerat = body.EquipmentNameAlatBerat
+	existing.EquipmentNameDumptruck = body.EquipmentNameDumptruck
+	existing.EquipmentNameManual = body.EquipmentNameManual
 	existing.IntroParagraph = body.IntroParagraph
 	existing.BankAccount = body.BankAccount
 	existing.TerbilangCustom = body.TerbilangCustom

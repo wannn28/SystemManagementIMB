@@ -13,6 +13,8 @@ import type { Equipment } from '../types/equipment';
 import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage } from 'react-icons/fi';
 import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
+import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
+import { evaluateFormula, formulaToDisplayFormula, getComputedFormulaValues, VAR_LABELS } from '../utils/invoiceFormula';
 
 interface InvoicesProps {
   isCollapsed: boolean;
@@ -70,22 +72,18 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: 'lainnya', label: 'Lainnya' },
 ];
 
-const ITEM_COLUMN_KEYS: { value: string; label: string }[] = [
+/** Tipe kolom tabel item: hanya ini yang ditawarkan. Qty/Harga/BBM dll hanya muncul di rumus kalau ada kolom Angka (rumus) yang memakainya. */
+const ITEM_COLUMN_KEYS: { value: string; label: string; formula?: string }[] = [
   { value: 'item_name', label: 'Item / Keterangan' },
-  { value: 'description', label: 'Deskripsi' },
-  { value: 'quantity', label: 'Qty' },
-  { value: 'days', label: 'Hari' },
-  { value: 'price', label: 'Harga' },
-  { value: 'bbm_quantity', label: 'BBM (Jerigen)' },
-  { value: 'bbm_unit_price', label: 'Harga/BBM' },
-  { value: 'total', label: 'Total' },
+  { value: 'description', label: 'String/huruf' },
+  { value: 'row_date', label: 'Tanggal' },
+  { value: 'no', label: 'Nomor' },
+  { value: 'formula', label: 'Angka (rumus)' },
 ];
 
 const DEFAULT_ITEM_COLUMNS: TemplateItemColumn[] = [
   { key: 'item_name', label: 'Item/Keterangan' },
-  { key: 'quantity', label: 'Qty' },
-  { key: 'price', label: 'Harga' },
-  { key: 'total', label: 'Total' },
+  { key: 'formula', label: 'Jumlah', formula: 'quantity*price' },
 ];
 
 const INVOICE_SORT_OPTIONS: { value: string; label: string }[] = [
@@ -169,9 +167,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     if (arr.length === 1) return arr[0];
     return arr.slice(0, -1).join(', ') + ' dan ' + arr[arr.length - 1];
   };
-  /** Daftar alat terurut: tipe Dumptruck selalu paling belakang. */
+  /** Daftar alat terurut: tipe Dumptruck selalu paling belakang. Dedupe agar nama tidak double di paragraf. */
   const equipmentNamesForKeterangan = (() => {
-    return [...equipmentNames].sort((a, b) => {
+    const unique = [...new Set(equipmentNames)];
+    return unique.sort((a, b) => {
       const typeA = equipmentList.find((e) => e.name === a)?.type;
       const typeB = equipmentList.find((e) => e.name === b)?.type;
       if (typeA === 'dump_truck' && typeB !== 'dump_truck') return 1;
@@ -181,7 +180,21 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   })();
 
   const getEquipmentNameForPayload = () => formatEquipmentNamesForParagraph(equipmentNamesForKeterangan);
+  /** Hanya alat berat dari daftar (bukan dump truck), untuk @alatberat */
+  const getEquipmentNameAlatBeratForPayload = () =>
+    formatEquipmentNamesForParagraph(equipmentNamesForKeterangan.filter((n) => equipmentList.find((e) => e.name === n)?.type !== 'dump_truck'));
+  /** Hanya dump truck dari daftar, untuk @dumptruck */
+  const getEquipmentNameDumptruckForPayload = () =>
+    formatEquipmentNamesForParagraph(equipmentNamesForKeterangan.filter((n) => equipmentList.find((e) => e.name === n)?.type === 'dump_truck'));
+  /** Nama alat yang ditambah manual (bukan dari daftar), untuk @alatberatmanual */
+  const getEquipmentNameManualForPayload = () =>
+    formatEquipmentNamesForParagraph(equipmentNames.filter((n) => !equipmentList.some((e) => e.name === n)));
   const [introParagraph, setIntroParagraph] = useState('');
+  const INTRO_PLACEHOLDERS = ['@alatberat', '@alatberatmanual', '@dumptruck', '@lokasi'];
+  const [showIntroSuggestions, setShowIntroSuggestions] = useState(false);
+  const [introSuggestionAt, setIntroSuggestionAt] = useState(0);
+  const introParagraphTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const introSuggestionEndRef = useRef(0);
   const [bankAccount, setBankAccount] = useState('1090021332523 (PT INDIRA MAJU BERSAMA) Bank Mandiri');
   const [terbilangCustom, setTerbilangCustom] = useState('');
   const [saving, setSaving] = useState(false);
@@ -222,6 +235,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       quantity_unit?: string;
       price_unit_label?: string;
       item_column_label?: string;
+      default_notes?: string;
     };
   };
   const [templateForm, setTemplateForm] = useState<TemplateFormState>({
@@ -242,13 +256,36 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       quantity_unit: 'hari',
       price_unit_label: 'Harga/Hari',
       item_column_label: 'Keterangan',
+      default_notes: '',
     },
   });
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [formulaPopoverColIdx, setFormulaPopoverColIdx] = useState<number | null>(null);
   const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<number | string | null>(null);
   const dateInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  /** Token menu relasi: sesuaikan dengan kolom tabel item — variabel = kolom Angka (rumus) lain (pakai label kolom + token col_0, col_1, ...), lalu variabel dasar (Qty, Hari, Harga, BBM, Harga/BBM), lalu operator. */
+  const getFormulaRelationTokensForCol = (colIdx: number): { token: string; label: string }[] => {
+    const cols = templateForm.options.item_columns;
+    const varTokens: { token: string; label: string }[] = [];
+    cols.forEach((c, i) => {
+      if (i === colIdx || c.key !== 'formula') return;
+      const label = (c.label || '').trim() || `Kolom ${i + 1}`;
+      varTokens.push({ token: `col_${i}`, label });
+    });
+    ['quantity', 'days', 'price', 'bbm_quantity', 'bbm_unit_price'].forEach((v) => {
+      varTokens.push({ token: v, label: VAR_LABELS[v] || v });
+    });
+    const opTokens = [
+      { token: '*', label: '×' },
+      { token: '/', label: '/' },
+      { token: '+', label: '+' },
+      { token: '-', label: '-' },
+    ];
+    return [...varTokens, ...opTokens];
+  };
 
   const fetchInvoices = useCallback(async () => {
     setListLoading(true);
@@ -353,12 +390,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               }
             })()
           : (rawOpt as Record<string, unknown>);
-    setUseBbmColumns(!!opts.use_bbm_columns);
+    const itemCols = (opts.item_columns as unknown as { label?: string }[] | undefined) || [];
+    setUseBbmColumns((itemCols?.length ?? 0) === 0 && !!opts.use_bbm_columns);
     setIncludeBbmNote(!!opts.include_bbm_note);
     const qu = (opts.quantity_unit as string) || 'hari';
     setQuantityUnit(qu === 'jam' ? 'jam' : qu === 'unit' ? 'unit' : qu === 'jerigen' ? 'jerigen' : qu === 'volume' ? 'volume' : 'hari');
     setPriceUnitLabel((opts.price_unit_label as string) || (qu === 'jam' ? 'Harga/Jam' : qu === 'volume' ? 'Harga/Volume' : qu === 'unit' ? 'Harga/Unit' : qu === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari'));
-    const itemCols = (opts.item_columns as unknown as { label?: string }[] | undefined) || [];
     setItemColumnLabel((opts.item_column_label as string) || itemCols[0]?.label || 'Keterangan');
     const docLabel =
       (template.document_type || 'invoice')
@@ -366,6 +403,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         .replace(/^\w/, (c) => c.toUpperCase());
     setSubject(docLabel);
     setIntroParagraph(template.default_intro || '');
+    setNotes((opts.default_notes as string) || '');
   };
 
   const handleBackToTemplates = () => {
@@ -448,18 +486,33 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const nonEmpty = keys.filter((k) => (groupIndices[k]?.length ?? 0) > 0);
     return nonEmpty.length > 0 ? nonEmpty : ['__default__'];
   })();
-  const { templateShowDate, templateShowTotal, templateShowBankAccount, templateHasBbm } = (() => {
+  const { templateShowNo, templateShowDate, templateShowTotal, templateShowBankAccount, templateHasBbm } = (() => {
     const raw = selectedTemplate?.options;
     const opts = raw != null
       ? (typeof raw === 'string' ? (() => { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; } })() : (raw as Record<string, unknown>))
       : {};
     return {
+      templateShowNo: opts.show_no !== false,
       templateShowDate: opts.show_date !== false,
       templateShowTotal: opts.show_total !== false,
       templateShowBankAccount: opts.show_bank_account !== false,
       templateHasBbm: !!(opts.use_bbm_columns || opts.include_bbm_note),
     };
   })();
+  /** Kolom item dari template: dipakai untuk form & PDF. BBM hanya lewat kolom ini, bukan opsi terpisah. */
+  const templateItemColumns: TemplateItemColumn[] | null = (() => {
+    const raw = selectedTemplate?.options;
+    if (!raw) return null;
+    const opts = typeof raw === 'string' ? (() => { try { return JSON.parse(raw) as { item_columns?: TemplateItemColumn[] }; } catch { return {}; } })() : (raw as { item_columns?: TemplateItemColumn[] });
+    const cols = opts?.item_columns;
+    return cols?.length ? cols : null;
+  })();
+  /** Kolom yang ditampilkan di tabel (filter row_date/total sesuai opsi template). */
+  /** Tanggal tidak lagi pakai box centang: kolom Tanggal bisa banyak (2+). Hanya total yang di-filter oleh show_total. */
+  const displayItemColumns = templateItemColumns
+    ? templateItemColumns.filter((c) => !(c.key === 'total' && !templateShowTotal))
+    : [];
+  const useTemplateColumns = displayItemColumns.length > 0;
   const documentTypeLabel = selectedTemplate?.document_type
     ? selectedTemplate.document_type.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase())
     : 'Invoice';
@@ -699,6 +752,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       location: location.trim() || undefined,
       subject: subject.trim() || 'Invoice',
       equipment_name: getEquipmentNameForPayload().trim() || undefined,
+      equipment_name_alat_berat: getEquipmentNameAlatBeratForPayload().trim() || undefined,
+      equipment_name_dumptruck: getEquipmentNameDumptruckForPayload().trim() || undefined,
+      equipment_name_manual: getEquipmentNameManualForPayload().trim() || undefined,
       intro_paragraph: introParagraph.trim() || undefined,
       bank_account: bankAccount.trim() || undefined,
       terbilang_custom: terbilangCustom.trim() || undefined,
@@ -749,6 +805,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       quantity_unit?: string;
       price_unit_label?: string;
       item_column_label?: string;
+      default_notes?: string;
     };
     if (template) {
       setEditingTemplateId(Number(template.id));
@@ -787,6 +844,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           quantity_unit: opts.quantity_unit || 'hari',
           price_unit_label: opts.price_unit_label || 'Harga/Hari',
           item_column_label: opts.item_column_label || (opts.item_columns && opts.item_columns[0]?.label) || 'Keterangan',
+          default_notes: (opts.default_notes as string) || '',
         },
       });
     } else {
@@ -809,6 +867,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           quantity_unit: 'hari',
           price_unit_label: 'Harga/Hari',
           item_column_label: 'Keterangan',
+          default_notes: '',
         },
       });
     }
@@ -1242,6 +1301,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   ) : (
                     <p className="text-sm text-gray-500">Template ini tidak menggunakan BBM.</p>
                   )}
+                  {!useTemplateColumns && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Satuan quantity & harga</label>
                     <select
@@ -1260,6 +1320,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <option value="volume">Volume (Harga/Volume)</option>
                     </select>
                   </div>
+                  )}
                   <div className="space-y-3">
                     <label className="block text-sm font-medium text-gray-700">Alat berat / kendaraan (untuk kalimat pembuka otomatis)</label>
                     <div className="space-y-3 w-full max-w-xl">
@@ -1328,7 +1389,60 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     <div className="sm:col-span-2">
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Paragraf pembuka (opsional, override)</label>
-                      <textarea value={introParagraph} onChange={(e) => setIntroParagraph(e.target.value)} rows={2} placeholder="Kosongkan agar pakai kalimat otomatis: Dengan Hormat, Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat berupa [nama alat] dilokasi [lokasi] dengan rincian sebagai berikut:" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                      <div className="relative">
+                        <textarea
+                          ref={introParagraphTextareaRef}
+                          value={introParagraph}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const start = e.target.selectionStart ?? 0;
+                            setIntroParagraph(v);
+                            const textBefore = v.slice(0, start);
+                            const lastAt = textBefore.lastIndexOf('@');
+                            if (lastAt !== -1) {
+                              const word = textBefore.slice(lastAt);
+                              if (word === '@' || /^@[a-z]*$/i.test(word)) {
+                                setShowIntroSuggestions(true);
+                                setIntroSuggestionAt(lastAt);
+                                introSuggestionEndRef.current = start;
+                              } else setShowIntroSuggestions(false);
+                            } else setShowIntroSuggestions(false);
+                          }}
+                          onBlur={() => setTimeout(() => setShowIntroSuggestions(false), 150)}
+                          rows={2}
+                          placeholder="Kosongkan agar pakai kalimat otomatis. Ketik @ untuk pilih: @alatberat, @alatberatmanual, @dumptruck, @lokasi"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500"
+                        />
+                        {showIntroSuggestions && (() => {
+                          const end = introSuggestionEndRef.current ?? introSuggestionAt + 1;
+                          const word = introParagraph.slice(introSuggestionAt, end);
+                          const list = word === '@' ? INTRO_PLACEHOLDERS : INTRO_PLACEHOLDERS.filter((p) => p.toLowerCase().startsWith(word.toLowerCase()));
+                          return (
+                            <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                              {list.map((ph) => (
+                                <button
+                                  key={ph}
+                                  type="button"
+                                  className="w-full px-3 py-2 text-left text-sm hover:bg-orange-50 focus:bg-orange-50 focus:outline-none"
+                                  onMouseDown={(ev) => {
+                                    ev.preventDefault();
+                                    const endPos = introSuggestionEndRef.current ?? introSuggestionAt + 1;
+                                    const newVal = introParagraph.slice(0, introSuggestionAt) + ph + introParagraph.slice(endPos);
+                                    setIntroParagraph(newVal);
+                                    setShowIntroSuggestions(false);
+                                    setTimeout(() => {
+                                      introParagraphTextareaRef.current?.focus();
+                                      introParagraphTextareaRef.current?.setSelectionRange(introSuggestionAt + ph.length, introSuggestionAt + ph.length);
+                                    }, 0);
+                                  }}
+                                >
+                                  {ph}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                     {templateShowBankAccount && (
                       <div className="sm:col-span-2">
@@ -1346,8 +1460,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
                   <div className="flex flex-wrap items-center gap-2 border-b pb-2">
                     <h3 className="font-semibold text-gray-800">Item / Jasa</h3>
-                    <label className="text-sm text-gray-600">Label kolom:</label>
-                    <input type="text" value={itemColumnLabel} onChange={(e) => setItemColumnLabel(e.target.value)} placeholder="Keterangan" className="w-28 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-orange-500" />
+                    {!useTemplateColumns && (
+                      <>
+                        <label className="text-sm text-gray-600">Label kolom:</label>
+                        <input type="text" value={itemColumnLabel} onChange={(e) => setItemColumnLabel(e.target.value)} placeholder="Keterangan" className="w-28 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-orange-500" />
+                      </>
+                    )}
                   </div>
                   {orderedGroupKeys.map((groupKey, groupIdx) => {
                     const indices = groupIndices[groupKey] || [];
@@ -1421,10 +1539,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           <table className="w-full">
                             <thead>
                               <tr className="text-left text-sm text-gray-600 border-b">
-                                <th className="pb-2 pr-2 w-10">No</th>
+                                {templateShowNo && <th className="pb-2 pr-2 w-10">No</th>}
                                 <th className="pb-2 pr-2 w-16">Gambar</th>
-                                {templateShowDate && <th className="pb-2 pr-2">Tanggal</th>}
-                                {useBbmColumns ? (
+                                {templateShowDate && !useTemplateColumns && <th className="pb-2 pr-2">Tanggal</th>}
+                                {useTemplateColumns ? (
+                                  displayItemColumns.map((col) => (
+                                    <th key={col.key} className="pb-2 pr-2">{(col.label || '').trim() || col.key}{col.key === 'item_name' ? ' *' : ''}</th>
+                                  ))
+                                ) : useBbmColumns ? (
                                   <>
                                     <th className="pb-2 pr-2">Keterangan</th>
                                     <th className="pb-2 pr-2 w-20">{quantityUnit === 'jam' ? 'Jam' : quantityUnit === 'unit' ? 'Unit' : quantityUnit === 'jerigen' ? 'Jerigen' : 'Hari'}</th>
@@ -1454,12 +1576,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           const bbmQty = row.bbm_quantity ?? 0;
                           const bbmPrice = row.bbm_unit_price ?? 0;
                           const isFixedRow = useBbmColumns && days === 0 && price === 0 && bbmQty === 0;
-                          const lineTotal = useBbmColumns
-                            ? (days * price + bbmQty * bbmPrice) || (isFixedRow ? row.price || 0 : 0)
-                            : (row.quantity || 0) * (row.price || 0);
+                          const lineTotal = useTemplateColumns
+                            ? (row.quantity ?? row.days ?? 0) * (row.price ?? 0) + (row.bbm_quantity ?? 0) * (row.bbm_unit_price ?? 0)
+                            : useBbmColumns
+                              ? (days * price + bbmQty * bbmPrice) || (isFixedRow ? row.price || 0 : 0)
+                              : (row.quantity || 0) * (row.price || 0);
+                          const itemCols = templateItemColumns || [];
+                          const rowComputed = useTemplateColumns && itemCols.length > 0 ? getComputedFormulaValues(row, itemCols) : {};
                           return (
                             <tr key={index} className="border-b border-gray-100">
-                              <td className="py-2 pr-2 text-center text-gray-600">{rowNum + 1}</td>
+                              {templateShowNo && <td className="py-2 pr-2 text-center text-gray-600">{rowNum + 1}</td>}
                               <td className="py-2 pr-2 align-top">
                                 {row.row_image ? (
                                   <a href={row.row_image} target="_blank" rel="noopener noreferrer" className="inline-block rounded border border-gray-200 overflow-hidden bg-gray-100" title="Lihat gambar nota">
@@ -1469,48 +1595,116 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   <span className="text-gray-300 text-xs">—</span>
                                 )}
                               </td>
+                              {useTemplateColumns ? (
+                                displayItemColumns.map((col) => {
+                                  const k = col.key;
+                                  if (k === 'no') {
+                                    return (<td key={k} className="py-2 pr-2 text-center text-gray-600">{rowNum + 1}</td>);
+                                  }
+                                  if (k === 'formula') {
+                                    const f = (col.formula || '').trim();
+                                    const singleVar = /^(quantity|days|price|bbm_quantity|bbm_unit_price)$/.test(f);
+                                    const labelTrim = (col.label || '').trim();
+                                    const selfRefOrEmpty = f === '' || f === labelTrim;
+                                    const lbl = labelTrim.toLowerCase();
+                                    const isBbmCol = lbl === 'bbm';
+                                    const isHargaBbmCol = /harga\s*\/\s*bbm/.test(lbl) || lbl === 'harga/bbm';
+                                    if (singleVar || (selfRefOrEmpty && (isBbmCol || isHargaBbmCol))) {
+                                      if (f === 'quantity' || f === 'days' || (selfRefOrEmpty && !isBbmCol && !isHargaBbmCol && (lbl === 'quantity' || lbl === 'qty' || lbl === 'hari' || lbl === 'days'))) {
+                                        const isDays = f === 'days' || lbl === 'hari' || lbl === 'days';
+                                        return (
+                                          <td key={k} className="py-2 pr-2">
+                                            <div className="flex gap-1 items-center">
+                                              <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                                <option value="hari">Hari</option><option value="jam">Jam</option><option value="unit">Unit</option><option value="jerigen">Jerigen</option><option value="volume">Volume</option>
+                                              </select>
+                                              <input type="number" min={0} step="any" value={isDays ? (row.days ?? '') : (row.quantity ?? '')} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')); const num = Number.isFinite(v) && v >= 0 ? v : 0; updateItem(index, isDays ? 'days' : 'quantity', num); updateItem(index, isDays ? 'quantity' : 'days', num); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                            </div>
+                                          </td>
+                                        );
+                                      }
+                                      if (f === 'price' || (selfRefOrEmpty && lbl.includes('harga') && !lbl.includes('bbm'))) {
+                                        return (<td key={k} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
+                                      }
+                                      if (f === 'bbm_quantity' || (selfRefOrEmpty && isBbmCol)) {
+                                        return (<td key={k} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
+                                      }
+                                      if (f === 'bbm_unit_price' || (selfRefOrEmpty && isHargaBbmCol)) {
+                                        return (<td key={k} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_unit_price ?? ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="Harga/BBM" /></td>);
+                                      }
+                                    }
+                                    if (!col.formula && !(selfRefOrEmpty && (isBbmCol || isHargaBbmCol))) return <td key={k} className="py-2 pr-2 text-gray-400">—</td>;
+                                    const sourceIndex = itemCols.findIndex((c) => c === col);
+                                    const val = sourceIndex >= 0 ? (rowComputed[sourceIndex] ?? NaN) : evaluateFormula(col.formula, row);
+                                    return (<td key={k} className="py-2 pr-2 text-sm text-gray-700 bg-gray-50/50">{Number.isFinite(val) ? formatRupiah(val) : '—'}</td>);
+                                  }
+                                  if (k === 'row_date') {
+                                    return (
+                                      <td key={k} className="py-2 pr-2">
+                                        <div className="flex items-center gap-1 relative">
+                                          <input type="text" value={row.row_date ? formatDateToIndonesian(row.row_date) : ''} readOnly placeholder="Klik 📅 untuk pilih tanggal" className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80" />
+                                          <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; if (v) updateItem(index, 'row_date', v); }} />
+                                          <button type="button" onClick={() => { const inp = dateInputRefs.current[index]; if (inp) (typeof (inp as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function' ? (inp as HTMLInputElement & { showPicker?: () => void }).showPicker!() : inp.click()); }} className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0" title="Pilih tanggal"><FiCalendar className="w-4 h-4" /></button>
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                  if (k === 'item_name') {
+                                    const inList = equipmentNamesForKeterangan.includes(row.item_name);
+                                    const isCustom = (row.item_name || '') && !inList;
+                                    return (
+                                      <td key={k} className="py-2 pr-2">
+                                        <div className="flex flex-col gap-1">
+                                          <select value={inList ? row.item_name : (isCustom ? '__custom__' : '')} onChange={(e) => { const v = e.target.value; if (v === '__custom__') { const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name); updateItem(index, 'item_name', alreadyCustom ? row.item_name : ' '); } else { updateItem(index, 'item_name', v); const eq = equipmentList.find((e) => e.name === v); if (eq) { const rowUnit = row.quantity_unit ?? quantityUnit; const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0); if (p > 0) updateItem(index, 'price', p); } } }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
+                                            <option value="">— Pilih keterangan —</option>
+                                            {equipmentNamesForKeterangan.map((name, i) => (<option key={i} value={name}>{name}</option>))}
+                                            <option value="__custom__">— Lainnya (ketik manual) —</option>
+                                          </select>
+                                          {isCustom && <input type="text" value={row.item_name} onChange={(e) => updateItem(index, 'item_name', e.target.value)} placeholder="Ketik keterangan" className="w-full border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50" />}
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                  if (k === 'description') {
+                                    return (<td key={k} className="py-2 pr-2"><input type="text" value={row.description ?? ''} onChange={(e) => updateItem(index, 'description', e.target.value)} placeholder="String/huruf" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" /></td>);
+                                  }
+                                  if (k === 'quantity' || k === 'days') {
+                                    return (
+                                      <td key={k} className="py-2 pr-2">
+                                        <div className="flex gap-1 items-center">
+                                          <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                            <option value="hari">Hari</option><option value="jam">Jam</option><option value="unit">Unit</option><option value="jerigen">Jerigen</option><option value="volume">Volume</option>
+                                          </select>
+                                          <input type="number" min={0} step="any" value={k === 'days' ? (row.days ?? '') : (row.quantity ?? '')} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; updateItem(index, k === 'days' ? 'days' : 'quantity', v); updateItem(index, k === 'days' ? 'quantity' : 'days', v); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                  if (k === 'price') {
+                                    return (<td key={k} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
+                                  }
+                                  if (k === 'bbm_quantity') {
+                                    return (<td key={k} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
+                                  }
+                                  if (k === 'bbm_unit_price') {
+                                    return (<td key={k} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_unit_price ?? ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="Harga/BBM" /></td>);
+                                  }
+                                  if (k === 'total') {
+                                    return (<td key={k} className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>);
+                                  }
+                                  return <td key={k} className="py-2 pr-2">—</td>;
+                                })
+                              ) : (
+                              <>
                               {templateShowDate && (
                                 <td className="py-2 pr-2">
                                   <div className="flex items-center gap-1 relative">
-                                    <input
-                                      type="text"
-                                      value={row.row_date ? formatDateToIndonesian(row.row_date) : ''}
-                                      readOnly
-                                      placeholder="Klik 📅 untuk pilih tanggal"
-                                      className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80"
-                                    />
-                                    <input
-                                      type="date"
-                                      value={row.row_date || ''}
-                                      ref={(el) => { dateInputRefs.current[index] = el; }}
-                                      className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden"
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        if (v) updateItem(index, 'row_date', v);
-                                      }}
-                                    />
-                                    <button
-                                    type="button"
-                                    onClick={() => {
-                                      const inp = dateInputRefs.current[index];
-                                      if (inp) (typeof (inp as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function' ? (inp as HTMLInputElement & { showPicker?: () => void }).showPicker!() : inp.click());
-                                    }}
-                                    className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0"
-                                    title="Pilih tanggal"
-                                  >
-                                    <FiCalendar className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => { setExtractingRowIndex(index); extractRowInputRef.current?.click(); }}
-                                    disabled={extractingRowIndex !== null}
-                                    className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0 disabled:opacity-50"
-                                    title="Upload gambar nota – isi tanggal & hari/jam"
-                                  >
-                                    {extractingRowIndex === index ? <span className="text-xs">...</span> : <FiImage className="w-4 h-4" />}
-                                  </button>
-                                </div>
-                              </td>
+                                    <input type="text" value={row.row_date ? formatDateToIndonesian(row.row_date) : ''} readOnly placeholder="Klik 📅 untuk pilih tanggal" className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80" />
+                                    <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; if (v) updateItem(index, 'row_date', v); }} />
+                                    <button type="button" onClick={() => { const inp = dateInputRefs.current[index]; if (inp) (typeof (inp as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function' ? (inp as HTMLInputElement & { showPicker?: () => void }).showPicker!() : inp.click()); }} className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0" title="Pilih tanggal"><FiCalendar className="w-4 h-4" /></button>
+                                    <button type="button" onClick={() => { setExtractingRowIndex(index); extractRowInputRef.current?.click(); }} disabled={extractingRowIndex !== null} className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0 disabled:opacity-50" title="Upload gambar nota – isi tanggal & hari/jam">{extractingRowIndex === index ? <span className="text-xs">...</span> : <FiImage className="w-4 h-4" />}</button>
+                                  </div>
+                                </td>
                               )}
                               <td className="py-2 pr-2">
                                 {(() => {
@@ -1518,40 +1712,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   const isCustom = (row.item_name || '') && !inList;
                                   return (
                                     <div className="flex flex-col gap-1">
-                                      <select
-                                        value={inList ? row.item_name : (isCustom ? '__custom__' : '')}
-                                        onChange={(e) => {
-                                          const v = e.target.value;
-                                          if (v === '__custom__') {
-                                            const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name);
-                                            updateItem(index, 'item_name', alreadyCustom ? row.item_name : ' ');
-                                          } else {
-                                            updateItem(index, 'item_name', v);
-                                            const eq = equipmentList.find((e) => e.name === v);
-                                            if (eq) {
-                                              const rowUnit = row.quantity_unit ?? quantityUnit;
-                                              const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
-                                              if (p > 0) updateItem(index, 'price', p);
-                                            }
-                                          }
-                                        }}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
-                                      >
+                                      <select value={inList ? row.item_name : (isCustom ? '__custom__' : '')} onChange={(e) => { const v = e.target.value; if (v === '__custom__') { const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name); updateItem(index, 'item_name', alreadyCustom ? row.item_name : ' '); } else { updateItem(index, 'item_name', v); const eq = equipmentList.find((e) => e.name === v); if (eq) { const rowUnit = row.quantity_unit ?? quantityUnit; const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0); if (p > 0) updateItem(index, 'price', p); } } } } className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
                                         <option value="">— Pilih keterangan —</option>
-                                        {equipmentNamesForKeterangan.map((name, i) => (
-                                          <option key={i} value={name}>{name}</option>
-                                        ))}
+                                        {equipmentNamesForKeterangan.map((name, i) => (<option key={i} value={name}>{name}</option>))}
                                         <option value="__custom__">— Lainnya (ketik manual) —</option>
                                       </select>
-                                      {isCustom && (
-                                        <input
-                                          type="text"
-                                          value={row.item_name}
-                                          onChange={(e) => updateItem(index, 'item_name', e.target.value)}
-                                          placeholder="Ketik keterangan"
-                                          className="w-full border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50"
-                                        />
-                                      )}
+                                      {isCustom && <input type="text" value={row.item_name} onChange={(e) => updateItem(index, 'item_name', e.target.value)} placeholder="Ketik keterangan" className="w-full border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50" />}
                                     </div>
                                   );
                                 })()}
@@ -1571,18 +1737,18 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     </div>
                                   </td>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} value={price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <input type="number" min={0} step="any" value={price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} value={bbmQty || ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(e.target.value) || 0)} placeholder="-" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <input type="number" min={0} step="any" value={bbmQty || ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} placeholder="-" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} value={bbmPrice || ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <input type="number" min={0} step="any" value={bbmPrice || ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
                                   {templateShowTotal && (
                                     <td className="py-2 pr-2">
                                       {isFixedRow ? (
-                                        <input type="number" min={0} value={row.price || ''} onChange={(e) => { updateItem(index, 'price', parseFloat(e.target.value) || 0); updateItem(index, 'quantity', 1); }} placeholder="Jumlah tetap" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                        <input type="number" min={0} step="any" value={row.price || ''} onChange={(e) => { updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0); updateItem(index, 'quantity', 1); }} placeholder="Jumlah tetap" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                       ) : (
                                         <span className="text-sm text-gray-700">{formatRupiah(lineTotal)}</span>
                                       )}
@@ -1604,10 +1770,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     </div>
                                   </td>
                                   <td className="py-2 pr-2">
-                                    <input type="number" min={0} value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
+                                    <input type="number" min={0} step="any" value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
                                   </td>
                                   {templateShowTotal && <td className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>}
                                 </>
+                              )}
+                              </>
                               )}
                               <td className="py-2">
                                 <button type="button" onClick={() => removeItem(index)} disabled={items.length === 1} className="p-1.5 text-gray-400 hover:text-red-600 disabled:opacity-40">
@@ -1772,7 +1940,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
         {/* Modal: Template Add/Edit */}
         {showTemplateModal && (
-          <Modal onClose={() => setShowTemplateModal(false)} title={editingTemplateId ? 'Edit Template' : 'Tambah Template'}>
+          <Modal onClose={() => setShowTemplateModal(false)} title={editingTemplateId ? 'Edit Template' : 'Tambah Template'} contentClassName="max-w-4xl">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nama</label>
@@ -1862,102 +2030,47 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={templateForm.options.show_date !== false}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_date: e.target.checked } }))}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Tampilkan kolom Tanggal</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={templateForm.options.show_total !== false}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_total: e.target.checked } }))}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Tampilkan kolom Jumlah/Total</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
                       checked={templateForm.options.show_bank_account !== false}
                       onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_bank_account: e.target.checked } }))}
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm">Tampilkan nomor rekening & bank</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={templateForm.options.include_bbm_note ?? false}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, include_bbm_note: e.target.checked } }))}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Sudah termasuk BBM (catatan)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={templateForm.options.use_bbm_columns ?? false}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, use_bbm_columns: e.target.checked } }))}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">Kolom BBM per baris</span>
-                  </label>
                 </div>
-                <div className="flex flex-wrap gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Satuan quantity</label>
-                    <select
-                      value={templateForm.options.quantity_unit || 'hari'}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, quantity_unit: e.target.value } }))}
-                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                    >
-                      <option value="hari">Hari</option>
-                      <option value="jam">Jam</option>
-                      <option value="unit">Unit</option>
-                      <option value="jerigen">Jerigen</option>
-                      <option value="volume">Volume</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Label harga</label>
-                    <input
-                      type="text"
-                      value={templateForm.options.price_unit_label || ''}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, price_unit_label: e.target.value } }))}
-                      placeholder="Harga/Hari"
-                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Label kolom item</label>
-                    <input
-                      type="text"
-                      value={templateForm.options.item_column_label || ''}
-                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, item_column_label: e.target.value } }))}
-                      placeholder="Keterangan"
-                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36"
-                    />
-                  </div>
+                <p className="text-xs text-gray-500 mt-1">Kolom tabel (Tanggal, Jumlah/Total, dll.) mengikuti &quot;Kolom tabel item&quot; di bawah. BBM dan Harga/BBM bisa ditambah sebagai kolom Angka (rumus) (perhitungan: BBM × Harga/BBM).</p>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catatan default (bisa dikustom per dokumen)</label>
+                  <textarea
+                    value={templateForm.options.default_notes ?? ''}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, default_notes: e.target.value } }))}
+                    rows={2}
+                    placeholder="Contoh: Termin pembayaran 7 hari, transfer ke rekening di atas."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kolom tabel item ({templateForm.options.item_columns.length} kolom)</label>
-                <p className="text-xs text-gray-500 mb-2">Urutan dan label kolom yang tampil di tabel item.</p>
-                <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50 max-h-48 overflow-y-auto">
+                <p className="text-xs text-gray-500 mb-2">Urutan dan label kolom yang tampil di tabel item. Kolom dengan rumus (relasi) menampilkan nilai terhitung: variabel quantity, days, price, bbm_quantity, bbm_unit_price; operator + - * /.</p>
+                <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50 h-96 overflow-y-auto">
                   {templateForm.options.item_columns.map((col, idx) => (
                     <div key={idx} className="flex gap-2 items-center">
                       <select
                         value={col.key}
                         onChange={(e) =>
-                          setTemplateForm((f) => ({
-                            ...f,
-                            options: {
-                              ...f.options,
-                              item_columns: f.options.item_columns.map((c, i) => (i === idx ? { ...c, key: e.target.value } : c)),
-                            },
-                          }))
+                          setTemplateForm((f) => {
+                            const val = e.target.value;
+                            const isFormula = val === 'formula';
+                            return {
+                              ...f,
+                              options: {
+                                ...f.options,
+                                item_columns: f.options.item_columns.map((c, i) =>
+                                  i === idx ? { ...c, key: val, formula: isFormula ? (c.formula ?? undefined) : undefined } : c
+                                ),
+                              },
+                            };
+                          })
                         }
                         className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
                       >
@@ -1982,6 +2095,66 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
                         placeholder="Label kolom"
                       />
+                      {col.key === 'formula' && (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formulaToDisplayFormula(col.formula, templateForm.options.item_columns) || (col.formula ?? '')}
+                            onChange={(e) =>
+                              setTemplateForm((f) => ({
+                                ...f,
+                                options: {
+                                  ...f.options,
+                                  item_columns: f.options.item_columns.map((c, i) => (i === idx ? { ...c, formula: e.target.value.trim() || undefined } : c)),
+                                },
+                              }))
+                            }
+                            onFocus={() => setFormulaPopoverColIdx(idx)}
+                            onBlur={() => setTimeout(() => setFormulaPopoverColIdx(null), 180)}
+                            className="w-52 border border-gray-300 rounded px-2 py-1.5 text-xs font-mono focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            placeholder="Klik untuk pilih relasi"
+                            title="Klik untuk membuka menu relasi (variabel & operator)"
+                          />
+                          {formulaPopoverColIdx === idx && (
+                            <div className="absolute left-0 top-full z-20 mt-1 p-2 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px]">
+                              <p className="text-xs text-gray-500 mb-2 px-1">Pilih kolom lain (label) atau variabel dasar (Qty, Hari, Harga, BBM, Harga/BBM) dan operator:</p>
+                              {!getFormulaRelationTokensForCol(idx).some((t) => !['*', '/', '+', '-'].includes(t.token)) && (
+                                <p className="text-xs text-amber-600 mb-2 px-1">Tambahkan kolom Angka (rumus) dengan rumus satu variabel (mis. quantity atau price) agar variabel muncul di sini.</p>
+                              )}
+                              <div className="flex flex-wrap gap-1">
+                                {getFormulaRelationTokensForCol(idx).map(({ token, label }) => (
+                                  <button
+                                    key={token}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setTemplateForm((f) => {
+                                        const cols = f.options.item_columns;
+                                        const c = cols[idx];
+                                        const current = (c?.formula ?? '').trim();
+                                        const insert = token.startsWith('col_')
+                                          ? (cols[parseInt(token.replace('col_', ''), 10)]?.label?.trim() || token)
+                                          : token;
+                                        const next = current ? current + insert : insert;
+                                        return {
+                                          ...f,
+                                          options: {
+                                            ...f.options,
+                                            item_columns: cols.map((col, i) => (i === idx ? { ...col, formula: next } : col)),
+                                          },
+                                        };
+                                      });
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-orange-100 border border-gray-200 hover:border-orange-300"
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
@@ -2110,12 +2283,22 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 const loc = (previewInvoice.location || '').trim();
                 const isDumpTruck = (n: string) => /dump\s*truck|dumptruck|roda\s*6/i.test(n);
                 const onlyDumpTruck = (n: string) => isDumpTruck(n) && !n.includes(' dan ');
-                let intro: React.ReactNode = previewInvoice.intro_paragraph;
-                if (!intro && eq && loc) {
+                let intro: React.ReactNode = null;
+                if ((previewInvoice.intro_paragraph || '').trim()) {
+                  const replaced = replaceIntroPlaceholders(
+                    previewInvoice.intro_paragraph!,
+                    previewInvoice.equipment_name || '',
+                    loc,
+                    previewInvoice.equipment_name_manual,
+                    previewInvoice.equipment_name_alat_berat,
+                    previewInvoice.equipment_name_dumptruck
+                  );
+                  intro = <span style={{ whiteSpace: 'pre-line' }}>{replaced}</span>;
+                } else if (eq && loc) {
                   intro = onlyDumpTruck(eq)
                     ? <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan <strong>Dumptruck roda 6</strong> dilokasi <strong>{loc}</strong> dengan rincian sebagai berikut:</>
                     : <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan sewa alat berat berupa <strong>{eq}</strong> dilokasi <strong>{loc}</strong> dengan rincian sebagai berikut:</>;
-                } else if (!intro && eq && onlyDumpTruck(eq)) {
+                } else if (eq && onlyDumpTruck(eq)) {
                   intro = <>Dengan Hormat,<br /><br />Bersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan <strong>Dumptruck roda 6</strong> dengan rincian sebagai berikut:</>;
                 }
                 return intro ? <p className="mb-4 text-gray-700 break-words max-w-full">{intro}</p> : null;

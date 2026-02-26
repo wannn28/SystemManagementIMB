@@ -32,8 +32,11 @@ type Invoice struct {
 	UseBbmColumns   bool           `gorm:"default:false" json:"use_bbm_columns"`     // Tampilkan kolom BBM per baris
 	Location        string         `gorm:"type:varchar(100)" json:"location"`        // e.g. "Batam"
 	Subject         string         `gorm:"type:varchar(200)" json:"subject"`         // Perihal, e.g. "Invoice"
-	EquipmentName   string         `gorm:"type:varchar(255)" json:"equipment_name"`   // Nama alat berat / kendaraan, e.g. "Grader & Compact", "Dump Truck 6 Roda"
-	IntroParagraph  string         `gorm:"type:text" json:"intro_paragraph"`          // Paragraf pembuka (bisa otomatis dari equipment_name + location)
+	EquipmentName        string `gorm:"type:varchar(255)" json:"equipment_name"`              // Nama alat (gabungan)
+	EquipmentNameAlatBerat string `gorm:"type:varchar(500)" json:"equipment_name_alat_berat"`  // Hanya alat berat dari daftar, untuk @alatberat
+	EquipmentNameDumptruck string `gorm:"type:varchar(500)" json:"equipment_name_dumptruck"`  // Hanya dump truck dari daftar, untuk @dumptruck
+	EquipmentNameManual  string `gorm:"type:varchar(500)" json:"equipment_name_manual"`       // Alat manual, untuk @alatberatmanual
+	IntroParagraph       string `gorm:"type:text" json:"intro_paragraph"`                      // Paragraf pembuka
 	BankAccount     string         `gorm:"type:varchar(200)" json:"bank_account"`    // No Rekening + Bank
 	TerbilangCustom string         `gorm:"type:text" json:"terbilang_custom"`      // Terbilang manual (kosong = pakai otomatis dari total)
 	QuantityUnit    string         `gorm:"type:varchar(50);default:'hari'" json:"quantity_unit"`   // hari, jam, unit, jerigen

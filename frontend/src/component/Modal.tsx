@@ -6,11 +6,13 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Kelas tambahan untuk wrapper konten (mis. max-w-4xl untuk modal lebar) */
+  contentClassName?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ onClose, title, children }) => (
+export const Modal: React.FC<ModalProps> = ({ onClose, title, children, contentClassName }) => (
   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className={`bg-white rounded-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl ${contentClassName ?? 'max-w-2xl'}`} onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl">
         <h3 className="text-xl font-bold text-gray-900">{title}</h3>
         <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">

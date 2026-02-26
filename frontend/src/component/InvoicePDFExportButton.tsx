@@ -2,6 +2,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { invoiceApi } from '../api/invoice';
 import type { Invoice, InvoiceTemplate, TemplateItemColumn } from '../types/invoice';
+import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
+import { evaluateFormula, getComputedFormulaValues } from '../utils/invoiceFormula';
 
 interface InvoicePDFExportButtonProps {
   invoice: Invoice;
@@ -112,10 +114,29 @@ function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): Templ
 
 function getItemCellValue(
   item: Invoice['items'][0],
-  key: string,
+  column: TemplateItemColumn,
+  allColumns: TemplateItemColumn[],
+  columnIndex: number,
   formatRupiahFn: (n: number) => string,
-  formatDateOnlyFn: (d: string) => string
+  formatDateOnlyFn: (d: string) => string,
+  rowIndex?: number
 ): string {
+  if (column.key === 'no') {
+    return String((rowIndex ?? 0) + 1);
+  }
+  if (column.formula) {
+    const row: Parameters<typeof getComputedFormulaValues>[0] = {
+      quantity: item.quantity ?? 0,
+      days: item.days ?? item.quantity ?? 0,
+      price: item.price ?? 0,
+      bbm_quantity: item.bbm_quantity ?? 0,
+      bbm_unit_price: item.bbm_unit_price ?? 0,
+    };
+    const computed = getComputedFormulaValues(row, allColumns);
+    const val = columnIndex >= 0 ? (computed[columnIndex] ?? NaN) : evaluateFormula(column.formula, row);
+    return Number.isFinite(val) ? formatRupiahFn(val) : '-';
+  }
+  const key = column.key;
   switch (key) {
     case 'item_name':
       return (item.item_name || '-').trim() || '-';
@@ -267,11 +288,20 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     const onlyDumpTruck = (name: string) => isDumpTruck(name) && !name.includes(' dan ');
     const introText = (() => {
       const customIntro = (invoiceToUse.intro_paragraph || '').trim();
-      if (customIntro) return customIntro;
       const templateIntro = (template?.default_intro || '').trim();
-      if (templateIntro) return templateIntro;
       const eq = (invoiceToUse.equipment_name || '').trim();
       const loc = (invoiceToUse.location || '').trim();
+      let raw = customIntro || templateIntro;
+      if (raw) {
+        return replaceIntroPlaceholders(
+          raw,
+          eq,
+          loc,
+          invoiceToUse.equipment_name_manual,
+          invoiceToUse.equipment_name_alat_berat,
+          invoiceToUse.equipment_name_dumptruck
+        );
+      }
       if (eq && loc) {
         if (onlyDumpTruck(eq)) {
           return `Dengan Hormat,\n\tBersama surat ini kami dari PT Indira Maju Bersama ingin mengajukan tagihan Dumptruck roda 6 dilokasi ${loc} dengan rincian sebagai berikut:`;
@@ -382,8 +412,8 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       const tableData = templateColumns?.length
         ? groupItemsSorted.map((item, idx) => [
             ...(showNo ? [String(idx + 1)] : []),
-            ...(injectDateColumn ? [getItemCellValue(item, 'row_date', formatRupiah, formatDateOnly)] : []),
-            ...templateColumns.map((c) => getItemCellValue(item, c.key, formatRupiah, formatDateOnly)),
+            ...(injectDateColumn ? [getItemCellValue(item, { key: 'row_date', label: 'Tanggal' }, templateColumns, -1, formatRupiah, formatDateOnly, idx)] : []),
+            ...(templateColumns ?? []).map((c, colIndex) => getItemCellValue(item, c, templateColumns ?? [], colIndex, formatRupiah, formatDateOnly, idx)),
           ])
         : groupItemsSorted.map((item, idx) => {
             const tot = Number(item.total ?? 0);

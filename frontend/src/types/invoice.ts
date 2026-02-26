@@ -26,6 +26,12 @@ export interface InvoiceItem {
 export interface TemplateItemColumn {
   key: string;
   label: string;
+  /**
+   * Rumus/relasi untuk kolom terhitung. Variabel: quantity, days, price, bbm_quantity, bbm_unit_price.
+   * Operator: + - * /
+   * Contoh: "quantity*price", "days*price", "bbm_quantity*bbm_unit_price", "quantity*price+bbm_quantity*bbm_unit_price"
+   */
+  formula?: string;
 }
 
 export interface InvoiceTemplate {
@@ -90,8 +96,14 @@ export interface Invoice {
   use_bbm_columns?: boolean;
   location?: string;
   subject?: string;
-  /** Nama alat berat / kendaraan, e.g. "Grader & Compact", "Dump Truck 6 Roda" */
+  /** Nama alat berat / kendaraan (gabungan), e.g. "Grader & Compact", "Dump Truck 6 Roda" */
   equipment_name?: string;
+  /** Hanya alat berat dari daftar (bukan dump truck), untuk @alatberat */
+  equipment_name_alat_berat?: string;
+  /** Hanya dump truck dari daftar, untuk @dumptruck */
+  equipment_name_dumptruck?: string;
+  /** Nama alat yang ditambah manual (bukan dari daftar), untuk @alatberatmanual */
+  equipment_name_manual?: string;
   intro_paragraph?: string;
   bank_account?: string;
   /** Terbilang manual (kosong = pakai otomatis dari total) */
@@ -134,6 +146,9 @@ export interface CreateInvoiceRequest {
   location?: string;
   subject?: string;
   equipment_name?: string;
+  equipment_name_alat_berat?: string;
+  equipment_name_dumptruck?: string;
+  equipment_name_manual?: string;
   intro_paragraph?: string;
   bank_account?: string;
   terbilang_custom?: string;
