@@ -217,10 +217,10 @@ func ExtractOneDayFromImage(baseURL, apiKey, model string, imageData []byte, mim
 }
 
 // ExtractDateAndDaysFromImage ekstrak tanggal + quantity + unit (hari|jam). Pemanggil lakukan konversi jam↔hari.
-func ExtractDateAndDaysFromImage(baseURL, apiKey, model string, imageData []byte, mimeType string) (*gemini.ExtractRowResponse, error) {
-	prompt := gemini.BuildRowOnlyPromptForDeepSeek()
+func ExtractDateAndDaysFromImage(baseURL, apiKey, model string, imageData []byte, mimeType string, columnDescriptions []string) (*gemini.ExtractRowResponse, error) {
+	prompt := gemini.BuildRowOnlyPromptForDeepSeek(columnDescriptions)
 	if isOllama(baseURL) {
-		prompt = gemini.BuildRowOnlyPromptForOllama()
+		prompt = gemini.BuildRowOnlyPromptForOllama(columnDescriptions)
 	}
 	text, err := callVision(baseURL, apiKey, model, imageData, mimeType, prompt)
 	if err != nil {

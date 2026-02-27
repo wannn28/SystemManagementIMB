@@ -235,10 +235,11 @@ export const invoiceApi = {
   },
 
   /** Ekstrak hanya tanggal dan hari/jam dari satu gambar (untuk satu baris item). Harga diambil dari alat berat. */
-  async extractRowFromImage(file: File, quantity_unit: string): Promise<{ row_date: string; days: number }> {
+  async extractRowFromImage(file: File, quantity_unit: string, columnDescriptions: string[]): Promise<{ row_date: string; days: number }> {
     const form = new FormData();
     form.append('image', file);
     form.append('quantity_unit', quantity_unit);
+    form.append('column_descriptions', JSON.stringify(columnDescriptions));
     const res = await axios.post<ApiRes<{ row_date: string; days: number }>>(getUrl('/extract-row-from-image'), form, {
       headers: getAuthHeaders(),
       timeout: 120000*100, // 120 detik (Ollama/Gemini bisa lama); kalau timeout tombol "Memproses" akan reset
@@ -254,6 +255,7 @@ export const invoiceApi = {
   async extractRowsFromImages(
     files: File[],
     quantity_unit: string,
+    columnDescriptions: string[],
     onProgress?: (current: number, total: number) => void
   ): Promise<{ row_date: string; days: number }[]> {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
@@ -264,7 +266,7 @@ export const invoiceApi = {
     if (delayMs === 0) {
       let completed = 0;
       const promises = imageFiles.map((file) =>
-        this.extractRowFromImage(file, quantity_unit).then((res) => {
+        this.extractRowFromImage(file, quantity_unit, columnDescriptions).then((res) => {
           completed += 1;
           onProgress?.(completed, total);
           return res;
@@ -276,7 +278,7 @@ export const invoiceApi = {
     const results: { row_date: string; days: number }[] = [];
     for (let i = 0; i < imageFiles.length; i++) {
       onProgress?.(i + 1, total);
-      const one = await this.extractRowFromImage(imageFiles[i], quantity_unit);
+      const one = await this.extractRowFromImage(imageFiles[i], quantity_unit, columnDescriptions);
       results.push(one);
       if (i < imageFiles.length - 1) {
         await new Promise((r) => setTimeout(r, delayMs));

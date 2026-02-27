@@ -343,6 +343,13 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 	if quantityUnit == "" {
 		quantityUnit = "hari"
 	}
+	columnDescriptionsJSON := strings.TrimSpace(c.FormValue("column_descriptions"))
+	var columnDescriptions []string
+	if columnDescriptionsJSON != "" {
+		if err := json.Unmarshal([]byte(columnDescriptionsJSON), &columnDescriptions); err != nil {
+			c.Logger().Warnf("extract-row-from-image: gagal parse column_descriptions: %v", err)
+		}
+	}
 	imageData, mimeType, err := readImageFile(file)
 	if err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -353,22 +360,45 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 	}
 	var out *gemini.ExtractRowResponse
 	if strings.TrimSpace(strings.ToLower(h.cfg.ExtractProvider)) == "deepseek" {
-		out, err = deepseek.ExtractDateAndDaysFromImage(h.cfg.DeepSeekBaseURL, h.cfg.DeepSeekAPIKey, h.cfg.DeepSeekModel, imageData, mimeType)
+		out, err = deepseek.ExtractDateAndDaysFromImage(h.cfg.DeepSeekBaseURL, h.cfg.DeepSeekAPIKey, h.cfg.DeepSeekModel, imageData, mimeType, columnDescriptions)
 	} else {
-		out, err = gemini.ExtractDateAndDaysFromImage(h.cfg.GeminiAPIKey, h.cfg.GeminiModel, imageData, mimeType)
+		out, err = gemini.ExtractDateAndDaysFromImage(h.cfg.GeminiAPIKey, h.cfg.GeminiModel, imageData, mimeType, columnDescriptions)
 	}
 	if err != nil {
 		c.Logger().Errorf("extract-row-from-image: ekstraksi gagal: %v", err)
 		return response.Error(c, http.StatusUnprocessableEntity, err)
 	}
-	// Konversi ke satuan form: form "hari" + ekstrak "jam" -> 8 jam = 1 hari, 4 jam = 0.5 hari; form "jam" + ekstrak "hari" -> 1 hari = 8 jam
+	
+	// Deteksi unit dari columnDescriptions (lebih prioritas dari quantityUnit form)
+	hasJamColumn := false
+	hasHariColumn := false
+	for _, desc := range columnDescriptions {
+		descLower := strings.ToLower(desc)
+		if strings.Contains(descLower, "jam") && !strings.Contains(descLower, "harga") {
+			hasJamColumn = true
+		}
+		if strings.Contains(descLower, "hari") && !strings.Contains(descLower, "harga") {
+			hasHariColumn = true
+		}
+	}
+	
+	// Tentukan unit target berdasarkan kolom (jika ada kolom Jam, return dalam jam; jika ada kolom Hari, return dalam hari)
+	targetUnit := quantityUnit
+	if hasJamColumn && !hasHariColumn {
+		targetUnit = "jam"
+	} else if hasHariColumn && !hasJamColumn {
+		targetUnit = "hari"
+	}
+	
+	// Konversi ke satuan target: ekstrak "jam" tapi target "hari" -> konversi / 8; ekstrak "hari" tapi target "jam" -> konversi * 8
 	days := out.Quantity
 	extractedUnit := strings.ToLower(strings.TrimSpace(out.Unit))
-	if quantityUnit == "hari" && extractedUnit == "jam" {
+	if targetUnit == "hari" && extractedUnit == "jam" {
 		days = out.Quantity / 8
-	} else if quantityUnit == "jam" && extractedUnit == "hari" {
+	} else if targetUnit == "jam" && extractedUnit == "hari" {
 		days = out.Quantity * 8
 	}
+	
 	return response.Success(c, http.StatusOK, map[string]interface{}{
 		"row_date": strings.TrimSpace(out.RowDate),
 		"days":     days,

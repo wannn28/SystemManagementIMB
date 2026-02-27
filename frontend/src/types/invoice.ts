@@ -27,11 +27,26 @@ export interface TemplateItemColumn {
   key: string;
   label: string;
   /**
+   * Tipe kolom:
+   * - 'date': kolom tanggal
+   * - 'text': kolom teks (keterangan)
+   * - 'number': kolom angka (no rumus)
+   * - 'formula': kolom dengan rumus
+   */
+  type?: 'date' | 'text' | 'number' | 'formula';
+  /**
    * Rumus/relasi untuk kolom terhitung. Variabel: quantity, days, price, bbm_quantity, bbm_unit_price.
    * Operator: + - * /
    * Contoh: "quantity*price", "days*price", "bbm_quantity*bbm_unit_price", "quantity*price+bbm_quantity*bbm_unit_price"
    */
   formula?: string;
+  /**
+   * Sumber data untuk kolom tipe 'number' (Angka no rumus):
+   * - 'manual': user isi manual (default)
+   * - 'equipment_price_per_hour': otomatis dari harga per jam equipment
+   * - 'equipment_price_per_day': otomatis dari harga per hari equipment
+   */
+  source?: 'manual' | 'equipment_price_per_hour' | 'equipment_price_per_day';
 }
 
 export interface InvoiceTemplate {
@@ -114,6 +129,8 @@ export interface Invoice {
   price_unit_label?: string;
   /** Label kolom item: Item, Keterangan, dll */
   item_column_label?: string;
+  /** Konfigurasi kolom per group (JSON string: Record<groupKey, TemplateItemColumn[]>) */
+  group_column_configs?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -155,6 +172,7 @@ export interface CreateInvoiceRequest {
   quantity_unit?: string;
   price_unit_label?: string;
   item_column_label?: string;
+  group_column_configs?: string;
 }
 
 export interface InvoiceListParams {

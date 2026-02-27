@@ -42,6 +42,7 @@ type Invoice struct {
 	QuantityUnit    string         `gorm:"type:varchar(50);default:'hari'" json:"quantity_unit"`   // hari, jam, unit, jerigen
 	PriceUnitLabel  string         `gorm:"type:varchar(50);default:'Harga/Hari'" json:"price_unit_label"` // Harga/Hari, Harga/Jam, dll
 	ItemColumnLabel string         `gorm:"type:varchar(50)" json:"item_column_label"`                   // Label kolom: Item, Keterangan, dll
+	GroupColumnConfigs string      `gorm:"type:text" json:"group_column_configs"`                        // JSON konfigurasi kolom per group
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 	Items           []InvoiceItem  `gorm:"foreignKey:InvoiceID" json:"items"`

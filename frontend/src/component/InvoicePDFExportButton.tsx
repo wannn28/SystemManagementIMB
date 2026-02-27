@@ -125,12 +125,14 @@ function getItemCellValue(
     return String((rowIndex ?? 0) + 1);
   }
   if (column.formula) {
+    const customFields = Object.keys(item as unknown as Record<string, unknown>).filter((k) => k.startsWith('custom_num_')).reduce((acc, k) => ({ ...acc, [k]: (item as unknown as Record<string, unknown>)[k] }), {});
     const row: Parameters<typeof getComputedFormulaValues>[0] = {
       quantity: item.quantity ?? 0,
       days: item.days ?? item.quantity ?? 0,
       price: item.price ?? 0,
       bbm_quantity: item.bbm_quantity ?? 0,
       bbm_unit_price: item.bbm_unit_price ?? 0,
+      ...customFields,
     };
     const computed = getComputedFormulaValues(row, allColumns);
     const val = columnIndex >= 0 ? (computed[columnIndex] ?? NaN) : evaluateFormula(column.formula, row);
@@ -156,6 +158,11 @@ function getItemCellValue(
       return formatRupiahFn(Number(item.total ?? 0));
     case 'row_date':
       return (item.row_date || '').trim() ? formatDateOnlyFn(String(item.row_date)) : '-';
+    case 'number': {
+      const fieldKey = `custom_num_${columnIndex}`;
+      const val = (item as unknown as Record<string, unknown>)[fieldKey];
+      return val != null && val !== '' ? String(val) : '-';
+    }
     default:
       return (item as unknown as Record<string, unknown>)[key] != null ? String((item as unknown as Record<string, unknown>)[key]) : '-';
   }

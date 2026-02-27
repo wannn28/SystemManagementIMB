@@ -119,11 +119,15 @@ export type FormulaColumn = { key?: string; formula?: string; label?: string };
  * Menghitung nilai semua kolom rumus untuk satu baris, berurutan.
  * Mendukung rumus dengan col_0, col_1, ... atau nama kolom (label).
  */
-/** Nilai untuk kolom "input" (Bbm, Harga/Bbm) yang belum punya rumus, dari row. */
+/** Nilai untuk kolom "input" (Hari, Jam, Harga/Hari, Harga/Jam, BBM, dll.) yang belum punya rumus, dari row. */
 function getInputColumnValue(row: FormulaRow, label: string): number {
-  const lbl = label.trim().toLowerCase();
+  const lbl = label.trim().toLowerCase().replace(/\s+/g, '');
   if (lbl === 'bbm') return Number(row.bbm_quantity) || 0;
-  if (/harga\s*\/\s*bbm/.test(lbl) || lbl === 'harga/bbm') return Number(row.bbm_unit_price) || 0;
+  if (/harga\s*\/\s*bbm/.test(label.trim().toLowerCase()) || lbl === 'harga/bbm') return Number(row.bbm_unit_price) || 0;
+  if (lbl === 'hari' || lbl === 'days' || lbl === 'jam' || lbl === 'unit' || lbl === 'jerigen' || lbl === 'volume' || lbl === 'qty' || lbl === 'quantity') {
+    return Number(row.days ?? row.quantity ?? 0) || 0;
+  }
+  if (lbl.includes('harga') || lbl.includes('price')) return Number(row.price ?? 0) || 0;
   return 0;
 }
 
@@ -142,10 +146,16 @@ export function getComputedFormulaValues(
     if (col.key !== 'formula') continue;
     const byLabel: Record<string, number> = {};
     for (let j = 0; j < i; j++) {
-      if (columns[j].key !== 'formula') continue;
       const lbl = (columns[j].label ?? '').trim();
       if (!lbl) continue;
-      const val = computed[j] !== undefined ? computed[j] : getInputColumnValue(row, lbl);
+      let val = 0;
+      if (columns[j].key === 'number') {
+        const fieldKey = `custom_num_${j}`;
+        const v = (row as Record<string, unknown>)[fieldKey];
+        val = v != null ? Number(v) : 0;
+      } else if (columns[j].key === 'formula') {
+        val = computed[j] !== undefined ? computed[j] : getInputColumnValue(row, lbl);
+      }
       const numVal = Number.isFinite(val) ? val : 0;
       byLabel[lbl] = numVal;
       const norm = normalizeLabelForFormula(lbl);
