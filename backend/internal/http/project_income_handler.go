@@ -15,10 +15,25 @@ type ProjectIncomeHandler struct {
 	service         service.ProjectIncomeService
 	activityService service.ActivityService
 	financeService  service.FinanceService
+	projectService  service.ProjectService
 }
 
-func NewProjectIncomeHandler(service service.ProjectIncomeService, activityService service.ActivityService, financeService service.FinanceService) *ProjectIncomeHandler {
-	return &ProjectIncomeHandler{service, activityService, financeService}
+func NewProjectIncomeHandler(service service.ProjectIncomeService, activityService service.ActivityService, financeService service.FinanceService, projectService service.ProjectService) *ProjectIncomeHandler {
+	return &ProjectIncomeHandler{service, activityService, financeService, projectService}
+}
+
+// financeKeteranganForIncome builds keterangan with project name: "Cut & Fill Gajah Mada - Kategori: Deskripsi"
+func (h *ProjectIncomeHandler) financeKeteranganForIncome(projectID int, kategori, deskripsi string) string {
+	projectName := ""
+	if h.projectService != nil {
+		if proj, err := h.projectService.GetProjectByID(uint(projectID)); err == nil && proj != nil {
+			projectName = proj.Name
+		}
+	}
+	if projectName == "" {
+		return fmt.Sprintf("Project Income - %s: %s", kategori, deskripsi)
+	}
+	return fmt.Sprintf("%s - %s: %s", projectName, kategori, deskripsi)
 }
 
 // CreateIncome creates a new project income
@@ -40,7 +55,7 @@ func (h *ProjectIncomeHandler) CreateIncome(c echo.Context) error {
 			Unit:            1,
 			Jumlah:          income.Jumlah,
 			HargaPerUnit:    income.Jumlah,
-			Keterangan:      fmt.Sprintf("Project Income - %s: %s", income.Kategori, income.Deskripsi),
+			Keterangan:      h.financeKeteranganForIncome(income.ProjectID, income.Kategori, income.Deskripsi),
 			Type:            entity.Income,
 			Category:        entity.FinanceCategory(income.Kategori),
 			Status:          "Paid", // Received = Paid in finance
@@ -110,7 +125,7 @@ func (h *ProjectIncomeHandler) UpdateIncome(c echo.Context) error {
 			Unit:            1,
 			Jumlah:          income.Jumlah,
 			HargaPerUnit:    income.Jumlah,
-			Keterangan:      fmt.Sprintf("Project Income - %s: %s", income.Kategori, income.Deskripsi),
+			Keterangan:      h.financeKeteranganForIncome(income.ProjectID, income.Kategori, income.Deskripsi),
 			Type:            entity.Income,
 			Category:        entity.FinanceCategory(income.Kategori),
 			Status:          "Paid",
@@ -141,7 +156,7 @@ func (h *ProjectIncomeHandler) UpdateIncome(c echo.Context) error {
 			financeEntry.Tanggal = income.Tanggal
 			financeEntry.Jumlah = income.Jumlah
 			financeEntry.HargaPerUnit = income.Jumlah
-			financeEntry.Keterangan = fmt.Sprintf("Project Income - %s: %s", income.Kategori, income.Deskripsi)
+			financeEntry.Keterangan = h.financeKeteranganForIncome(income.ProjectID, income.Kategori, income.Deskripsi)
 			financeEntry.Category = entity.FinanceCategory(income.Kategori)
 			if err := h.financeService.UpdateFinance(financeEntry); err != nil {
 				fmt.Println("Failed to update synced finance entry:", err)

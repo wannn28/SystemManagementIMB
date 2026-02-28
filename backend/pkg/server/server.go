@@ -85,8 +85,8 @@ func StartServer() {
 
 	// Registrasi route
 	route.RegisterProjectRoutes(e, projectService, cfg, activityService)
-	route.RegisterProjectExpenseRoutes(e, projectExpenseService, activityService, financeService, cfg)
-	route.RegisterProjectIncomeRoutes(e, projectIncomeService, activityService, financeService, cfg)
+	route.RegisterProjectExpenseRoutes(e, projectExpenseService, activityService, financeService, projectService, cfg)
+	route.RegisterProjectIncomeRoutes(e, projectIncomeService, activityService, financeService, projectService, cfg)
 	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService, activityService) // Perbaiki typo
 	financeCategoryRepo := repository.NewFinanceCategoryRepository(db)
 	financeCategoryService := service.NewFinanceCategoryService(financeCategoryRepo)

@@ -17,8 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
 	"dashboardadminimb/pkg/response"
+
+	"github.com/labstack/echo/v4"
 )
 
 // normalisasi due_date: kosong atau invalid (tahun < 1000) -> nil agar MySQL tidak error
@@ -50,9 +51,78 @@ func NewInvoiceHandler(service service.InvoiceService, cfg config.Config) *Invoi
 	return &InvoiceHandler{service: service, cfg: cfg}
 }
 
+// inflateInvoiceForResponse returns a map suitable for JSON response with each item's CustomColumns merged as custom_num_0, custom_num_1, etc.
+func inflateInvoiceForResponse(inv *entity.Invoice) map[string]interface{} {
+	b, err := json.Marshal(inv)
+	if err != nil {
+		return nil
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil
+	}
+	itemsRaw, ok := m["items"].([]interface{})
+	if !ok {
+		return m
+	}
+	for i, it := range itemsRaw {
+		itemMap, ok := it.(map[string]interface{})
+		if !ok || i >= len(inv.Items) {
+			continue
+		}
+		customStr := inv.Items[i].CustomColumns
+		delete(itemMap, "custom_columns")
+		if customStr != "" {
+			var customMap map[string]interface{}
+			if json.Unmarshal([]byte(customStr), &customMap) == nil {
+				for k, v := range customMap {
+					itemMap[k] = v
+				}
+			}
+		}
+	}
+	return m
+}
+
+// parseInvoiceFromRequest reads body once, binds to inv, and fills inv.Items[].CustomColumns from raw "custom_num_*" keys.
+func parseInvoiceFromRequest(c echo.Context, inv *entity.Invoice) error {
+	bodyBytes, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(bodyBytes, inv); err != nil {
+		return err
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &raw); err != nil {
+		return nil
+	}
+	itemsRaw, ok := raw["items"].([]interface{})
+	if !ok || len(itemsRaw) != len(inv.Items) {
+		return nil
+	}
+	for i := range inv.Items {
+		itemMap, ok := itemsRaw[i].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		customMap := make(map[string]interface{})
+		for k, v := range itemMap {
+			if strings.HasPrefix(k, "custom_num_") && v != nil {
+				customMap[k] = v
+			}
+		}
+		if len(customMap) > 0 {
+			customJSON, _ := json.Marshal(customMap)
+			inv.Items[i].CustomColumns = string(customJSON)
+		}
+	}
+	return nil
+}
+
 func (h *InvoiceHandler) Create(c echo.Context) error {
 	var inv entity.Invoice
-	if err := c.Bind(&inv); err != nil {
+	if err := parseInvoiceFromRequest(c, &inv); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	if inv.InvoiceNumber == "" {
@@ -64,12 +134,11 @@ func (h *InvoiceHandler) Create(c echo.Context) error {
 	if inv.TemplateID == 0 {
 		return response.Error(c, http.StatusBadRequest, echo.NewHTTPError(http.StatusBadRequest, "template_id is required"))
 	}
-	// MySQL DATE tidak menerima string kosong atau invalid (e.g. 0022-02-22); simpan NULL
 	inv.DueDate = normalizeDueDate(inv.DueDate)
 	if err := h.service.Create(&inv); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-	return response.Success(c, http.StatusCreated, inv)
+	return response.Success(c, http.StatusCreated, inflateInvoiceForResponse(&inv))
 }
 
 func (h *InvoiceHandler) Update(c echo.Context) error {
@@ -79,7 +148,7 @@ func (h *InvoiceHandler) Update(c echo.Context) error {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 	var body entity.Invoice
-	if err := c.Bind(&body); err != nil {
+	if err := parseInvoiceFromRequest(c, &body); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	existing.InvoiceNumber = body.InvoiceNumber
@@ -106,12 +175,13 @@ func (h *InvoiceHandler) Update(c echo.Context) error {
 	existing.QuantityUnit = body.QuantityUnit
 	existing.PriceUnitLabel = body.PriceUnitLabel
 	existing.ItemColumnLabel = body.ItemColumnLabel
+	existing.GroupColumnConfigs = body.GroupColumnConfigs
 	existing.Items = body.Items
 	if err := h.service.Update(existing); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	updated, _ := h.service.GetByID(uint(id))
-	return response.Success(c, http.StatusOK, updated)
+	return response.Success(c, http.StatusOK, inflateInvoiceForResponse(updated))
 }
 
 func (h *InvoiceHandler) Delete(c echo.Context) error {
@@ -131,7 +201,7 @@ func (h *InvoiceHandler) GetByID(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
-	return response.Success(c, http.StatusOK, inv)
+	return response.Success(c, http.StatusOK, inflateInvoiceForResponse(inv))
 }
 
 func (h *InvoiceHandler) GetAllWithPagination(c echo.Context) error {
@@ -226,14 +296,14 @@ func (h *InvoiceHandler) ExtractFromImage(c echo.Context) error {
 			return response.Error(c, http.StatusBadRequest, err)
 		}
 		var out *gemini.ExtractInvoiceResponse
-			if strings.TrimSpace(strings.ToLower(h.cfg.ExtractProvider)) == "deepseek" {
-				out, err = deepseek.ExtractInvoiceFromImage(h.cfg.DeepSeekBaseURL, h.cfg.DeepSeekAPIKey, h.cfg.DeepSeekModel, imageData, mimeType)
-			} else {
-				out, err = gemini.ExtractInvoiceFromImage(h.cfg.GeminiAPIKey, h.cfg.GeminiModel, imageData, mimeType)
-			}
-			if err != nil {
-				return response.Error(c, http.StatusUnprocessableEntity, err)
-			}
+		if strings.TrimSpace(strings.ToLower(h.cfg.ExtractProvider)) == "deepseek" {
+			out, err = deepseek.ExtractInvoiceFromImage(h.cfg.DeepSeekBaseURL, h.cfg.DeepSeekAPIKey, h.cfg.DeepSeekModel, imageData, mimeType)
+		} else {
+			out, err = gemini.ExtractInvoiceFromImage(h.cfg.GeminiAPIKey, h.cfg.GeminiModel, imageData, mimeType)
+		}
+		if err != nil {
+			return response.Error(c, http.StatusUnprocessableEntity, err)
+		}
 		resp.CustomerName = out.CustomerName
 		resp.CustomerPhone = out.CustomerPhone
 		resp.CustomerAddress = out.CustomerAddress
@@ -268,14 +338,14 @@ func (h *InvoiceHandler) ExtractFromImage(c echo.Context) error {
 			return response.Error(c, http.StatusBadRequest, err)
 		}
 		var one *gemini.ExtractOneDayResponse
-			if strings.TrimSpace(strings.ToLower(h.cfg.ExtractProvider)) == "deepseek" {
-				one, err = deepseek.ExtractOneDayFromImage(h.cfg.DeepSeekBaseURL, h.cfg.DeepSeekAPIKey, h.cfg.DeepSeekModel, imageData, mimeType, quantityUnit, useBBM)
-			} else {
-				one, err = gemini.ExtractOneDayFromImage(h.cfg.GeminiAPIKey, h.cfg.GeminiModel, imageData, mimeType, quantityUnit, useBBM)
-			}
-			if err != nil {
-				return response.Error(c, http.StatusUnprocessableEntity, echo.NewHTTPError(http.StatusUnprocessableEntity, "gambar ke-"+(strconv.Itoa(i+1))+": "+err.Error()))
-			}
+		if strings.TrimSpace(strings.ToLower(h.cfg.ExtractProvider)) == "deepseek" {
+			one, err = deepseek.ExtractOneDayFromImage(h.cfg.DeepSeekBaseURL, h.cfg.DeepSeekAPIKey, h.cfg.DeepSeekModel, imageData, mimeType, quantityUnit, useBBM)
+		} else {
+			one, err = gemini.ExtractOneDayFromImage(h.cfg.GeminiAPIKey, h.cfg.GeminiModel, imageData, mimeType, quantityUnit, useBBM)
+		}
+		if err != nil {
+			return response.Error(c, http.StatusUnprocessableEntity, echo.NewHTTPError(http.StatusUnprocessableEntity, "gambar ke-"+(strconv.Itoa(i+1))+": "+err.Error()))
+		}
 		// Dari gambar pertama ambil customer & location jika belum dari config
 		if i == 0 {
 			if one.CustomerName != "" {
@@ -368,7 +438,7 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 		c.Logger().Errorf("extract-row-from-image: ekstraksi gagal: %v", err)
 		return response.Error(c, http.StatusUnprocessableEntity, err)
 	}
-	
+
 	// Deteksi unit dari columnDescriptions (lebih prioritas dari quantityUnit form)
 	hasJamColumn := false
 	hasHariColumn := false
@@ -381,7 +451,7 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 			hasHariColumn = true
 		}
 	}
-	
+
 	// Tentukan unit target berdasarkan kolom (jika ada kolom Jam, return dalam jam; jika ada kolom Hari, return dalam hari)
 	targetUnit := quantityUnit
 	if hasJamColumn && !hasHariColumn {
@@ -389,7 +459,7 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 	} else if hasHariColumn && !hasJamColumn {
 		targetUnit = "hari"
 	}
-	
+
 	// Konversi ke satuan target: ekstrak "jam" tapi target "hari" -> konversi / 8; ekstrak "hari" tapi target "jam" -> konversi * 8
 	days := out.Quantity
 	extractedUnit := strings.ToLower(strings.TrimSpace(out.Unit))
@@ -398,7 +468,7 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 	} else if targetUnit == "jam" && extractedUnit == "hari" {
 		days = out.Quantity * 8
 	}
-	
+
 	return response.Success(c, http.StatusOK, map[string]interface{}{
 		"row_date": strings.TrimSpace(out.RowDate),
 		"days":     days,
@@ -421,19 +491,19 @@ type TimesheetRawOCR struct {
 
 // TimesheetParsedResponse schema output parser timesheet (strict JSON, ada raw_ocr untuk audit).
 type TimesheetParsedResponse struct {
-	No           *string             `json:"no"`
-	DipakaiOleh  *string             `json:"dipakai_oleh"`
-	BP           *string             `json:"bp"`
-	Excavator    *string             `json:"excavator"`
-	Lokasi       *string             `json:"lokasi"`
-	Hari         *string             `json:"hari"`
-	Tanggal      *string             `json:"tanggal"`
-	JamKerja     []TimesheetJamKerja `json:"jam_kerja"`
-	TotalJam     *float64            `json:"total_jam"`
-	Keterangan   *string             `json:"keterangan"`
-	TtdOperator  *bool               `json:"ttd_operator"`
-	TtdPemakai   *bool               `json:"ttd_pemakai"`
-	RawOCR       *TimesheetRawOCR    `json:"raw_ocr"`
+	No          *string             `json:"no"`
+	DipakaiOleh *string             `json:"dipakai_oleh"`
+	BP          *string             `json:"bp"`
+	Excavator   *string             `json:"excavator"`
+	Lokasi      *string             `json:"lokasi"`
+	Hari        *string             `json:"hari"`
+	Tanggal     *string             `json:"tanggal"`
+	JamKerja    []TimesheetJamKerja `json:"jam_kerja"`
+	TotalJam    *float64            `json:"total_jam"`
+	Keterangan  *string             `json:"keterangan"`
+	TtdOperator *bool               `json:"ttd_operator"`
+	TtdPemakai  *bool               `json:"ttd_pemakai"`
+	RawOCR      *TimesheetRawOCR    `json:"raw_ocr"`
 }
 
 // parseTimesheetPrompt strict: OCR → JSON, normalisasi tanggal/jam, raw_ocr.text = OCR_TEXT.

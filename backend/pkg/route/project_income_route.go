@@ -9,8 +9,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterProjectIncomeRoutes(e *echo.Echo, projectIncomeService service.ProjectIncomeService, activityService service.ActivityService, financeService service.FinanceService, config config.Config) {
-	handler := http.NewProjectIncomeHandler(projectIncomeService, activityService, financeService)
+func RegisterProjectIncomeRoutes(e *echo.Echo, projectIncomeService service.ProjectIncomeService, activityService service.ActivityService, financeService service.FinanceService, projectService service.ProjectService, config config.Config) {
+	handler := http.NewProjectIncomeHandler(projectIncomeService, activityService, financeService, projectService)
 	g := e.Group("/api/project-incomes")
 	g.Use(middleware.AdminAuth(config))
 

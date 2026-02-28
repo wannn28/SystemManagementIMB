@@ -135,17 +135,23 @@ export const invoiceApi = {
       customer_phone: payload.customer_phone || '',
       customer_email: payload.customer_email || '',
       customer_address: payload.customer_address || '',
-      items: payload.items.map((i) => ({
-        item_name: i.item_name,
-        description: i.description || '',
-        quantity: i.quantity ?? 1,
-        price: i.price ?? 0,
-        row_date: i.row_date || '',
-        days: i.days ?? 0,
-        bbm_quantity: i.bbm_quantity ?? 0,
-        bbm_unit_price: i.bbm_unit_price ?? 0,
-        equipment_group: i.equipment_group ?? '',
-      })),
+      items: payload.items.map((i) => {
+        const base = {
+          item_name: i.item_name,
+          description: i.description || '',
+          quantity: i.quantity ?? 1,
+          price: i.price ?? 0,
+          row_date: i.row_date || '',
+          days: i.days ?? 0,
+          bbm_quantity: i.bbm_quantity ?? 0,
+          bbm_unit_price: i.bbm_unit_price ?? 0,
+          equipment_group: i.equipment_group ?? '',
+        };
+        const customFields = Object.keys(i as Record<string, unknown>)
+          .filter((k) => k.startsWith('custom_num_'))
+          .reduce((acc, k) => ({ ...acc, [k]: (i as Record<string, unknown>)[k] }), {});
+        return { ...base, ...customFields };
+      }),
       tax_percent: payload.tax_percent ?? 0,
       notes: payload.notes || '',
       include_bbm_note: payload.include_bbm_note ?? false,
@@ -161,6 +167,8 @@ export const invoiceApi = {
       terbilang_custom: payload.terbilang_custom ?? '',
       quantity_unit: payload.quantity_unit || 'hari',
       price_unit_label: payload.price_unit_label || 'Harga/Hari',
+      item_column_label: payload.item_column_label,
+      group_column_configs: payload.group_column_configs,
     };
 
     const res = await axios.post<ApiRes<Invoice>>(getUrl(''), body, { headers: getAuthHeaders() });
@@ -180,17 +188,23 @@ export const invoiceApi = {
       customer_phone: payload.customer_phone,
       customer_email: payload.customer_email,
       customer_address: payload.customer_address,
-      items: payload.items?.map((i) => ({
-        item_name: i.item_name,
-        description: i.description || '',
-        quantity: i.quantity ?? 1,
-        price: i.price ?? 0,
-        row_date: i.row_date || '',
-        days: i.days ?? 0,
-        bbm_quantity: i.bbm_quantity ?? 0,
-        bbm_unit_price: i.bbm_unit_price ?? 0,
-        equipment_group: i.equipment_group ?? '',
-      })),
+      items: payload.items?.map((i) => {
+        const base = {
+          item_name: i.item_name,
+          description: i.description || '',
+          quantity: i.quantity ?? 1,
+          price: i.price ?? 0,
+          row_date: i.row_date || '',
+          days: i.days ?? 0,
+          bbm_quantity: i.bbm_quantity ?? 0,
+          bbm_unit_price: i.bbm_unit_price ?? 0,
+          equipment_group: i.equipment_group ?? '',
+        };
+        const customFields = Object.keys(i as Record<string, unknown>)
+          .filter((k) => k.startsWith('custom_num_'))
+          .reduce((acc, k) => ({ ...acc, [k]: (i as Record<string, unknown>)[k] }), {});
+        return { ...base, ...customFields };
+      }),
       tax_percent: payload.tax_percent,
       notes: payload.notes,
       status: payload.status,
@@ -207,6 +221,8 @@ export const invoiceApi = {
       terbilang_custom: payload.terbilang_custom ?? '',
       quantity_unit: payload.quantity_unit || 'hari',
       price_unit_label: payload.price_unit_label || 'Harga/Hari',
+      item_column_label: payload.item_column_label,
+      group_column_configs: payload.group_column_configs,
     };
     const res = await axios.put<ApiRes<Invoice>>(getUrl(`/${id}`), body, { headers: getAuthHeaders() });
     return res.data?.data ?? (res.data as unknown as Invoice);

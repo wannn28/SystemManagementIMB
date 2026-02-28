@@ -15,10 +15,25 @@ type ProjectExpenseHandler struct {
 	service         service.ProjectExpenseService
 	activityService service.ActivityService
 	financeService  service.FinanceService
+	projectService  service.ProjectService
 }
 
-func NewProjectExpenseHandler(service service.ProjectExpenseService, activityService service.ActivityService, financeService service.FinanceService) *ProjectExpenseHandler {
-	return &ProjectExpenseHandler{service, activityService, financeService}
+func NewProjectExpenseHandler(service service.ProjectExpenseService, activityService service.ActivityService, financeService service.FinanceService, projectService service.ProjectService) *ProjectExpenseHandler {
+	return &ProjectExpenseHandler{service, activityService, financeService, projectService}
+}
+
+// financeKeteranganForExpense builds keterangan with project name: "Cut & Fill Gajah Mada - Tangki 5 ton: 5 Biji"
+func (h *ProjectExpenseHandler) financeKeteranganForExpense(projectID int, kategori, deskripsi string) string {
+	projectName := ""
+	if h.projectService != nil {
+		if proj, err := h.projectService.GetProjectByID(uint(projectID)); err == nil && proj != nil {
+			projectName = proj.Name
+		}
+	}
+	if projectName == "" {
+		return fmt.Sprintf("Project Expense - %s: %s", kategori, deskripsi)
+	}
+	return fmt.Sprintf("%s - %s: %s", projectName, kategori, deskripsi)
 }
 
 // CreateExpense creates a new project expense
@@ -40,7 +55,7 @@ func (h *ProjectExpenseHandler) CreateExpense(c echo.Context) error {
 			Unit:             1,
 			Jumlah:           expense.Jumlah,
 			HargaPerUnit:     expense.Jumlah,
-			Keterangan:       fmt.Sprintf("Project Expense - %s: %s", expense.Kategori, expense.Deskripsi),
+			Keterangan:       h.financeKeteranganForExpense(expense.ProjectID, expense.Kategori, expense.Deskripsi),
 			Type:             entity.Expense,
 			Category:         entity.FinanceCategory(expense.Kategori),
 			Status:           "Paid",
@@ -110,7 +125,7 @@ func (h *ProjectExpenseHandler) UpdateExpense(c echo.Context) error {
 			Unit:             1,
 			Jumlah:           expense.Jumlah,
 			HargaPerUnit:     expense.Jumlah,
-			Keterangan:       fmt.Sprintf("Project Expense - %s: %s", expense.Kategori, expense.Deskripsi),
+			Keterangan:       h.financeKeteranganForExpense(expense.ProjectID, expense.Kategori, expense.Deskripsi),
 			Type:             entity.Expense,
 			Category:         entity.FinanceCategory(expense.Kategori),
 			Status:           "Paid",
@@ -141,7 +156,7 @@ func (h *ProjectExpenseHandler) UpdateExpense(c echo.Context) error {
 			financeEntry.Tanggal = expense.Tanggal
 			financeEntry.Jumlah = expense.Jumlah
 			financeEntry.HargaPerUnit = expense.Jumlah
-			financeEntry.Keterangan = fmt.Sprintf("Project Expense - %s: %s", expense.Kategori, expense.Deskripsi)
+			financeEntry.Keterangan = h.financeKeteranganForExpense(expense.ProjectID, expense.Kategori, expense.Deskripsi)
 			financeEntry.Category = entity.FinanceCategory(expense.Kategori)
 			if err := h.financeService.UpdateFinance(financeEntry); err != nil {
 				fmt.Println("Failed to update synced finance entry:", err)

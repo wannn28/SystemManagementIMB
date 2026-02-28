@@ -9,8 +9,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterProjectExpenseRoutes(e *echo.Echo, projectExpenseService service.ProjectExpenseService, activityService service.ActivityService, financeService service.FinanceService, config config.Config) {
-	handler := http.NewProjectExpenseHandler(projectExpenseService, activityService, financeService)
+func RegisterProjectExpenseRoutes(e *echo.Echo, projectExpenseService service.ProjectExpenseService, activityService service.ActivityService, financeService service.FinanceService, projectService service.ProjectService, config config.Config) {
+	handler := http.NewProjectExpenseHandler(projectExpenseService, activityService, financeService, projectService)
 	g := e.Group("/api/project-expenses")
 	g.Use(middleware.AdminAuth(config))
 
