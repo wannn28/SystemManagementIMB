@@ -22,6 +22,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
   
   // Smart Nota Import states
   const [showImportForm, setShowImportForm] = useState(false);
@@ -258,13 +259,23 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
 
   return (
     <div className="mb-8">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <h3 className="text-lg font-semibold">
           {type === 'salary' ? 'Rincian Gaji Harian' : 'Kasbon'}
         </h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {data.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsTableExpanded(!isTableExpanded)}
+              className="text-amber-600 hover:text-amber-800 font-medium"
+            >
+              {isTableExpanded ? 'Sembunyikan tabel' : `Tampilkan tabel (${data.length} baris)`}
+            </button>
+          )}
           {type === 'salary' && (
             <button
+              type="button"
               onClick={() => setShowImportForm(!showImportForm)}
               className="text-green-600 hover:text-green-800"
             >
@@ -272,6 +283,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
             </button>
           )}
           <button
+            type="button"
             onClick={() => setShowForm(!showForm)}
             className="text-blue-600 hover:text-blue-800"
           >
@@ -514,7 +526,12 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
         </div>
       )}
 
-      {data.length > 0 && (
+      {data.length > 0 && !isTableExpanded && (
+        <div className="py-3 px-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+          Tabel berisi <strong>{data.length}</strong> baris. Klik &quot;Tampilkan tabel&quot; di atas untuk melihat rincian.
+        </div>
+      )}
+      {data.length > 0 && isTableExpanded && (
         <div className="overflow-x-auto">
           {/* Duplicate Detection and Cleanup */}
           {(() => {

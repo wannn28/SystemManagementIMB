@@ -26,6 +26,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const [filterBP, setFilterBP] = useState<string>('');
     const [filterLocation, setFilterLocation] = useState<string>('');
     const [planValue, setPlanValue] = useState<number>(0);
+    const [weekStartDay, setWeekStartDay] = useState<number>(1); // 0=Minggu, 1=Senin, dst
 
     // Load SmartNota templates from invoices on component mount
     useEffect(() => {
@@ -67,6 +68,273 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
         } finally {
             setIsLoadingTemplates(false);
         }
+    };
+
+    const generateMonthlyReports = () => {
+        if (dailyReports.length === 0) {
+            alert('Tidak ada daily reports. Silakan buat daily reports terlebih dahulu.');
+            return;
+        }
+
+        // Group daily reports by month
+        const monthlyData: Record<string, typeof dailyReports> = {};
+        
+        dailyReports.forEach(report => {
+            if (!report.date) return;
+            
+            const date = new Date(report.date);
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1; // 1-12
+            
+            const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+            
+            if (!monthlyData[monthKey]) {
+                monthlyData[monthKey] = [];
+            }
+            monthlyData[monthKey].push(report);
+        });
+
+        // Generate monthly reports
+        const newMonthlyReports: typeof monthlyReports = [];
+        let createdCount = 0;
+        let updatedCount = 0;
+
+        Object.entries(monthlyData).forEach(([monthKey, reports]) => {
+            // Calculate aggregated data for the month
+            const targetPlan = reports.reduce((sum, r) => sum + (r.plan || 0), 0);
+            const targetAktual = reports.reduce((sum, r) => sum + (r.aktual || 0), 0);
+            
+            // Get final cumulative values from last day of the month
+            const sortedReports = reports.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const lastReport = sortedReports[sortedReports.length - 1];
+            const volume = lastReport?.volume || 0;
+            const targetVolume = lastReport?.targetVolume || 0;
+
+            // Calculate total and average workers
+            const totalWorkers = reports.reduce((sum, r) => sum + (r.totalWorkers || 0), 0);
+            const avgWorkers = reports.length > 0 ? Math.round((totalWorkers / reports.length) * 100) / 100 : 0;
+
+            // Calculate total and average equipment
+            const totalEquipment = reports.reduce((sum, r) => sum + (r.totalEquipment || 0), 0);
+            const avgEquipment = reports.length > 0 ? Math.round((totalEquipment / reports.length) * 100) / 100 : 0;
+
+            // Calculate workers by type
+            const workers: Record<string, number> = {};
+            const avgWorkersByType: Record<string, number> = {};
+            
+            reports.forEach(report => {
+                Object.entries(report.workers || {}).forEach(([type, count]) => {
+                    workers[type] = (workers[type] || 0) + count;
+                });
+            });
+            
+            Object.entries(workers).forEach(([type, total]) => {
+                avgWorkersByType[type] = reports.length > 0 ? Math.round((total / reports.length) * 100) / 100 : 0;
+            });
+
+            // Calculate equipment by type
+            const equipment: Record<string, number> = {};
+            const avgEquipmentByType: Record<string, number> = {};
+            
+            reports.forEach(report => {
+                Object.entries(report.equipment || {}).forEach(([type, count]) => {
+                    equipment[type] = (equipment[type] || 0) + count;
+                });
+            });
+            
+            Object.entries(equipment).forEach(([type, total]) => {
+                avgEquipmentByType[type] = reports.length > 0 ? Math.round((total / reports.length) * 100) / 100 : 0;
+            });
+
+            const monthlyReport = {
+                month: monthKey,
+                targetPlan,
+                targetAktual,
+                volume,
+                targetVolume,
+                totalWorkers,
+                avgWorkers,
+                totalEquipment,
+                avgEquipment,
+                workers,
+                avgWorkersByType,
+                equipment,
+                avgEquipmentByType
+            };
+
+            // Check if monthly report already exists
+            const existingIndex = monthlyReports.findIndex(m => m.month === monthKey);
+            if (existingIndex >= 0) {
+                newMonthlyReports.push(monthlyReport);
+                updatedCount++;
+            } else {
+                newMonthlyReports.push(monthlyReport);
+                createdCount++;
+            }
+        });
+
+        // Sort by month
+        newMonthlyReports.sort((a, b) => a.month.localeCompare(b.month));
+
+        setMonthlyReports(newMonthlyReports);
+
+        alert(
+            `✅ Berhasil generate Monthly Reports!` +
+            `\n📅 Reports dibuat: ${createdCount}` +
+            `\n🔄 Reports diupdate: ${updatedCount}` +
+            `\n📊 Total monthly reports: ${newMonthlyReports.length}` +
+            `\n\n💡 Monthly reports dihitung dari Daily Reports yang ada` +
+            `\n💾 Jangan lupa klik "Save All Changes" untuk menyimpan!`
+        );
+    };
+
+    const getDayName = (dayNumber: number): string => {
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        return days[dayNumber];
+    };
+
+    const getWeekKey = (date: Date, weekStartDay: number): string => {
+        // Calculate which week this date belongs to based on weekStartDay
+        const currentDay = date.getDay(); // 0=Sunday, 1=Monday, etc.
+        
+        // Calculate days difference from week start
+        let daysDiff = currentDay - weekStartDay;
+        if (daysDiff < 0) daysDiff += 7;
+        
+        // Get the date of the week start
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - daysDiff);
+        
+        // Format: YYYY-MM-DD (Week Start Date)
+        const year = weekStart.getFullYear();
+        const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+        const day = String(weekStart.getDate()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    };
+
+    const generateWeeklyReports = () => {
+        if (dailyReports.length === 0) {
+            alert('Tidak ada daily reports. Silakan buat daily reports terlebih dahulu.');
+            return;
+        }
+
+        // Group daily reports by week based on selected week start day
+        const weeklyData: Record<string, typeof dailyReports> = {};
+        
+        dailyReports.forEach(report => {
+            if (!report.date) return;
+            
+            const date = new Date(report.date);
+            const weekKey = getWeekKey(date, weekStartDay);
+            
+            if (!weeklyData[weekKey]) {
+                weeklyData[weekKey] = [];
+            }
+            weeklyData[weekKey].push(report);
+        });
+
+        // Generate weekly reports
+        const newWeeklyReports: typeof weeklyReports = [];
+        let createdCount = 0;
+        let updatedCount = 0;
+
+        Object.entries(weeklyData).forEach(([weekKey, reports]) => {
+            // Sort reports by date
+            const sortedReports = reports.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            
+            // Get date range for display
+            const firstDate = sortedReports[0].date;
+            const lastDate = sortedReports[sortedReports.length - 1].date;
+            const weekLabel = `${firstDate} s/d ${lastDate}`;
+            
+            // Calculate aggregated data for the week
+            const targetPlan = reports.reduce((sum, r) => sum + (r.plan || 0), 0);
+            const targetAktual = reports.reduce((sum, r) => sum + (r.aktual || 0), 0);
+            
+            // Get final cumulative values from last day of the week
+            const lastReport = sortedReports[sortedReports.length - 1];
+            const volume = lastReport?.volume || 0;
+            const targetVolume = lastReport?.targetVolume || 0;
+
+            // Calculate total and average workers
+            const totalWorkers = reports.reduce((sum, r) => sum + (r.totalWorkers || 0), 0);
+            const avgWorkers = reports.length > 0 ? Math.round((totalWorkers / reports.length) * 100) / 100 : 0;
+
+            // Calculate total and average equipment
+            const totalEquipment = reports.reduce((sum, r) => sum + (r.totalEquipment || 0), 0);
+            const avgEquipment = reports.length > 0 ? Math.round((totalEquipment / reports.length) * 100) / 100 : 0;
+
+            // Calculate workers by type
+            const workers: Record<string, number> = {};
+            const avgWorkersByType: Record<string, number> = {};
+            
+            reports.forEach(report => {
+                Object.entries(report.workers || {}).forEach(([type, count]) => {
+                    workers[type] = (workers[type] || 0) + count;
+                });
+            });
+            
+            Object.entries(workers).forEach(([type, total]) => {
+                avgWorkersByType[type] = reports.length > 0 ? Math.round((total / reports.length) * 100) / 100 : 0;
+            });
+
+            // Calculate equipment by type
+            const equipment: Record<string, number> = {};
+            const avgEquipmentByType: Record<string, number> = {};
+            
+            reports.forEach(report => {
+                Object.entries(report.equipment || {}).forEach(([type, count]) => {
+                    equipment[type] = (equipment[type] || 0) + count;
+                });
+            });
+            
+            Object.entries(equipment).forEach(([type, total]) => {
+                avgEquipmentByType[type] = reports.length > 0 ? Math.round((total / reports.length) * 100) / 100 : 0;
+            });
+
+            const weeklyReport = {
+                week: weekLabel, // Use readable date range instead of week key
+                targetPlan,
+                targetAktual,
+                volume,
+                targetVolume,
+                totalWorkers,
+                avgWorkers,
+                totalEquipment,
+                avgEquipment,
+                workers,
+                avgWorkersByType,
+                equipment,
+                avgEquipmentByType
+            };
+
+            // Check if weekly report already exists
+            const existingIndex = weeklyReports.findIndex(w => w.week === weekLabel);
+            if (existingIndex >= 0) {
+                newWeeklyReports.push(weeklyReport);
+                updatedCount++;
+            } else {
+                newWeeklyReports.push(weeklyReport);
+                createdCount++;
+            }
+        });
+
+        // Sort by week
+        newWeeklyReports.sort((a, b) => a.week.localeCompare(b.week));
+
+        setWeeklyReports(newWeeklyReports);
+
+        alert(
+            `✅ Berhasil generate Weekly Reports!` +
+            `\n📅 Hari mulai minggu: ${getDayName(weekStartDay)}` +
+            `\n📄 Reports dibuat: ${createdCount}` +
+            `\n🔄 Reports diupdate: ${updatedCount}` +
+            `\n📊 Total weekly reports: ${newWeeklyReports.length}` +
+            `\n\n💡 Weekly reports dihitung dari Daily Reports yang ada` +
+            `\n📆 Periode minggu dimulai setiap hari ${getDayName(weekStartDay)}` +
+            `\n💾 Jangan lupa klik "Save All Changes" untuk menyimpan!`
+        );
     };
 
     const bulkFillFromSmartNota = async () => {
@@ -1869,12 +2137,53 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                 </h4>
                                 <p className="text-gray-600 mt-1">Weekly summaries and aggregated data</p>
                             </div>
-                            <button 
-                                onClick={addWeeklyReport} 
-                                className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 shadow-md flex items-center"
-                            >
-                                ➕ Add Weekly Report
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={generateWeeklyReports} 
+                                    className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-md flex items-center gap-2"
+                                    title="Generate weekly reports dari daily reports"
+                                >
+                                    ⚡ Auto-Generate
+                                </button>
+                                <button 
+                                    onClick={addWeeklyReport} 
+                                    className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 shadow-md flex items-center"
+                                >
+                                    ➕ Add Manual
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Configuration */}
+                        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                                <label className="block text-sm font-semibold text-green-800 mb-2">
+                                    📅 Hari Mulai Minggu
+                                </label>
+                                <select
+                                    value={weekStartDay}
+                                    onChange={(e) => setWeekStartDay(Number(e.target.value))}
+                                    className="w-full px-4 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 bg-white"
+                                >
+                                    <option value={1}>Senin</option>
+                                    <option value={2}>Selasa</option>
+                                    <option value={3}>Rabu</option>
+                                    <option value={4}>Kamis</option>
+                                    <option value={5}>Jumat</option>
+                                    <option value={6}>Sabtu</option>
+                                    <option value={0}>Minggu</option>
+                                </select>
+                                <p className="text-xs text-green-600 mt-2">
+                                    Minggu akan dimulai setiap hari <strong>{getDayName(weekStartDay)}</strong>
+                                </p>
+                            </div>
+                            
+                            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                                <p className="text-xs text-green-800">
+                                    <strong>💡 Auto-Generate:</strong> Klik tombol "⚡ Auto-Generate" untuk membuat weekly reports otomatis dari daily reports yang sudah ada.
+                                    Data akan diagregasi per minggu dimulai dari hari yang dipilih.
+                                </p>
+                            </div>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -1956,12 +2265,29 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                 </h4>
                                 <p className="text-gray-600 mt-1">Monthly summaries and performance metrics</p>
                             </div>
-                            <button 
-                                onClick={addMonthlyReport} 
-                                className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-purple-600 hover:to-purple-700 transition-all duration-200 shadow-md flex items-center"
-                            >
-                                ➕ Add Monthly Report
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={generateMonthlyReports} 
+                                    className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-md flex items-center gap-2"
+                                    title="Generate monthly reports dari daily reports"
+                                >
+                                    ⚡ Auto-Generate
+                                </button>
+                                <button 
+                                    onClick={addMonthlyReport} 
+                                    className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-purple-600 hover:to-purple-700 transition-all duration-200 shadow-md flex items-center"
+                                >
+                                    ➕ Add Manual
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Info Box */}
+                        <div className="mb-4 bg-purple-50 rounded-lg p-4 border border-purple-200">
+                            <p className="text-xs text-purple-800">
+                                <strong>💡 Auto-Generate:</strong> Klik tombol "⚡ Auto-Generate" untuk membuat monthly reports otomatis dari daily reports yang sudah ada.
+                                Data akan diagregasi per bulan (Target Plan, Target Aktual, Workers, Equipment, dll).
+                            </p>
                         </div>
 
                         <div className="overflow-x-auto">

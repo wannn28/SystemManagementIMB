@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FiPlus, FiEdit, FiTrash } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiPlus, FiEdit, FiTrash, FiEye } from 'react-icons/fi';
 
 import { ProjectData } from '../types/Project';
 import { Project } from '../types/BasicTypes';
 import { projectsAPI } from '../api';
 const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>((ProjectData));
 
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -344,6 +346,13 @@ const Projects: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                   <td className="py-4 px-4 text-gray-600">{project.totalVolume}</td>
                   <td className="py-4 px-4">
                     <div className="flex space-x-2">
+                      <button 
+                        onClick={() => navigate(`/projects/${project.id}`)} 
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                        title="View Details"
+                      >
+                        <FiEye className="w-4 h-4" />
+                      </button>
                       <button 
                         onClick={() => startEditing(project)} 
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"

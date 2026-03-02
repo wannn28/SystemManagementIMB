@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import Navbar from './component/Navbar';
 import Home from './pages/Home';
 import Projects from './pages/Projects';
+import ProjectDetail from './pages/ProjectDetail';
+import SharedProjectView from './pages/SharedProjectView';
 import Inventory from './pages/Inventory';
 import Team from './pages/Team';
 import Reports from './pages/Reports';
@@ -24,8 +26,9 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Route */}
+        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/shared/:projectId/:token" element={<SharedProjectView />} />
         
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
@@ -41,6 +44,7 @@ const App: React.FC = () => {
             {/* Definisikan semua route protected disini */}
             <Route index element={<Home isCollapsed={isCollapsed} />} />
             <Route path="/projects" element={<Projects isCollapsed={isCollapsed} />} />
+            <Route path="/projects/:id" element={<ProjectDetail isCollapsed={isCollapsed} />} />
             <Route path="/finance" element={<Finance isCollapsed={isCollapsed} />} />
             <Route path="/inventory" element={<Inventory isCollapsed={isCollapsed} />} />
             <Route path="/team" element={<Team isCollapsed={isCollapsed} />} />
