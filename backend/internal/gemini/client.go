@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	geminiAPIBase   = "https://generativelanguage.googleapis.com/v1beta/models"
+	geminiAPIBase      = "https://generativelanguage.googleapis.com/v1beta/models"
 	defaultGeminiModel = "gemini-2.5-flash"
 )
 
@@ -117,13 +117,13 @@ PENTING - Tanggal: Cari di kolom "Hari" atau tanggal di dokumen. Format DD/MM/YY
 Hanya keluarkan JSON valid.`, bbmPart, unitLabel, unitLabel, bbmHint)
 }
 
-// ExtractRowResponse tanggal + quantity dan unit (hari atau jam) agar bisa konversi di backend.
-// Days dipakai bila Gemini mengembalikan "days" saja (backward compatible).
+// ExtractRowResponse tanggal + quantity + unit + item_name (keterangan/plat dari timesheet).
 type ExtractRowResponse struct {
-	RowDate  string  `json:"row_date"` // YYYY-MM-DD
-	Quantity float64 `json:"quantity"` // jumlah (hari atau jam tergantung unit)
-	Days     float64 `json:"days"`     // alternatif dari quantity
-	Unit     string  `json:"unit"`     // "hari" atau "jam"
+	RowDate  string  `json:"row_date"`  // YYYY-MM-DD
+	Quantity float64 `json:"quantity"`  // jumlah (hari atau jam tergantung unit)
+	Days     float64 `json:"days"`      // alternatif dari quantity
+	Unit     string  `json:"unit"`      // "hari" atau "jam"
+	ItemName string  `json:"item_name"` // Keterangan dari dokumen: plat nomor (Damtruck) atau nama alat
 }
 
 func buildRowOnlyPrompt(columnDescriptions []string) string {
@@ -142,31 +142,43 @@ func buildRowOnlyPrompt(columnDescriptions []string) string {
 			}
 		}
 	}
-	
+
 	quantityInstruction := "quantity = TOTAL jumlah dari kolom kuantitas (misal: jika ada 2 baris 4 jam + 4 jam, atau ada baris Total 8 jam, maka quantity=8)"
 	if hasJam {
 		quantityInstruction = "quantity = TOTAL JAM di dokumen. Cari kolom 'Jumlah' atau row 'Total'. Jika ada beberapa baris jam, JUMLAHKAN semua (misal: 4 jam + 4 jam = 8). Bukan hitung jumlah baris, tapi TOTAL JAM KERJA"
 	} else if hasHari {
 		quantityInstruction = "quantity = TOTAL HARI di dokumen. Cari kolom 'Jumlah' atau row 'Total'. Jika ada beberapa baris hari, JUMLAHKAN semua (misal: 0.5 hari + 0.5 hari = 1). Bukan hitung jumlah baris, tapi TOTAL HARI KERJA"
 	}
-	
+
+	hasKeterangan := false
+	for _, desc := range columnDescriptions {
+		if strings.Contains(strings.ToLower(desc), "keterangan") || strings.Contains(strings.ToLower(desc), "plat") || strings.Contains(strings.ToLower(desc), "damtruck") {
+			hasKeterangan = true
+			break
+		}
+	}
+	itemNamePart := ""
+	if hasKeterangan {
+		itemNamePart = "\n5. item_name = isi dari kolom Keterangan atau field \"Damtruck\"/\"Dump truck\" di timesheet: jika ada plat nomor (contoh BP 8814 EO, BP 9280 DE) keluarkan plat tersebut; jika ada nama alat (Excavator, dll) keluarkan nama tersebut. PENTING plat tulisan tangan: (1) bedakan 8 (dua lingkaran) dengan 0 (satu lingkaran)—bentuk lengkung ganda = 8; (2) bedakan O (huruf O, lingkaran) dengan Q (ada ekor di kanan bawah)—tanpa ekor = O bukan Q (contoh: EO bukan EQ). Kosongkan \"\" jika tidak ada."
+	}
+	jsonSchema := `{"row_date": "YYYY-MM-DD", "quantity": 0, "unit": "hari"}`
+	if hasKeterangan {
+		jsonSchema = `{"row_date": "YYYY-MM-DD", "quantity": 0, "unit": "hari", "item_name": "plat atau nama alat"}`
+	}
 	return fmt.Sprintf(`Gambar ini adalah nota atau timesheet sewa alat berat (TIME SHEET).
 Kolom yang perlu diekstrak: %s
 
 Ekstrak ke JSON saja (tanpa markdown):
-{
-  "row_date": "YYYY-MM-DD",
-  "quantity": 0,
-  "unit": "hari"
-}
+%s
 
 PENTING:
 1. Tanggal: Di kolom "Hari" format DD/MM/YY, DD/MM/YYYY, DD.MM.YY, atau DD-MM.YY (urutan hari-bulan-tahun). Contoh: 01/02/26, 01/02/2026, 01-02.26 → 2026-02-01. Jika YY (dua digit) = TAHUN (26=2026), bukan hari—01/02/26 = 1 Feb 2026, bukan 26 Feb. row_date keluarkan YYYY-MM-DD.
 2. %s
 3. unit = "jam" jika dokumen dalam jam, "hari" jika dalam hari.
 4. Jika tidak ada tanggal gunakan "".
+%s
 
-Hanya keluarkan JSON valid.`, columnsText, quantityInstruction)
+Hanya keluarkan JSON valid.`, columnsText, jsonSchema, quantityInstruction, itemNamePart)
 }
 
 // ExtractPromptForDeepSeek mengembalikan prompt ekstraksi invoice penuh (untuk provider lain).
@@ -200,7 +212,9 @@ func BuildOneDayPromptForOllama(quantityUnit string, useBBM bool) string {
 }
 
 // BuildRowOnlyPromptForDeepSeek mengembalikan prompt ekstraksi row (tanggal + quantity + unit).
-func BuildRowOnlyPromptForDeepSeek(columnDescriptions []string) string { return buildRowOnlyPrompt(columnDescriptions) }
+func BuildRowOnlyPromptForDeepSeek(columnDescriptions []string) string {
+	return buildRowOnlyPrompt(columnDescriptions)
+}
 
 // buildRowOnlyPromptOllama prompt lebih eksplisit untuk model lokal (Ollama/LLaVA) agar hasil lebih akurat.
 func buildRowOnlyPromptOllama(columnDescriptions []string) string {
@@ -219,14 +233,26 @@ func buildRowOnlyPromptOllama(columnDescriptions []string) string {
 			}
 		}
 	}
-	
+
 	quantityInstruction := "Cari jumlah kerja dari kolom kuantitas (misal: '8 Jam' = 8, '1 Hari' = 1, '22' = 22)"
 	if hasJam {
 		quantityInstruction = "Cari TOTAL JAM di dokumen. Lihat kolom 'Jumlah' atau baris 'Total'. Jika ada beberapa baris (misal 4 jam, 4 jam), JUMLAHKAN SEMUA menjadi 8. quantity = TOTAL JAM KERJA, bukan jumlah baris"
 	} else if hasHari {
 		quantityInstruction = "Cari TOTAL HARI di dokumen. Lihat kolom 'Jumlah' atau baris 'Total'. Jika ada beberapa baris (misal 0.5 hari, 0.5 hari), JUMLAHKAN SEMUA menjadi 1. quantity = TOTAL HARI KERJA, bukan jumlah baris"
 	}
-	
+	hasKeteranganOllama := false
+	for _, desc := range columnDescriptions {
+		if strings.Contains(strings.ToLower(desc), "keterangan") || strings.Contains(strings.ToLower(desc), "plat") || strings.Contains(strings.ToLower(desc), "damtruck") {
+			hasKeteranganOllama = true
+			break
+		}
+	}
+	itemNamePartOllama := ""
+	jsonSchemaOllama := `{"row_date": "YYYY-MM-DD", "quantity": angka, "unit": "hari" atau "jam"}`
+	if hasKeteranganOllama {
+		itemNamePartOllama = "\n5) item_name = isi kolom Keterangan atau field Damtruck/Dump truck: plat nomor (contoh BP 8814 EO) atau nama alat. Plat tulisan tangan: 8 vs 0 (dua lingkaran = 8); O vs Q (tanpa ekor = O, contoh EO bukan EQ). Kosongkan \"\" jika tidak ada."
+		jsonSchemaOllama = `{"row_date": "YYYY-MM-DD", "quantity": angka, "unit": "hari" atau "jam", "item_name": "plat atau nama alat"}`
+	}
 	return fmt.Sprintf(`Kamu ekstrak data dari foto TIMESHEET / nota sewa alat berat. Output HANYA JSON valid, tanpa teks lain.
 
 Kolom yang perlu diekstrak: %s
@@ -236,14 +262,17 @@ Langkah:
 2) Konversi ke YYYY-MM-DD: 01/02/26 → 2026-02-01, 01/02/2026 → 2026-02-01, 01-02.26 → 2026-02-01.
 3) %s. Isi quantity dengan angka, unit dengan "jam" atau "hari" (default "hari").
 4) Keluarkan tepat format ini:
-{"row_date": "YYYY-MM-DD", "quantity": angka, "unit": "hari" atau "jam"}
+%s
+%s
 
 Contoh output: {"row_date": "2026-02-03", "quantity": 8, "unit": "jam"}
-Jika tanggal tidak ketemu, row_date = "". Hanya JSON, tidak ada markdown.`, columnsText, quantityInstruction)
+Jika tanggal tidak ketemu, row_date = "". Hanya JSON, tidak ada markdown.`, columnsText, quantityInstruction, jsonSchemaOllama, itemNamePartOllama)
 }
 
 // BuildRowOnlyPromptForOllama prompt lebih eksplisit untuk Ollama/LLaVA (model lokal).
-func BuildRowOnlyPromptForOllama(columnDescriptions []string) string { return buildRowOnlyPromptOllama(columnDescriptions) }
+func BuildRowOnlyPromptForOllama(columnDescriptions []string) string {
+	return buildRowOnlyPromptOllama(columnDescriptions)
+}
 
 // extractJSONFromText mengambil objek JSON dari teks yang mungkin dibungkus markdown (```json ... ```) atau ada teks lain.
 func extractJSONFromText(text string) string {

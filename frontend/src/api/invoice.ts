@@ -43,7 +43,8 @@ export const invoiceApi = {
     document_type?: string;
     default_intro?: string;
     signature_count?: number;
-    options?: { item_columns?: { key: string; label: string }[] };
+    /** Opsi lengkap: item_columns (dengan type, formula, format, headerAlign, contentAlign, item_display_mode, dll), show_no, use_bbm_columns, dll. */
+    options?: Record<string, unknown>;
   }): Promise<InvoiceTemplate> {
     const res = await axios.post<ApiRes<InvoiceTemplate>>(getUrl('/templates'), body, { headers: getAuthHeaders() });
     return res.data?.data ?? (res.data as unknown as InvoiceTemplate);
@@ -138,6 +139,7 @@ export const invoiceApi = {
       items: payload.items.map((i) => {
         const base = {
           item_name: i.item_name,
+          ...(i.item_display_name != null && i.item_display_name !== '' ? { item_display_name: i.item_display_name } : {}),
           description: i.description || '',
           quantity: i.quantity ?? 1,
           price: i.price ?? 0,
@@ -191,6 +193,7 @@ export const invoiceApi = {
       items: payload.items?.map((i) => {
         const base = {
           item_name: i.item_name,
+          ...(i.item_display_name != null && i.item_display_name !== '' ? { item_display_name: i.item_display_name } : {}),
           description: i.description || '',
           quantity: i.quantity ?? 1,
           price: i.price ?? 0,
@@ -250,30 +253,38 @@ export const invoiceApi = {
     return res.data?.data ?? (res.data as unknown as ExtractFromImageResponse);
   },
 
-  /** Ekstrak hanya tanggal dan hari/jam dari satu gambar (untuk satu baris item). Harga diambil dari alat berat. */
-  async extractRowFromImage(file: File, quantity_unit: string, columnDescriptions: string[]): Promise<{ row_date: string; days: number }> {
+  /** Ekstrak tanggal, hari/jam, dan keterangan (plat/nama) dari satu gambar. Harga diambil dari alat berat. */
+  async extractRowFromImage(
+    file: File,
+    quantity_unit: string,
+    columnDescriptions: string[]
+  ): Promise<{ row_date: string; days: number; unit?: string; item_name?: string }> {
     const form = new FormData();
     form.append('image', file);
     form.append('quantity_unit', quantity_unit);
     form.append('column_descriptions', JSON.stringify(columnDescriptions));
-    const res = await axios.post<ApiRes<{ row_date: string; days: number }>>(getUrl('/extract-row-from-image'), form, {
-      headers: getAuthHeaders(),
-      timeout: 120000*100, // 120 detik (Ollama/Gemini bisa lama); kalau timeout tombol "Memproses" akan reset
-    });
-    return res.data?.data ?? (res.data as unknown as { row_date: string; days: number });
+    const res = await axios.post<ApiRes<{ row_date: string; days: number; unit?: string; item_name?: string }>>(
+      getUrl('/extract-row-from-image'),
+      form,
+      {
+        headers: getAuthHeaders(),
+        timeout: 120000 * 100,
+      }
+    );
+    return res.data?.data ?? (res.data as unknown as { row_date: string; days: number; unit?: string; item_name?: string });
   },
 
   /**
-   * Ekstrak banyak gambar; mengembalikan array { row_date, days } (urutan = urutan file).
-   * - VITE_EXTRACT_DELAY_MS=0: semua gambar dikirim paralel (tanpa antre). Cocok untuk Gemini/limit tinggi.
-   * - VITE_EXTRACT_DELAY_MS>0 (mis. 13000): kirim satu per satu + jeda, untuk hindari rate limit.
+   * Ekstrak banyak gambar; mengembalikan array { row_date, days, unit?, item_name? } (urutan = urutan file).
+   * - VITE_EXTRACT_DELAY_MS=0: semua gambar dikirim paralel. Cocok untuk Gemini/limit tinggi.
+   * - VITE_EXTRACT_DELAY_MS>0: kirim satu per satu + jeda, untuk hindari rate limit.
    */
   async extractRowsFromImages(
     files: File[],
     quantity_unit: string,
     columnDescriptions: string[],
     onProgress?: (current: number, total: number) => void
-  ): Promise<{ row_date: string; days: number }[]> {
+  ): Promise<{ row_date: string; days: number; unit?: string; item_name?: string }[]> {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
     const total = imageFiles.length;
     const envDelay = (import.meta as any).env?.VITE_EXTRACT_DELAY_MS;
@@ -291,7 +302,7 @@ export const invoiceApi = {
       return Promise.all(promises);
     }
 
-    const results: { row_date: string; days: number }[] = [];
+    const results: { row_date: string; days: number; unit?: string; item_name?: string }[] = [];
     for (let i = 0; i < imageFiles.length; i++) {
       onProgress?.(i + 1, total);
       const one = await this.extractRowFromImage(imageFiles[i], quantity_unit, columnDescriptions);

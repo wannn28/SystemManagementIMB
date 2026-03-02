@@ -10,7 +10,7 @@ import type {
 } from '../types/invoice';
 import type { Customer } from '../types/customer';
 import type { Equipment } from '../types/equipment';
-import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage } from 'react-icons/fi';
+import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy } from 'react-icons/fi';
 import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
 import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
@@ -22,6 +22,39 @@ interface InvoicesProps {
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+
+/** Format nilai angka menurut konfigurasi kolom (Angka / Rupiah / Persen) */
+function formatNumberByColumn(col: { format?: 'number' | 'rupiah' | 'percent' }, value: number): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const fmt = col.format ?? 'number';
+  if (fmt === 'rupiah') return formatRupiah(value);
+  if (fmt === 'percent') return `${value} %`;
+  return String(value);
+}
+
+/** Kelas Tailwind untuk perataan header kolom (default: tengah) */
+function getHeaderAlignClass(col: { headerAlign?: 'left' | 'center' | 'right' }): string {
+  const a = col.headerAlign ?? 'center';
+  return a === 'center' ? 'text-center' : a === 'right' ? 'text-right' : 'text-left';
+}
+
+/** Kelas Tailwind untuk perataan isi sel kolom (default: tengah) */
+function getContentAlignClass(col: { contentAlign?: 'left' | 'center' | 'right' }): string {
+  const a = col.contentAlign ?? 'center';
+  return a === 'center' ? 'text-center' : a === 'right' ? 'text-right' : 'text-left';
+}
+
+/** Nilai tampilan kolom Keterangan: dump truck → plat nomor, alat berat → nama (jika mode auto) */
+function getItemNameDisplay(
+  itemName: string,
+  equipmentList: Equipment[],
+  mode: 'name' | 'auto_plate_or_name' | undefined
+): string {
+  if (!itemName || mode !== 'auto_plate_or_name') return itemName;
+  const eq = equipmentList.find((e) => e.name === itemName);
+  if (eq?.type === 'dump_truck' && (eq?.license_plate ?? '').trim()) return (eq.license_plate ?? '').trim();
+  return itemName;
+}
 
 const MONTHS_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 /** Format YYYY-MM-DD ke tampilan Indonesia, e.g. "3 Februari 2026". */
@@ -101,6 +134,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
   // List state
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<number | string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, total_pages: 0, has_next: false, has_prev: false });
   const [filterSearch, setFilterSearch] = useState('');
@@ -135,6 +170,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   type FormItem = {
     item_name: string;
     description?: string;
+    /** Tampilan keterangan: dari hasil AI (plat/nama dari timesheet) atau manual; diprioritaskan di form & PDF */
+    item_display_name?: string;
+    /** True = user memilih "Hasil AI" (pakai nilai AI bila ada); blok Hasil AI (nilai dipakai) ditampilkan */
+    use_ai_display?: boolean;
     quantity: number;
     price: number;
     row_date?: string;
@@ -142,9 +181,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     bbm_quantity?: number;
     bbm_unit_price?: number;
     equipment_group?: string;
-    /** Satuan baris ini (hari/jam/unit/jerigen). Kosong = pakai default invoice. */
     quantity_unit?: 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume';
-    /** Data URL atau blob URL gambar nota yang dipakai untuk generate baris ini (untuk cek) */
     row_image?: string;
   };
   const [items, setItems] = useState<FormItem[]>([
@@ -167,6 +204,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [equipmentNames, setEquipmentNames] = useState<string[]>([]);
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [newEquipmentInput, setNewEquipmentInput] = useState('');
+  /** Hasil pembacaan AI terakhir (satu baris) agar bisa dilihat user */
+  const [lastExtractResult, setLastExtractResult] = useState<{ row_date: string; days: number; unit?: string; item_name?: string } | null>(null);
+  /** Hasil pembacaan AI terakhir (banyak baris) agar bisa dilihat user */
+  const [lastExtractResults, setLastExtractResults] = useState<{ row_date: string; days: number; unit?: string; item_name?: string }[] | null>(null);
 
   const formatEquipmentNamesForParagraph = (arr: string[]) => {
     if (arr.length === 0) return '';
@@ -242,6 +283,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label?: string;
       item_column_label?: string;
       default_notes?: string;
+      item_row_height?: 'compact' | 'normal' | 'relaxed';
     };
   };
   const [templateForm, setTemplateForm] = useState<TemplateFormState>({
@@ -263,12 +305,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label: 'Harga/Hari',
       item_column_label: 'Keterangan',
       default_notes: '',
+      item_row_height: 'normal',
     },
   });
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [formulaPopoverColIdx, setFormulaPopoverColIdx] = useState<number | null>(null);
   const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(null);
+  const [duplicatingTemplateId, setDuplicatingTemplateId] = useState<number | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<number | string | null>(null);
   const dateInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -360,22 +404,22 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setEditingColumnsForGroup(null);
   };
 
-  /** Handle pilih item_name: isi price + custom number columns dari equipment */
+  /** Handle pilih item_name: isi price + custom number columns dari equipment; hapus hasil AI (nilai dipakai) saat pilih alat berat/dumptruck */
   const handleSelectItemName = (index: number, itemName: string) => {
     setItems((prev) => prev.map((r, i) => {
       if (i !== index) return r;
       const eq = equipmentList.find((e) => e.name === itemName);
-      if (!eq) return { ...r, item_name: itemName };
+      if (!eq) return { ...r, item_name: itemName, item_display_name: '', use_ai_display: false };
       const rowUnit = r.quantity_unit ?? quantityUnit;
       const p = rowUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
-      let updated = { ...r, item_name: itemName };
+      let updated: FormItem = { ...r, item_name: itemName, item_display_name: '', use_ai_display: false };
       if (p > 0) updated = { ...updated, price: p };
       const groupKey = getGroupKey(r);
       const groupCols = getColumnsForGroup(groupKey);
       if (groupCols.length > 0) {
         updated = applyEquipmentDataToRow(updated, eq, groupCols);
       }
-      return updated;
+      return { ...updated, item_display_name: '', use_ai_display: false };
     }));
   };
 
@@ -527,9 +571,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         ? inv.items.map((i) => {
             const iRec = i as unknown as Record<string, unknown>;
             const customFields = Object.keys(iRec).filter((k) => k.startsWith('custom_num_')).reduce((acc, k) => ({ ...acc, [k]: iRec[k] }), {});
+            const itemDisplayName = (i as { item_display_name?: string }).item_display_name || undefined;
             return {
               item_name: i.item_name,
               description: i.description || '',
+              item_display_name: itemDisplayName,
+              use_ai_display: !!(itemDisplayName && itemDisplayName.trim()),
               quantity: i.quantity ?? 1,
               price: i.price ?? 0,
               row_date: i.row_date || '',
@@ -638,20 +685,23 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const addItemEmptyForGroup = (groupKey: string, defaultItemName?: string) => {
     const indices = groupIndices[groupKey] || [];
     const insertAfter = indices.length > 0 ? Math.max(...indices) : -1;
-    let newRow: FormItem = { ...emptyFormItem(defaultItemName), equipment_group: groupKey === '__default__' ? '' : groupKey };
-    if (defaultItemName) {
-      const eq = equipmentList.find((e) => e.name === defaultItemName);
-      if (eq) {
-        const p = quantityUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
-        if (p > 0) newRow = { ...newRow, price: p };
-        const groupCols = getColumnsForGroup(groupKey);
-        if (groupCols.length > 0) {
-          newRow = applyEquipmentDataToRow(newRow, eq, groupCols);
+    setItems((prev) => {
+      const refRow = insertAfter >= 0 ? (prev[insertAfter] as FormItem) : null;
+      const followName = refRow?.item_name || defaultItemName;
+      const followUseAi = refRow?.use_ai_display ?? false;
+      let newRow: FormItem = { ...emptyFormItem(followName), equipment_group: groupKey === '__default__' ? '' : groupKey, use_ai_display: followUseAi };
+      if (followName) {
+        const eq = equipmentList.find((e) => e.name === followName);
+        if (eq) {
+          const p = quantityUnit === 'jam' ? (eq.price_per_hour ?? 0) : (eq.price_per_day ?? 0);
+          if (p > 0) newRow = { ...newRow, price: p };
+          const groupCols = getColumnsForGroup(groupKey);
+          if (groupCols.length > 0) newRow = applyEquipmentDataToRow(newRow, eq, groupCols);
         }
       }
-    }
-    if (templateShowDate) newRow = { ...newRow, row_date: new Date().toISOString().slice(0, 10) };
-    setItems((prev) => [...prev.slice(0, insertAfter + 1), newRow, ...prev.slice(insertAfter + 1)]);
+      if (templateShowDate) newRow = { ...newRow, row_date: new Date().toISOString().slice(0, 10) };
+      return [...prev.slice(0, insertAfter + 1), newRow, ...prev.slice(insertAfter + 1)];
+    });
   };
   const addItemCopyFromAboveForGroup = (groupKey: string) => {
     const indices = groupIndices[groupKey] || [];
@@ -719,11 +769,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   };
 
   const removeItem = (index: number) => {
-    if (items.length <= 1) return;
     setItems((prev) => {
       const removed = prev[index];
       if (removed?.row_image && removed.row_image.startsWith('blob:')) URL.revokeObjectURL(removed.row_image);
-      return prev.filter((_, i) => i !== index);
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) return [{ item_name: '', description: '', quantity: 1, price: 0, row_date: '', days: 0, bbm_quantity: 0, bbm_unit_price: 0 }];
+      return next;
     });
   };
 
@@ -750,7 +801,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       const columnDescriptions = cols
         .map((col) => {
           if (col.key === 'row_date' || col.key === 'date' || col.type === 'date') return 'Tanggal';
-          if (col.key === 'item_name' || col.key === 'description' || col.type === 'text') return col.label || 'Keterangan';
+          if (col.key === 'item_name' || col.key === 'description' || col.type === 'text') {
+            const label = col.label || 'Keterangan';
+            if (col.key === 'item_name' && col.item_display_mode === 'auto_plate_or_name')
+              return `${label} (dump truck: plat nomor contoh BP 8814 EO; bedakan 8/0 dan O/Q di tulisan tangan)`;
+            return label;
+          }
           if (col.key === 'number' || col.type === 'number') return col.label || 'Angka';
           return null;
         })
@@ -765,15 +821,25 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         if (lbl.includes('harga')) return false;
         return lbl === 'jam' || lbl === 'hari' || lbl === 'qty' || lbl === 'quantity' || lbl.includes('jam') || lbl.includes('hari');
       });
+      const aiKeterangan = (data.item_name || '').trim();
       setItems((prev) => prev.map((row, i) => {
         if (i !== idx) return row;
         const updated: any = { ...row, row_date: data.row_date || '', days: data.days ?? 0, row_image: newUrl };
         if (quantityColIndex >= 0) {
           updated[`custom_num_${quantityColIndex}`] = data.days ?? 0;
         }
+        if (aiKeterangan && (row as FormItem).use_ai_display) {
+          updated.item_display_name = aiKeterangan;
+          updated.use_ai_display = true;
+        }
         return updated;
       }));
-      setMessage({ type: 'success', text: 'Tanggal dan hari/jam berhasil diisi dari gambar.' });
+      setLastExtractResults(null);
+      setLastExtractResult({ row_date: data.row_date || '', days: data.days ?? 0, unit: data.unit, item_name: aiKeterangan || undefined });
+      const msgLine = aiKeterangan
+        ? `Tanggal dan jam diisi dari gambar. Hasil pembacaan AI: Tanggal ${data.row_date || '-'}, ${data.days ?? 0} ${quantityUnit}, Keterangan: ${aiKeterangan}`
+        : 'Tanggal dan hari/jam berhasil diisi dari gambar.';
+      setMessage({ type: 'success', text: msgLine });
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.response?.data?.message || err?.message || 'Gagal ekstrak baris.' });
     } finally {
@@ -799,7 +865,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const columnDescriptions = cols
       .map((col) => {
         if (col.key === 'row_date' || col.key === 'date' || col.type === 'date') return 'Tanggal';
-        if (col.key === 'item_name' || col.key === 'description' || col.type === 'text') return col.label || 'Keterangan';
+        if (col.key === 'item_name' || col.key === 'description' || col.type === 'text') {
+          const label = col.label || 'Keterangan';
+          if (col.key === 'item_name' && col.item_display_mode === 'auto_plate_or_name')
+            return `${label} (dump truck: plat nomor contoh BP 8814 EO; bedakan 8/0 dan O/Q di tulisan tangan)`;
+          return label;
+        }
         if (col.key === 'number' || col.type === 'number') return col.label || 'Angka';
         return null;
       })
@@ -849,14 +920,25 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           const res = results[resultIdx];
           const file = files[resultIdx];
           const rowImageUrl = file && file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
-          let updatedRow = { ...next[idx], row_date: res.row_date || '', days: res.days ?? 0, item_name: defaultItemName, price: defaultPrice, row_image: rowImageUrl };
+          const aiKeterangan = (res.item_name || '').trim();
+          const existingRow = next[idx] as FormItem;
+          const rowWasUseAi = !!existingRow.use_ai_display;
+          let updatedRow = { ...existingRow, row_date: res.row_date || '', days: res.days ?? 0, row_image: rowImageUrl } as FormItem;
+          if (rowWasUseAi) {
+            updatedRow.item_name = defaultItemName;
+            updatedRow.price = defaultPrice;
+            if (aiKeterangan) { updatedRow.item_display_name = aiKeterangan; updatedRow.use_ai_display = true; }
+            if (defaultEq && groupCols.length > 0) updatedRow = applyEquipmentDataToRow(updatedRow, defaultEq, groupCols) as typeof updatedRow;
+          } else {
+            updatedRow.item_name = existingRow.item_name || defaultItemName;
+            updatedRow.price = existingRow.price ?? defaultPrice;
+            if (existingRow.item_name && groupCols.length > 0) {
+              const eqForRow = equipmentList.find((e) => e.name === existingRow.item_name);
+              if (eqForRow) updatedRow = applyEquipmentDataToRow(updatedRow, eqForRow, groupCols) as typeof updatedRow;
+            } else if (defaultEq && groupCols.length > 0) updatedRow = applyEquipmentDataToRow(updatedRow, defaultEq, groupCols) as typeof updatedRow;
+          }
           if (quantityColIndex >= 0) {
             (updatedRow as any)[`custom_num_${quantityColIndex}`] = res.days ?? 0;
-          }
-          if (defaultEq) {
-            if (groupCols.length > 0) {
-              updatedRow = applyEquipmentDataToRow(updatedRow, defaultEq, groupCols) as typeof updatedRow;
-            }
           }
           next[idx] = updatedRow;
           resultIdx += 1;
@@ -866,21 +948,31 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           const res = results[resultIdx];
           const file = files[resultIdx];
           const rowImageUrl = file && file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+          const aiKeterangan = (res.item_name || '').trim();
+          const rowAbove = insertAfter >= 0 ? (next[insertAfter] as FormItem) : null;
+          const followName = rowAbove?.item_name || defaultItemName;
+          const followUseAi = rowAbove?.use_ai_display ?? false;
+          const eqForNew = equipmentList.find((e) => e.name === followName);
+          const priceForNew = eqForNew ? (quantityUnit === 'jam' ? (eqForNew.price_per_hour ?? 0) : (eqForNew.price_per_day ?? 0)) : defaultPrice;
           let newRow: FormItem = {
-            ...emptyFormItem(defaultItemName),
+            ...emptyFormItem(followName),
             equipment_group: groupKey === '__default__' ? '' : groupKey,
             row_date: res.row_date || '',
             days: res.days ?? 0,
-            price: defaultPrice,
+            price: priceForNew,
             row_image: rowImageUrl,
+            use_ai_display: followUseAi,
           };
+          if (followUseAi && aiKeterangan) {
+            newRow.item_display_name = aiKeterangan;
+          }
           if (quantityColIndex >= 0) {
             (newRow as any)[`custom_num_${quantityColIndex}`] = res.days ?? 0;
           }
-          if (defaultEq) {
-            if (groupCols.length > 0) {
-              newRow = applyEquipmentDataToRow(newRow, defaultEq, groupCols) as typeof newRow;
-            }
+          if (eqForNew && groupCols.length > 0) {
+            newRow = applyEquipmentDataToRow(newRow, eqForNew, groupCols) as typeof newRow;
+          } else if (defaultEq && groupCols.length > 0 && !eqForNew) {
+            newRow = applyEquipmentDataToRow(newRow, defaultEq, groupCols) as typeof newRow;
           }
           next = [...next.slice(0, insertAfter + 1), newRow, ...next.slice(insertAfter + 1)];
           insertAfter += 1;
@@ -888,7 +980,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         }
         return next;
       });
-      setMessage({ type: 'success', text: `${results.length} baris diisi di unit ini dari ${files.length} gambar.` });
+      setLastExtractResult(null);
+      setLastExtractResults(results);
+      setMessage({ type: 'success', text: `${results.length} baris diisi dari ${files.length} gambar. Hasil pembacaan AI bisa dilihat di bawah.` });
     } catch (err: any) {
       const msg = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
         ? 'Ekstrak timeout (backend/Ollama lama). Coba lagi atau periksa backend.'
@@ -916,8 +1010,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       customer_address: customerAddress.trim() || undefined,
       items: items.map((r) => {
         const customFields = Object.keys(r).filter((k) => k.startsWith('custom_num_')).reduce((acc, k) => ({ ...acc, [k]: (r as Record<string, unknown>)[k] }), {});
+        const groupKey = getGroupKey(r);
+        const groupCols = getColumnsForGroup(groupKey);
+        const itemNameCol = groupCols.find((c) => c.key === 'item_name');
+        const displayMode = itemNameCol?.item_display_mode ?? 'name';
+        const item_display_name = (r as FormItem).item_display_name ?? (displayMode === 'auto_plate_or_name' ? getItemNameDisplay(r.item_name, equipmentList, 'auto_plate_or_name') : undefined);
         return {
           item_name: r.item_name,
+          ...(item_display_name !== undefined && item_display_name !== '' ? { item_display_name } : {}),
           description: r.description,
           quantity: r.quantity,
           price: r.price,
@@ -972,9 +1072,46 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       await invoiceApi.deleteInvoice(id);
       setDeletingInvoiceId(null);
       setPreviewInvoice(null);
+      setSelectedInvoiceIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
       fetchInvoices();
     } finally {
       setDeletingInvoiceId(null);
+    }
+  };
+
+  const handleBulkDeleteInvoices = async () => {
+    const ids = Array.from(selectedInvoiceIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Hapus ${ids.length} invoice terpilih?`)) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(ids.map((id) => invoiceApi.deleteInvoice(id)));
+      setSelectedInvoiceIds(new Set());
+      setPreviewInvoice(null);
+      setMessage({ type: 'success', text: `${ids.length} invoice berhasil dihapus.` });
+      fetchInvoices();
+    } catch (e: unknown) {
+      setMessage({ type: 'error', text: (e as Error)?.message || 'Gagal menghapus sebagian invoice.' });
+      fetchInvoices();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleSelectInvoice = (id: number | string) => {
+    setSelectedInvoiceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllInvoices = () => {
+    if (selectedInvoiceIds.size === invoices.length) {
+      setSelectedInvoiceIds(new Set());
+    } else {
+      setSelectedInvoiceIds(new Set(invoices.map((inv) => inv.id!).filter((id): id is number | string => id != null)));
     }
   };
 
@@ -991,6 +1128,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label?: string;
       item_column_label?: string;
       default_notes?: string;
+      item_row_height?: 'compact' | 'normal' | 'relaxed';
     };
     if (template) {
       setEditingTemplateId(Number(template.id));
@@ -1030,6 +1168,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           price_unit_label: opts.price_unit_label || 'Harga/Hari',
           item_column_label: opts.item_column_label || (opts.item_columns && opts.item_columns[0]?.label) || 'Keterangan',
           default_notes: (opts.default_notes as string) || '',
+          item_row_height: opts.item_row_height || 'normal',
         },
       });
     } else {
@@ -1053,6 +1192,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           price_unit_label: 'Harga/Hari',
           item_column_label: 'Keterangan',
           default_notes: '',
+          item_row_height: 'normal',
         },
       });
     }
@@ -1091,6 +1231,40 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       invoiceApi.getTemplates().then(setTemplates);
     } finally {
       setDeletingTemplateId(null);
+    }
+  };
+
+  const handleDuplicateTemplate = async (t: InvoiceTemplate) => {
+    const id = Number(t.id);
+    setDuplicatingTemplateId(id);
+    try {
+      const rawOpt = t.options;
+      const optionsObj =
+        rawOpt == null
+          ? undefined
+          : typeof rawOpt === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(rawOpt) as Record<string, unknown>;
+                } catch {
+                  return undefined;
+                }
+              })()
+            : (rawOpt as Record<string, unknown>);
+      await invoiceApi.createTemplate({
+        name: `Salinan ${t.name}`,
+        description: t.description,
+        layout: t.layout,
+        document_type: t.document_type,
+        default_intro: t.default_intro,
+        signature_count: t.signature_count,
+        options: optionsObj,
+      });
+      invoiceApi.getTemplates().then(setTemplates);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDuplicatingTemplateId(null);
     }
   };
 
@@ -1186,6 +1360,22 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           </div>
         )}
 
+        {(lastExtractResult || (lastExtractResults && lastExtractResults.length > 0)) && (
+          <div className="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200 text-slate-800">
+            <div className="font-medium text-sm mb-2">Hasil pembacaan AI (dari API)</div>
+            {lastExtractResult && (
+              <pre className="text-xs overflow-x-auto bg-white p-3 rounded border border-slate-200">
+                {JSON.stringify({ row_date: lastExtractResult.row_date, days: lastExtractResult.days, unit: lastExtractResult.unit || 'hari', item_name: lastExtractResult.item_name || '(kosong)' }, null, 2)}
+              </pre>
+            )}
+            {lastExtractResults && lastExtractResults.length > 0 && (
+              <pre className="text-xs overflow-x-auto bg-white p-3 rounded border border-slate-200 max-h-48 overflow-y-auto">
+                {JSON.stringify(lastExtractResults.map((r) => ({ row_date: r.row_date, days: r.days, unit: r.unit || 'hari', item_name: r.item_name || '(kosong)' })), null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
+
         {/* Tab: Daftar Invoice */}
         {activeTab === 'list' && (
           <>
@@ -1241,6 +1431,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               >
                 Terapkan
               </button>
+              {selectedInvoiceIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBulkDeleteInvoices}
+                  disabled={bulkDeleting}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm disabled:opacity-50 flex items-center gap-2"
+                >
+                  <FiTrash2 /> Hapus terpilih ({selectedInvoiceIds.size})
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -1253,22 +1453,43 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        <th className="px-2 py-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={invoices.length > 0 && selectedInvoiceIds.size === invoices.length}
+                            onChange={toggleSelectAllInvoices}
+                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                            title="Pilih semua"
+                          />
+                        </th>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase w-28">No</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Customer</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Template</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {invoices.map((inv) => (
                         <tr key={inv.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">{inv.invoice_number}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{formatDateOnly(inv.invoice_date || '')}</td>
+                          <td className="px-2 py-3 text-center">
+                            {inv.id != null && (
+                              <input
+                                type="checkbox"
+                                checked={selectedInvoiceIds.has(inv.id)}
+                                onChange={() => toggleSelectInvoice(inv.id!)}
+                                className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                              />
+                            )}
+                          </td>
+                          <td className="px-2 py-3 text-sm text-gray-900 w-28 min-w-0 truncate max-w-[7rem]" title={inv.invoice_number}>{inv.invoice_number}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 text-center">{formatDateOnly(inv.invoice_date || '')}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{inv.customer_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{formatRupiah(Number(inv.total ?? 0))}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-sm text-gray-600">{inv.template?.name ?? templates.find((t) => Number(t.id) === Number(inv.template_id))?.name ?? '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 text-right">{formatRupiah(Number(inv.total ?? 0))}</td>
+                          <td className="px-4 py-3 text-center">
                             <span
                               className={`px-2 py-1 rounded text-xs ${
                                 inv.status === 'paid' ? 'bg-green-100 text-green-800' :
@@ -1279,7 +1500,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               {inv.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 flex flex-wrap gap-2">
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex flex-wrap gap-2 justify-center">
                             <button
                               type="button"
                               onClick={async () => {
@@ -1308,6 +1530,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             >
                               <FiTrash2 /> Hapus
                             </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1694,7 +1917,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             />
                           )}
                           <div className="flex flex-wrap items-center gap-2">
-                            <button type="button" onClick={() => addItemEmptyForGroup(groupKey, displayName)} className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-sm font-medium border border-gray-300 rounded px-2 py-1">
+                            <button type="button" onClick={() => addItemEmptyForGroup(groupKey)} className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-sm font-medium border border-gray-300 rounded px-2 py-1">
                               <FiPlus /> Tambah baris kosong
                             </button>
                             <button type="button" onClick={() => addItemCopyFromAboveForGroup(groupKey)} className="flex items-center gap-1 text-orange-600 hover:text-orange-700 text-sm font-medium border border-orange-300 rounded px-2 py-1">
@@ -1735,6 +1958,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             const groupColumns = getColumnsForGroup(groupKey);
                             const displayGroupColumns = groupColumns.filter((c) => !(c.key === 'total' && !templateShowTotal));
                             const useGroupTemplateColumns = displayGroupColumns.length > 0;
+                            const itemRowPad = selectedTemplate?.options?.item_row_height === 'compact' ? 'py-1' : selectedTemplate?.options?.item_row_height === 'relaxed' ? 'py-3' : 'py-2';
                             return (
                           <table className="w-full">
                             <thead>
@@ -1744,7 +1968,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 {templateShowDate && !useGroupTemplateColumns && <th className="pb-2 pr-2">Tanggal</th>}
                                 {useGroupTemplateColumns ? (
                                   displayGroupColumns.map((col, colIdx) => (
-                                    <th key={`item-col-${colIdx}`} className="pb-2 pr-2">{(col.label || '').trim() || col.key}{col.key === 'item_name' ? ' *' : ''}</th>
+                                    <th key={`item-col-${colIdx}`} className={`pb-2 pr-2 ${getHeaderAlignClass(col)}`}>{(col.label || '').trim() || col.key}{col.key === 'item_name' ? ' *' : ''}</th>
                                   ))
                                 ) : useBbmColumns ? (
                                   <>
@@ -1785,8 +2009,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           const rowComputed = useGroupTemplateColumns && itemCols.length > 0 ? getComputedFormulaValues(row, itemCols) : {};
                           return (
                             <tr key={index} className="border-b border-gray-100">
-                              {templateShowNo && <td className="py-2 pr-2 text-center text-gray-600">{rowNum + 1}</td>}
-                              <td className="py-2 pr-2 align-top">
+                              {templateShowNo && <td className={`${itemRowPad} pr-2 text-center text-gray-600`}>{rowNum + 1}</td>}
+                              <td className={`${itemRowPad} pr-2 align-top`}>
                                 {row.row_image ? (
                                   <a href={row.row_image} target="_blank" rel="noopener noreferrer" className="inline-block rounded border border-gray-200 overflow-hidden bg-gray-100" title="Lihat gambar nota">
                                     <img src={row.row_image} alt="" className="w-12 h-12 object-cover" />
@@ -1799,8 +2023,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 displayGroupColumns.map((col, colIdx) => {
                                   const k = col.key;
                                   const cellKey = `item-col-${colIdx}`;
+                                  const cellAlign = getContentAlignClass(col);
                                   if (k === 'no') {
-                                    return (<td key={cellKey} className="py-2 pr-2 text-center text-gray-600">{rowNum + 1}</td>);
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign} text-gray-600`}>{rowNum + 1}</td>);
                                   }
                                   if (k === 'formula') {
                                     const f = (col.formula || '').trim();
@@ -1816,29 +2041,30 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                       if (f === 'quantity' || f === 'days' || (selfRefOrEmpty && !isBbmCol && !isHargaBbmCol && isQuantityLikeCol)) {
                                         const isDays = f === 'days' || lbl === 'hari' || lbl === 'days';
                                         return (
-                                          <td key={cellKey} className="py-2 pr-2">
+                                          <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
                                             <input type="number" min={0} step="any" value={isDays ? (row.days ?? '') : (row.quantity ?? '')} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')); const num = Number.isFinite(v) && v >= 0 ? v : 0; updateItem(index, isDays ? 'days' : 'quantity', num); updateItem(index, isDays ? 'quantity' : 'days', num); }} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                           </td>
                                         );
                                       }
                                       if (f === 'price' || (selfRefOrEmpty && isPriceCol)) {
-                                        return (<td key={cellKey} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
+                                        return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
                                       }
                                       if (f === 'bbm_quantity' || (selfRefOrEmpty && isBbmCol)) {
-                                        return (<td key={cellKey} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
+                                        return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
                                       }
                                       if (f === 'bbm_unit_price' || (selfRefOrEmpty && isHargaBbmCol)) {
-                                        return (<td key={cellKey} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_unit_price ?? ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="Harga/BBM" /></td>);
+                                        return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.bbm_unit_price ?? ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="Harga/BBM" /></td>);
                                       }
                                     }
-                                    if (!col.formula && !(selfRefOrEmpty && (isBbmCol || isHargaBbmCol))) return <td key={cellKey} className="py-2 pr-2 text-gray-400">—</td>;
+                                    if (!col.formula && !(selfRefOrEmpty && (isBbmCol || isHargaBbmCol))) return <td key={cellKey} className={`${itemRowPad} pr-2 text-gray-400 ${cellAlign}`}>—</td>;
                                     const sourceIndex = itemCols.findIndex((c) => c === col);
                                     const val = sourceIndex >= 0 ? (rowComputed[sourceIndex] ?? NaN) : evaluateFormula(col.formula, row);
-                                    return (<td key={cellKey} className="py-2 pr-2 text-sm text-gray-700 bg-gray-50/50">{Number.isFinite(val) ? formatRupiah(val) : '—'}</td>);
+                                    const formulaFmt = col.format ?? 'rupiah';
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 text-sm text-gray-700 bg-gray-50/50 ${cellAlign}`}>{Number.isFinite(val) ? formatNumberByColumn({ format: formulaFmt }, val) : '—'}</td>);
                                   }
                                   if (k === 'row_date') {
                                     return (
-                                      <td key={cellKey} className="py-2 pr-2">
+                                      <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
                                         <div className="flex items-center gap-1 relative">
                                           <input type="text" value={row.row_date ? formatDateToIndonesian(row.row_date) : ''} readOnly placeholder="Klik 📅 untuk pilih tanggal" className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80" />
                                           <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; if (v) updateItem(index, 'row_date', v); }} />
@@ -1850,25 +2076,67 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   if (k === 'item_name') {
                                     const inList = equipmentNamesForKeterangan.includes(row.item_name);
                                     const isCustom = (row.item_name || '') && !inList;
+                                    const hasAiResult = !!(row as FormItem).item_display_name;
+                                    const useAiDisplay = !!(row as FormItem).use_ai_display;
+                                    const displayMode = col.item_display_mode ?? 'name';
+                                    const selectValue = useAiDisplay ? '__ai__' : (inList ? row.item_name : (isCustom ? '__custom__' : ''));
+                                    const showHasilAiBlock = useAiDisplay;
                                     return (
-                                      <td key={cellKey} className="py-2 pr-2">
+                                      <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
                                         <div className="flex flex-col gap-1">
-                                          <select value={inList ? row.item_name : (isCustom ? '__custom__' : '')} onChange={(e) => { const v = e.target.value; if (v === '__custom__') { const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name); updateItem(index, 'item_name', alreadyCustom ? row.item_name : ' '); } else { handleSelectItemName(index, v); } }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
+                                          <select
+                                            value={selectValue}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              if (v === '__custom__') {
+                                                const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name);
+                                                setItems((prev) => prev.map((r, i) => i !== index ? r : { ...r, item_name: alreadyCustom ? row.item_name : ' ', item_display_name: '', use_ai_display: false }));
+                                              } else if (v === '__ai__') {
+                                                setItems((prev) => prev.map((r, i) => i !== index ? r : { ...r, item_name: equipmentNamesForKeterangan[0] || r.item_name, use_ai_display: true }));
+                                              } else {
+                                                handleSelectItemName(index, v);
+                                              }
+                                            }}
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
+                                          >
                                             <option value="">— Pilih keterangan —</option>
-                                            {equipmentNamesForKeterangan.map((name, i) => (<option key={i} value={name}>{name}</option>))}
+                                            <option value="__ai__">{hasAiResult ? `${(row as FormItem).item_display_name} (Hasil AI)` : '— Hasil AI (pakai bila ada hasil) —'}</option>
+                                            {equipmentNamesForKeterangan.map((name, i) => (<option key={i} value={name}>{getItemNameDisplay(name, equipmentList, displayMode)}</option>))}
                                             <option value="__custom__">— Lainnya (ketik manual) —</option>
                                           </select>
                                           {isCustom && <input type="text" value={row.item_name} onChange={(e) => updateItem(index, 'item_name', e.target.value)} placeholder="Ketik keterangan" className="w-full border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50" />}
+                                          {showHasilAiBlock && (
+                                            <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1" title="Nilai ini yang dipakai untuk Keterangan (dari AI atau diedit)">
+                                              <span className="block mb-0.5">Hasil AI (nilai dipakai):</span>
+                                              <div className="flex gap-1 items-center">
+                                                <input
+                                                  type="text"
+                                                  value={(row as FormItem).item_display_name ?? ''}
+                                                  onChange={(e) => setItems((prev) => prev.map((r, i) => i !== index ? r : { ...r, item_display_name: e.target.value }))}
+                                                  placeholder="Upload gambar atau ketik (mis. BP 8814 EO)"
+                                                  className="flex-1 min-w-0 text-sm border border-emerald-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-emerald-500"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setItems((prev) => prev.map((r, i) => i !== index ? r : { ...r, item_display_name: undefined })); }}
+                                                  title="Batal pakai hasil AI (kosongkan)"
+                                                  className="shrink-0 text-xs px-2 py-1 rounded border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100"
+                                                >
+                                                  Batal AI
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       </td>
                                     );
                                   }
                                   if (k === 'description') {
-                                    return (<td key={cellKey} className="py-2 pr-2"><input type="text" value={row.description ?? ''} onChange={(e) => updateItem(index, 'description', e.target.value)} placeholder="String/huruf" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" /></td>);
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="text" value={row.description ?? ''} onChange={(e) => updateItem(index, 'description', e.target.value)} placeholder="String/huruf" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" /></td>);
                                   }
                                   if (k === 'quantity' || k === 'days') {
                                     return (
-                                      <td key={cellKey} className="py-2 pr-2">
+                                      <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
                                         <div className="flex gap-1 items-center">
                                           <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
                                             <option value="hari">Hari</option><option value="jam">Jam</option><option value="unit">Unit</option><option value="jerigen">Jerigen</option><option value="volume">Volume</option>
@@ -1879,47 +2147,56 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     );
                                   }
                                   if (k === 'price') {
-                                    return (<td key={cellKey} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
                                   }
                                   if (k === 'bbm_quantity') {
-                                    return (<td key={cellKey} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
                                   }
                                   if (k === 'bbm_unit_price') {
-                                    return (<td key={cellKey} className="py-2 pr-2"><input type="number" min={0} step="any" value={row.bbm_unit_price ?? ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="Harga/BBM" /></td>);
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.bbm_unit_price ?? ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="Harga/BBM" /></td>);
                                   }
                                   if (k === 'number') {
                                     const fieldKey = `custom_num_${colIdx}`;
                                     const val = (row as Record<string, unknown>)[fieldKey];
                                     const isAuto = col.source && col.source !== 'manual';
+                                    const numVal = val != null && val !== '' ? Number(val) : NaN;
+                                    const fmt = col.format ?? 'number';
                                     return (
-                                      <td key={cellKey} className="py-2 pr-2">
-                                        <input 
-                                          type="number" 
-                                          min={0} 
-                                          step="any" 
-                                          value={val != null && val !== '' ? String(val) : ''} 
-                                          onChange={(e) => {
-                                            const v = String(e.target.value).replace(',', '.');
-                                            const num = v ? parseFloat(v) : 0;
-                                            setItems((prev) => prev.map((r, i) => i === index ? { ...r, [fieldKey]: Number.isFinite(num) && num >= 0 ? num : 0 } as typeof r : r));
-                                          }} 
-                                          readOnly={isAuto}
-                                          className={`w-full border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 ${isAuto ? 'bg-blue-50 border-blue-200 cursor-not-allowed' : 'border-gray-300'}`}
-                                          placeholder={col.label || 'Angka'} 
-                                          title={isAuto ? 'Otomatis dari equipment (pilih equipment untuk mengisi)' : ''}
-                                        />
+                                      <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
+                                        {isAuto ? (
+                                          <span className="text-sm text-gray-700">{formatNumberByColumn(col, numVal)}</span>
+                                        ) : (
+                                          <div className="flex items-center gap-1">
+                                            {fmt === 'rupiah' && <span className="text-gray-500 text-sm shrink-0">Rp</span>}
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              step="any"
+                                              value={val != null && val !== '' ? String(val) : ''}
+                                              onChange={(e) => {
+                                                const v = String(e.target.value).replace(',', '.');
+                                                const num = v ? parseFloat(v) : 0;
+                                                setItems((prev) => prev.map((r, i) => i === index ? { ...r, [fieldKey]: Number.isFinite(num) && num >= 0 ? num : 0 } as typeof r : r));
+                                              }}
+                                              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
+                                              placeholder={col.label || 'Angka'}
+                                            />
+                                            {fmt === 'percent' && <span className="text-gray-500 text-sm shrink-0">%</span>}
+                                          </div>
+                                        )}
                                       </td>
                                     );
                                   }
                                   if (k === 'total') {
-                                    return (<td key={cellKey} className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>);
+                                    const totalFmt = col.format ?? 'rupiah';
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 text-sm text-gray-700 ${cellAlign}`}>{formatNumberByColumn({ format: totalFmt }, lineTotal)}</td>);
                                   }
-                                  return <td key={cellKey} className="py-2 pr-2">—</td>;
+                                  return <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>—</td>;
                                 })
                               ) : (
                               <>
                               {templateShowDate && (
-                                <td className="py-2 pr-2">
+                                <td className={`${itemRowPad} pr-2`}>
                                   <div className="flex items-center gap-1 relative">
                                     <input type="text" value={row.row_date ? formatDateToIndonesian(row.row_date) : ''} readOnly placeholder="Klik 📅 untuk pilih tanggal" className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80" />
                                     <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; if (v) updateItem(index, 'row_date', v); }} />
@@ -1928,7 +2205,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   </div>
                                 </td>
                               )}
-                              <td className="py-2 pr-2">
+                              <td className={`${itemRowPad} pr-2`}>
                                 {(() => {
                                   const inList = equipmentNamesForKeterangan.includes(row.item_name);
                                   const isCustom = (row.item_name || '') && !inList;
@@ -1946,7 +2223,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               </td>
                               {useBbmColumns ? (
                                 <>
-                                  <td className="py-2 pr-2">
+                                  <td className={`${itemRowPad} pr-2`}>
                                     <div className="flex gap-1 items-center">
                                       <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
                                         <option value="hari">Hari</option>
@@ -1958,17 +2235,17 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                       <input type="number" min={0} step="any" value={days || ''} onChange={(e) => updateItem(index, 'days', parseFloat(e.target.value.replace(',', '.')) || 0)} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                     </div>
                                   </td>
-                                  <td className="py-2 pr-2">
+                                  <td className={`${itemRowPad} pr-2`}>
                                     <input type="number" min={0} step="any" value={price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
-                                  <td className="py-2 pr-2">
+                                  <td className={`${itemRowPad} pr-2`}>
                                     <input type="number" min={0} step="any" value={bbmQty || ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} placeholder="-" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
-                                  <td className="py-2 pr-2">
+                                  <td className={`${itemRowPad} pr-2`}>
                                     <input type="number" min={0} step="any" value={bbmPrice || ''} onChange={(e) => updateItem(index, 'bbm_unit_price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                   </td>
                                   {templateShowTotal && (
-                                    <td className="py-2 pr-2">
+                                    <td className={`${itemRowPad} pr-2`}>
                                       {isFixedRow ? (
                                         <input type="number" min={0} step="any" value={row.price || ''} onChange={(e) => { updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0); updateItem(index, 'quantity', 1); }} placeholder="Jumlah tetap" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                       ) : (
@@ -1979,7 +2256,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 </>
                               ) : (
                                 <>
-                                  <td className="py-2 pr-2">
+                                  <td className={`${itemRowPad} pr-2`}>
                                     <div className="flex gap-1 items-center">
                                       <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
                                         <option value="hari">Hari</option>
@@ -1991,16 +2268,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                       <input type="number" min={0} step="any" value={row.quantity} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; updateItem(index, 'quantity', v); updateItem(index, 'days', v); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
                                     </div>
                                   </td>
-                                  <td className="py-2 pr-2">
+                                  <td className={`${itemRowPad} pr-2`}>
                                     <input type="number" min={0} step="any" value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
                                   </td>
-                                  {templateShowTotal && <td className="py-2 pr-2 text-sm text-gray-700">{formatRupiah(lineTotal)}</td>}
+                                  {templateShowTotal && <td className={`${itemRowPad} pr-2 text-sm text-gray-700`}>{formatRupiah(lineTotal)}</td>}
                                 </>
                               )}
                               </>
                               )}
                               <td className="py-2">
-                                <button type="button" onClick={() => removeItem(index)} disabled={items.length === 1} className="p-1.5 text-gray-400 hover:text-red-600 disabled:opacity-40">
+                                <button type="button" onClick={() => removeItem(index)} className="p-1.5 text-gray-400 hover:text-red-600" title="Hapus baris">
                                   <FiTrash2 className="w-4 h-4" />
                                 </button>
                               </td>
@@ -2072,9 +2349,18 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         return null;
                       })()}
                     </div>
-                    <div className="mt-4 flex gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2">
                       <button type="button" onClick={() => openTemplateModal(t)} className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1">
                         <FiEdit2 /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicateTemplate(t)}
+                        disabled={duplicatingTemplateId === Number(t.id)}
+                        className="text-emerald-600 hover:text-emerald-700 text-sm flex items-center gap-1 disabled:opacity-50"
+                        title="Duplikat template"
+                      >
+                        <FiCopy /> Duplikat
                       </button>
                       <button
                         type="button"
@@ -2263,6 +2549,19 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Kolom tabel (Tanggal, Jumlah/Total, dll.) mengikuti &quot;Kolom tabel item&quot; di bawah. BBM dan Harga/BBM bisa ditambah sebagai kolom Angka (rumus) (perhitungan: BBM × Harga/BBM).</p>
                 <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tinggi baris tabel item</label>
+                  <select
+                    value={templateForm.options.item_row_height ?? 'normal'}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, item_row_height: e.target.value as 'compact' | 'normal' | 'relaxed' } }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="compact">Compact (lebih rendah)</option>
+                    <option value="normal">Normal (default)</option>
+                    <option value="relaxed">Relaxed (lebih tinggi)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-0.5">Mengatur ketinggian baris di tabel item (form & PDF). Default: Normal.</p>
+                </div>
+                <div className="mt-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Catatan default (bisa dikustom per dokumen)</label>
                   <textarea
                     value={templateForm.options.default_notes ?? ''}
@@ -2320,26 +2619,48 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         placeholder="Label kolom"
                       />
                       {col.key === 'number' && (
-                        <select
-                          value={col.source ?? 'manual'}
-                          onChange={(e) =>
-                            setTemplateForm((f) => ({
-                              ...f,
-                              options: {
-                                ...f.options,
-                                item_columns: f.options.item_columns.map((c, i) => 
-                                  i === idx ? { ...c, source: e.target.value as 'manual' | 'equipment_price_per_hour' | 'equipment_price_per_day' } : c
-                                ),
-                              },
-                            }))
-                          }
-                          className="w-44 border border-gray-300 rounded px-2 py-1.5 text-xs"
-                          title="Sumber data kolom"
-                        >
-                          <option value="manual">Manual</option>
-                          <option value="equipment_price_per_hour">Harga/Jam Equipment</option>
-                          <option value="equipment_price_per_day">Harga/Hari Equipment</option>
-                        </select>
+                        <>
+                          <select
+                            value={col.format ?? 'number'}
+                            onChange={(e) =>
+                              setTemplateForm((f) => ({
+                                ...f,
+                                options: {
+                                  ...f.options,
+                                  item_columns: f.options.item_columns.map((c, i) =>
+                                    i === idx ? { ...c, format: e.target.value as 'number' | 'rupiah' | 'percent' } : c
+                                  ),
+                                },
+                              }))
+                            }
+                            className="w-32 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                            title="Format tampilan"
+                          >
+                            <option value="number">Angka</option>
+                            <option value="rupiah">Rupiah</option>
+                            <option value="percent">Persen (%)</option>
+                          </select>
+                          <select
+                            value={col.source ?? 'manual'}
+                            onChange={(e) =>
+                              setTemplateForm((f) => ({
+                                ...f,
+                                options: {
+                                  ...f.options,
+                                  item_columns: f.options.item_columns.map((c, i) =>
+                                    i === idx ? { ...c, source: e.target.value as 'manual' | 'equipment_price_per_hour' | 'equipment_price_per_day' } : c
+                                  ),
+                                },
+                              }))
+                            }
+                            className="w-44 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                            title="Sumber data kolom"
+                          >
+                            <option value="manual">Manual</option>
+                            <option value="equipment_price_per_hour">Harga/Jam Equipment</option>
+                            <option value="equipment_price_per_day">Harga/Hari Equipment</option>
+                          </select>
+                        </>
                       )}
                       {col.key === 'formula' && (
                         <div className="relative">
@@ -2401,6 +2722,89 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           )}
                         </div>
                       )}
+                      {col.key === 'formula' && (
+                        <select
+                          value={col.format ?? 'rupiah'}
+                          onChange={(e) =>
+                            setTemplateForm((f) => ({
+                              ...f,
+                              options: {
+                                ...f.options,
+                                item_columns: f.options.item_columns.map((c, i) =>
+                                  i === idx ? { ...c, format: e.target.value as 'number' | 'rupiah' | 'percent' } : c
+                                ),
+                              },
+                            }))
+                          }
+                          className="w-32 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                          title="Format tampilan hasil rumus"
+                        >
+                          <option value="number">Angka</option>
+                          <option value="rupiah">Rupiah</option>
+                          <option value="percent">Persen (%)</option>
+                        </select>
+                      )}
+                      {col.key === 'item_name' && (
+                        <select
+                          value={col.item_display_mode ?? 'name'}
+                          onChange={(e) =>
+                            setTemplateForm((f) => ({
+                              ...f,
+                              options: {
+                                ...f.options,
+                                item_columns: f.options.item_columns.map((c, i) =>
+                                  i === idx ? { ...c, item_display_mode: e.target.value as 'name' | 'auto_plate_or_name' } : c
+                                ),
+                              },
+                            }))
+                          }
+                          className="w-52 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                          title="Tampilan nilai: Nama selalu, atau Dump truck=plat nomor & Alat berat=nama"
+                        >
+                          <option value="name">Tampilan: Nama</option>
+                          <option value="auto_plate_or_name">Tampilan: Dump truck=plat, Alat berat=nama</option>
+                        </select>
+                      )}
+                      <select
+                        value={col.headerAlign ?? 'center'}
+                        onChange={(e) =>
+                          setTemplateForm((f) => ({
+                            ...f,
+                            options: {
+                              ...f.options,
+                              item_columns: f.options.item_columns.map((c, i) =>
+                                i === idx ? { ...c, headerAlign: e.target.value as 'left' | 'center' | 'right' } : c
+                              ),
+                            },
+                          }))
+                        }
+                        className="w-20 border border-gray-300 rounded px-1.5 py-1 text-xs"
+                        title="Perataan header"
+                      >
+                        <option value="left">Header: Kiri</option>
+                        <option value="center">Header: Tengah</option>
+                        <option value="right">Header: Kanan</option>
+                      </select>
+                      <select
+                        value={col.contentAlign ?? 'center'}
+                        onChange={(e) =>
+                          setTemplateForm((f) => ({
+                            ...f,
+                            options: {
+                              ...f.options,
+                              item_columns: f.options.item_columns.map((c, i) =>
+                                i === idx ? { ...c, contentAlign: e.target.value as 'left' | 'center' | 'right' } : c
+                              ),
+                            },
+                          }))
+                        }
+                        className="w-20 border border-gray-300 rounded px-1.5 py-1 text-xs"
+                        title="Perataan isi"
+                      >
+                        <option value="left">Isi: Kiri</option>
+                        <option value="center">Isi: Tengah</option>
+                        <option value="right">Isi: Kanan</option>
+                      </select>
                       <button
                         type="button"
                         onClick={() =>
@@ -2769,54 +3173,141 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
                       placeholder="Label kolom"
                     />
-                    {col.key === 'number' && col.source && col.source !== 'manual' ? (
-                      <select
-                        value={col.source ?? 'manual'}
-                        onChange={(e) =>
-                          setGroupColumnsForm((prev) =>
-                            prev.map((c, i) =>
-                              i === idx ? { ...c, source: e.target.value as typeof c.source } : c
+                    {col.key === 'number' && (
+                      <>
+                        <select
+                          value={col.format ?? 'number'}
+                          onChange={(e) =>
+                            setGroupColumnsForm((prev) =>
+                              prev.map((c, i) =>
+                                i === idx ? { ...c, format: e.target.value as 'number' | 'rupiah' | 'percent' } : c
+                              )
                             )
-                          )
-                        }
-                        className="w-40 border border-orange-300 bg-orange-50 rounded px-2 py-1.5 text-xs"
-                        title="Kolom equipment hanya bisa pilih Harga/Jam atau Harga/Hari"
-                      >
-                        <option value="equipment_price_per_hour">Harga/Jam Equipment</option>
-                        <option value="equipment_price_per_day">Harga/Hari Equipment</option>
-                      </select>
-                    ) : col.key === 'number' ? (
-                      <select
-                        value={col.source ?? 'manual'}
-                        onChange={(e) =>
-                          setGroupColumnsForm((prev) =>
-                            prev.map((c, i) =>
-                              i === idx ? { ...c, source: e.target.value as typeof c.source } : c
-                            )
-                          )
-                        }
-                        className="w-40 border border-gray-300 rounded px-2 py-1.5 text-xs"
-                      >
-                        <option value="manual">Manual</option>
-                        <option value="equipment_price_per_hour">Harga/Jam Equipment</option>
-                        <option value="equipment_price_per_day">Harga/Hari Equipment</option>
-                      </select>
-                    ) : null}
-                    {col.key === 'formula' && (
-                      <input
-                        type="text"
-                        value={formulaToDisplayFormula(col.formula, groupColumnsForm) || (col.formula ?? '')}
-                        onChange={(e) =>
-                          setGroupColumnsForm((prev) =>
-                            prev.map((c, i) =>
-                              i === idx ? { ...c, formula: e.target.value.trim() || undefined } : c
-                            )
-                          )
-                        }
-                        className="w-40 border border-gray-300 rounded px-2 py-1.5 text-xs font-mono"
-                        placeholder="Rumus"
-                      />
+                          }
+                          className="w-28 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                          title="Format tampilan"
+                        >
+                          <option value="number">Angka</option>
+                          <option value="rupiah">Rupiah</option>
+                          <option value="percent">Persen (%)</option>
+                        </select>
+                        {col.source && col.source !== 'manual' ? (
+                          <select
+                            value={col.source ?? 'manual'}
+                            onChange={(e) =>
+                              setGroupColumnsForm((prev) =>
+                                prev.map((c, i) =>
+                                  i === idx ? { ...c, source: e.target.value as typeof c.source } : c
+                                )
+                              )
+                            }
+                            className="w-40 border border-orange-300 bg-orange-50 rounded px-2 py-1.5 text-xs"
+                            title="Kolom equipment hanya bisa pilih Harga/Jam atau Harga/Hari"
+                          >
+                            <option value="equipment_price_per_hour">Harga/Jam Equipment</option>
+                            <option value="equipment_price_per_day">Harga/Hari Equipment</option>
+                          </select>
+                        ) : (
+                          <select
+                            value={col.source ?? 'manual'}
+                            onChange={(e) =>
+                              setGroupColumnsForm((prev) =>
+                                prev.map((c, i) =>
+                                  i === idx ? { ...c, source: e.target.value as typeof c.source } : c
+                                )
+                              )
+                            }
+                            className="w-40 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                          >
+                            <option value="manual">Manual</option>
+                            <option value="equipment_price_per_hour">Harga/Jam Equipment</option>
+                            <option value="equipment_price_per_day">Harga/Hari Equipment</option>
+                          </select>
+                        )}
+                      </>
                     )}
+                    {col.key === 'formula' && (
+                      <>
+                        <input
+                          type="text"
+                          value={formulaToDisplayFormula(col.formula, groupColumnsForm) || (col.formula ?? '')}
+                          onChange={(e) =>
+                            setGroupColumnsForm((prev) =>
+                              prev.map((c, i) =>
+                                i === idx ? { ...c, formula: e.target.value.trim() || undefined } : c
+                              )
+                            )
+                          }
+                          className="w-40 border border-gray-300 rounded px-2 py-1.5 text-xs font-mono"
+                          placeholder="Rumus"
+                        />
+                        <select
+                          value={col.format ?? 'rupiah'}
+                          onChange={(e) =>
+                            setGroupColumnsForm((prev) =>
+                              prev.map((c, i) =>
+                                i === idx ? { ...c, format: e.target.value as 'number' | 'rupiah' | 'percent' } : c
+                              )
+                            )
+                          }
+                          className="w-28 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                          title="Format hasil rumus"
+                        >
+                          <option value="number">Angka</option>
+                          <option value="rupiah">Rupiah</option>
+                          <option value="percent">Persen (%)</option>
+                        </select>
+                      </>
+                    )}
+                    {col.key === 'item_name' && (
+                      <select
+                        value={col.item_display_mode ?? 'name'}
+                        onChange={(e) =>
+                          setGroupColumnsForm((prev) =>
+                            prev.map((c, i) =>
+                              i === idx ? { ...c, item_display_mode: e.target.value as 'name' | 'auto_plate_or_name' } : c
+                            )
+                          )
+                        }
+                        className="w-48 border border-gray-300 rounded px-2 py-1.5 text-xs"
+                        title="Tampilan: Dump truck=plat, Alat berat=nama"
+                      >
+                        <option value="name">Tampilan: Nama</option>
+                        <option value="auto_plate_or_name">Dump truck=plat, Alat berat=nama</option>
+                      </select>
+                    )}
+                    <select
+                      value={col.headerAlign ?? 'center'}
+                      onChange={(e) =>
+                        setGroupColumnsForm((prev) =>
+                          prev.map((c, i) =>
+                            i === idx ? { ...c, headerAlign: e.target.value as 'left' | 'center' | 'right' } : c
+                          )
+                        )
+                      }
+                      className="w-20 border border-gray-300 rounded px-1.5 py-1 text-xs"
+                      title="Perataan header"
+                    >
+                      <option value="left">Header: Kiri</option>
+                      <option value="center">Header: Tengah</option>
+                      <option value="right">Header: Kanan</option>
+                    </select>
+                    <select
+                      value={col.contentAlign ?? 'center'}
+                      onChange={(e) =>
+                        setGroupColumnsForm((prev) =>
+                          prev.map((c, i) =>
+                            i === idx ? { ...c, contentAlign: e.target.value as 'left' | 'center' | 'right' } : c
+                          )
+                        )
+                      }
+                      className="w-20 border border-gray-300 rounded px-1.5 py-1 text-xs"
+                      title="Perataan isi"
+                    >
+                      <option value="left">Isi: Kiri</option>
+                      <option value="center">Isi: Tengah</option>
+                      <option value="right">Isi: Kanan</option>
+                    </select>
                     <button
                       type="button"
                       onClick={() => setGroupColumnsForm((prev) => prev.filter((_, i) => i !== idx))}

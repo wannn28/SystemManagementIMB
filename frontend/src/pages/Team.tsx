@@ -1742,6 +1742,15 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                       <div key={salary.id} className="flex flex-col bg-white p-4 rounded-lg shadow-sm">
                         <div>
                           <h4>{salary.month}</h4>
+                          {/* Ringkasan gaji di atas tabel — ikut ter-update setelah edit */}
+                          <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <p className="text-sm text-gray-600">Id : {salary.id}</p>
+                            <p className="text-sm font-medium">Jumlah Gaji : {salary.salary}</p>
+                            <p className="text-sm font-medium">Kasbon : {salary.loan}</p>
+                            <p className="text-sm font-medium">Gaji Bersih : {salary.net_salary}</p>
+                            <p className="text-sm font-medium">Gaji Kotor : {salary.gross_salary}</p>
+                            <p className="text-sm">Status : {salary.status}</p>
+                          </div>
 
                           {/* Tampilkan detail gaji */}
                           <SalaryDetailsTable
@@ -1759,12 +1768,6 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                             onEdit={(id, data) => handleEditKasbon(String(salary.id), id, data)}
                             onDelete={(id) => handleDeleteKasbon(String(salary.id), id)}
                           />
-                          <p>Id : {salary.id}</p>
-                          <p>Jumlah Gaji : {salary.salary}</p>
-                          <p>Kasbon : {salary.loan}</p>
-                          <p>Gaji Bersih : {salary.net_salary}</p>
-                          <p>Gaji Kotor : {salary.gross_salary}</p>
-                          <p>Status : {salary.status}</p>
                           {salary.documents && salary.documents.length > 0 && (
                             <div className="mt-2">
                               <h5 className="font-medium">Bukti Pembayaran dan Kasbon : </h5>

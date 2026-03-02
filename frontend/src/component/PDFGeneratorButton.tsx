@@ -77,7 +77,7 @@ export const PDFGeneratorButton: React.FC<PDFGeneratorButtonProps> = ({ member, 
       doc.text('Diketahui oleh:', pageWidth - margin - 30, footerY + 5, { align: 'right' });
     }
 
-    // Halaman Gambar
+    // Halaimage.png Gambar
     if (salary.documents && salary.documents.length > 0) {
       doc.addPage();
       doc.text('Bukti Pembayaran dan Kasbon', pageWidth/2, 30, { align: 'center' });

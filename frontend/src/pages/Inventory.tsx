@@ -25,6 +25,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
   const [editingData, setEditingData] = useState<InventoryData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'category' | 'data'; id: string; title?: string } | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -167,7 +168,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
       const formData = new FormData();
       
       // Add values as JSON string
-      formData.append('values', JSON.stringify(editingData.values));
+      formData.append('values', JSON.stringify(editingData.values ?? {}));
       formData.append('category_id', selectedCategory.id);
       
       // Add images
@@ -247,7 +248,9 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
 
   const filteredData = selectedCategory?.data.filter(data => {
     if (!searchQuery) return true;
-    return Object.values(data.values).some(value =>
+    const values = data.values;
+    if (!values || typeof values !== 'object') return false;
+    return Object.values(values).some(value =>
       String(value).toLowerCase().includes(searchQuery.toLowerCase())
     );
   }) || [];
@@ -300,7 +303,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteCategory(category.id);
+                        setDeleteConfirm({ type: 'category', id: category.id, title: category.title });
                       }}
                       className="text-red-500 text-sm"
                     >
@@ -378,7 +381,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                           >
                             {header.type === 'image' ? (
                               <div className="flex flex-wrap gap-2 justify-center items-center">
-                                {data.images.map((image, index) => (
+                                {(data.images || []).map((image, index) => (
                                   <div key={index} className="relative">
 
                                     <img
@@ -397,7 +400,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                                 ))}
                               </div>
                             ) : (
-                              data.values[header.id] || '-'
+                              (data.values && data.values[header.id]) ?? '-'
                             )}
                           </td>
                         ))}
@@ -410,7 +413,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteData(data.id)}
+                              onClick={() => setDeleteConfirm({ type: 'data', id: data.id })}
                               className="text-red-500 hover:text-red-600 px-2 py-1 rounded bg-red-50"
                             >
                               Hapus
@@ -421,6 +424,41 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Konfirmasi Hapus */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Konfirmasi Hapus</h3>
+              <p className="text-gray-600 mb-4">
+                {deleteConfirm.type === 'category'
+                  ? `Apakah Anda yakin ingin menghapus kategori "${deleteConfirm.title ?? ''}"?`
+                  : 'Apakah Anda yakin ingin menghapus data ini?'}
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    if (deleteConfirm.type === 'category') {
+                      handleDeleteCategory(deleteConfirm.id);
+                    } else {
+                      handleDeleteData(deleteConfirm.id);
+                    }
+                    setDeleteConfirm(null);
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                >
+                  Ya, Hapus
+                </button>
               </div>
             </div>
           </div>
@@ -578,7 +616,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                       className="w-full p-2 border rounded"
                       value={
                         editingData
-                          ? editingData.values[header.id] || ''
+                          ? (editingData.values && editingData.values[header.id]) ?? ''
                           : newDataValues[header.id] || ''
                       }
                       onChange={(e) => {
@@ -590,7 +628,7 @@ const Inventory: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
                           setEditingData({
                             ...editingData,
                             values: {
-                              ...editingData.values,
+                              ...(editingData.values ?? {}),
                               [header.id]: value
                             }
                           });

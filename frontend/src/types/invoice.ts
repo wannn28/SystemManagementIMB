@@ -6,6 +6,8 @@
 export interface InvoiceItem {
   id?: string | number;
   item_name: string;
+  /** Tampilan di kolom Keterangan: plat untuk dump truck, nama untuk alat berat (jika template pakai auto_plate_or_name) */
+  item_display_name?: string;
   description?: string;
   quantity: number;
   price: number;
@@ -47,6 +49,27 @@ export interface TemplateItemColumn {
    * - 'equipment_price_per_day': otomatis dari harga per hari equipment
    */
   source?: 'manual' | 'equipment_price_per_hour' | 'equipment_price_per_day';
+  /**
+   * Format tampilan untuk kolom tipe 'number' dan 'formula':
+   * - 'number': angka biasa
+   * - 'rupiah': format mata uang Rp (default untuk formula)
+   * - 'percent': format persen (%)
+   */
+  format?: 'number' | 'rupiah' | 'percent';
+  /**
+   * Perataan header kolom: kiri, tengah, atau kanan (default: tengah).
+   */
+  headerAlign?: 'left' | 'center' | 'right';
+  /**
+   * Perataan isi sel kolom: kiri, tengah, atau kanan (default: tengah).
+   */
+  contentAlign?: 'left' | 'center' | 'right';
+  /**
+   * Hanya untuk kolom Item/Keterangan (key item_name):
+   * - 'name': tampilkan nama equipment seperti biasa
+   * - 'auto_plate_or_name': dump truck → plat nomor (license_plate), alat berat → nama
+   */
+  item_display_mode?: 'name' | 'auto_plate_or_name';
 }
 
 export interface InvoiceTemplate {
@@ -81,6 +104,8 @@ export interface InvoiceTemplate {
     price_unit_label?: string;
     /** Label kolom item: Keterangan, Pekerjaan, dll */
     item_column_label?: string;
+    /** Tinggi baris tabel item: compact, normal (default), relaxed */
+    item_row_height?: 'compact' | 'normal' | 'relaxed';
     [k: string]: unknown;
   };
   created_at?: string;
@@ -147,6 +172,7 @@ export interface CreateInvoiceRequest {
   customer_address?: string;
   items: Array<{
     item_name: string;
+    item_display_name?: string;
     description?: string;
     quantity: number;
     price: number;

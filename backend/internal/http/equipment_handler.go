@@ -74,6 +74,7 @@ func (h *EquipmentHandler) Update(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	existing.Name = body.Name
+	existing.LicensePlate = body.LicensePlate
 	existing.PricePerDay = body.PricePerDay
 	existing.PricePerHour = body.PricePerHour
 	if body.Type != "" {

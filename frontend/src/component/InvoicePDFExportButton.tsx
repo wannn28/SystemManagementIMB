@@ -84,6 +84,7 @@ type TemplateDisplayOptions = {
   quantity_unit: string;
   price_unit_label: string;
   item_column_label: string;
+  item_row_height: 'compact' | 'normal' | 'relaxed';
 };
 
 function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): TemplateDisplayOptions | null {
@@ -99,6 +100,7 @@ function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): Templ
           }
         })()
       : (template.options as Partial<TemplateDisplayOptions>);
+  const rowHeight = (parsed as { item_row_height?: 'compact' | 'normal' | 'relaxed' })?.item_row_height || 'normal';
   return {
     show_no: parsed?.show_no !== false,
     show_date: parsed?.show_date !== false,
@@ -109,6 +111,7 @@ function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): Templ
     quantity_unit: parsed?.quantity_unit || 'hari',
     price_unit_label: parsed?.price_unit_label || 'Harga/Hari',
     item_column_label: parsed?.item_column_label || 'Keterangan',
+    item_row_height: rowHeight === 'compact' || rowHeight === 'relaxed' ? rowHeight : 'normal',
   };
 }
 
@@ -136,12 +139,16 @@ function getItemCellValue(
     };
     const computed = getComputedFormulaValues(row, allColumns);
     const val = columnIndex >= 0 ? (computed[columnIndex] ?? NaN) : evaluateFormula(column.formula, row);
-    return Number.isFinite(val) ? formatRupiahFn(val) : '-';
+    if (!Number.isFinite(val)) return '-';
+    const fmt = column.format ?? 'rupiah';
+    if (fmt === 'rupiah') return formatRupiahFn(val);
+    if (fmt === 'percent') return `${val} %`;
+    return String(val);
   }
   const key = column.key;
   switch (key) {
     case 'item_name':
-      return (item.item_name || '-').trim() || '-';
+      return ((item as { item_display_name?: string }).item_display_name || item.item_name || '-').trim() || '-';
     case 'description':
       return (item.description || '-').trim() || '-';
     case 'quantity':
@@ -161,7 +168,12 @@ function getItemCellValue(
     case 'number': {
       const fieldKey = `custom_num_${columnIndex}`;
       const val = (item as unknown as Record<string, unknown>)[fieldKey];
-      return val != null && val !== '' ? String(val) : '-';
+      const num = val != null && val !== '' ? Number(val) : NaN;
+      if (!Number.isFinite(num)) return '-';
+      const fmt = column.format ?? 'number';
+      if (fmt === 'rupiah') return formatRupiahFn(num);
+      if (fmt === 'percent') return `${num} %`;
+      return String(num);
     }
     default:
       return (item as unknown as Record<string, unknown>)[key] != null ? String((item as unknown as Record<string, unknown>)[key]) : '-';
@@ -221,9 +233,14 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
 }) => {
   const generatePDF = async () => {
     let invoiceToUse = invoice;
-    if (invoice.template_id && (!invoice.template || !getTemplateItemColumns(invoice.template))) {
-      const fetched = await invoiceApi.getTemplateById(Number(invoice.template_id));
-      if (fetched) invoiceToUse = { ...invoice, template: fetched };
+    // Ambil invoice lengkap by ID agar items punya custom_num_* (Volume, Harga/Volume, dll) dari backend
+    if (invoice.id != null) {
+      const full = await invoiceApi.getInvoiceById(invoice.id);
+      if (full) invoiceToUse = full;
+    }
+    if (invoiceToUse.template_id && (!invoiceToUse.template || !getTemplateItemColumns(invoiceToUse.template))) {
+      const fetched = await invoiceApi.getTemplateById(Number(invoiceToUse.template_id));
+      if (fetched) invoiceToUse = { ...invoiceToUse, template: fetched };
     }
 
     const [kop, ttdImg] = await Promise.all([
@@ -457,14 +474,30 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
         : [headRow];
 
       const qtyColIndex = templateColumns?.length ? (qtyColIndexTemplate >= 0 ? qtyColIndexTemplate : showNo ? 1 : 0) : useBbm ? 2 : 3;
+      const headColOffset = (showNo ? 1 : 0) + (injectDateColumn ? 1 : 0);
+      const columnStyles: Record<number, { halign: 'left' | 'center' | 'right'; valign?: 'top' | 'middle' | 'bottom'; cellWidth?: number; cellPadding?: number }> = {};
+      if (showNo) {
+        columnStyles[0] = { halign: 'center', valign: 'middle', cellWidth: 15, cellPadding: 2 };
+      }
+      if (templateColumns?.length) {
+        templateColumns.forEach((col, idx) => {
+          const colIndex = headColOffset + idx;
+          const align = col.contentAlign ?? 'center';
+          columnStyles[colIndex] = { ...columnStyles[colIndex], halign: align };
+        });
+        if (qtyColIndex >= 0 && columnStyles[qtyColIndex] == null) columnStyles[qtyColIndex] = { halign: 'center' };
+      } else {
+        columnStyles[qtyColIndex] = { halign: 'center' };
+      }
+      const itemCellPadding = templateOpts?.item_row_height === 'compact' ? 2 : templateOpts?.item_row_height === 'relaxed' ? 7 : 4;
       autoTable(doc, {
         startY: y,
         head: tableHead as any,
         body: bodyWithTotal,
         theme: 'grid',
         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0], font: 'times', fontSize: 12 },
-        bodyStyles: { font: 'times', fontSize: 11, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        columnStyles: { [qtyColIndex]: { halign: 'center' } },
+        bodyStyles: { font: 'times', fontSize: 11, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: itemCellPadding },
+        columnStyles,
         margin: { left: margin, right: margin },
         tableLineColor: [0, 0, 0],
         tableLineWidth: 0.1,
@@ -474,6 +507,20 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
             data.cell.styles.fillColor = [255, 255, 255];
             data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = 'bold';
+          }
+          const colIndex = (data.column as { index?: number })?.index ?? 0;
+          if (showNo && colIndex === 0) {
+            data.cell.styles.halign = 'center';
+            data.cell.styles.valign = 'middle';
+          }
+          if (templateColumns?.length && data.section === 'head' && data.column) {
+            const headRowIndex = tableHead.length - 1;
+            if (data.row.index === headRowIndex) {
+              const ti = colIndex - headColOffset;
+              if (ti >= 0 && ti < templateColumns.length) {
+                data.cell.styles.halign = templateColumns[ti].headerAlign ?? 'center';
+              }
+            }
           }
         },
       });

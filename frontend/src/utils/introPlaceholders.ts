@@ -47,11 +47,13 @@ export function replaceIntroPlaceholders(
     () => blockValue
   );
 
+  /* Ganti @alatberatmanual dulu sebelum @alatberat, supaya substring @alatberat
+   * di dalam @alatberatmanual tidak ikut terganti (kalau tidak akan jadi "...Fillmanual"). */
   out = out
     .replace(/\@alatberat\s+dan\s+\@dumptruck/gi, eq)
     .replace(/\@dumptruck\s+dan\s+\@alatberat/gi, eq)
-    .replace(/\@alatberat/g, alatBerat)
     .replace(/\@alatberatmanual/g, manual)
+    .replace(/\@alatberat/g, alatBerat)
     .replace(/\@dumptruck/g, dumptruck)
     .replace(/\@lokasi/g, loc);
   return out;

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Project } from '../types/BasicTypes';
+import { smartNotaApi, SmartNotaInvoice } from '../api/smartNota';
 
 interface EditReportsProps {
     project: Project;
@@ -13,9 +14,450 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const [editingDailyIndex, setEditingDailyIndex] = useState<number | null>(null);
     const [editingWeeklyIndex, setEditingWeeklyIndex] = useState<number | null>(null);
     const [editingMonthlyIndex, setEditingMonthlyIndex] = useState<number | null>(null);
+    
+    // SmartNota integration states
+    const [smartNotaTemplates, setSmartNotaTemplates] = useState<{ id: number; name: string }[]>([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+    const [isFetchingInvoice, setIsFetchingInvoice] = useState(false);
+    const [smartNotaError, setSmartNotaError] = useState<string | null>(null);
+    const [dateFrom, setDateFrom] = useState<string>('');
+    const [dateTo, setDateTo] = useState<string>('');
+    const [filterBP, setFilterBP] = useState<string>('');
+    const [filterLocation, setFilterLocation] = useState<string>('');
+    const [planValue, setPlanValue] = useState<number>(0);
+
+    // Load SmartNota templates from invoices on component mount
+    useEffect(() => {
+        loadSmartNotaTemplates();
+    }, []);
+
+    const loadSmartNotaTemplates = async () => {
+        try {
+            setIsLoadingTemplates(true);
+            setSmartNotaError(null);
+            
+            // Get invoices and extract unique templates
+            const response = await smartNotaApi.getInvoices({
+                page: 1,
+                limit: 100, // Get more invoices to capture all templates
+            });
+            
+            // Extract unique templates from invoices
+            const templatesMap = new Map<number, string>();
+            response.data.forEach(invoice => {
+                if (invoice.template && !templatesMap.has(invoice.template.id)) {
+                    templatesMap.set(invoice.template.id, invoice.template.name);
+                }
+            });
+            
+            const templates = Array.from(templatesMap.entries()).map(([id, name]) => ({
+                id,
+                name
+            }));
+            
+            setSmartNotaTemplates(templates);
+            
+            if (templates.length === 0) {
+                setSmartNotaError('Tidak ada template ditemukan. Buat invoice di SmartNota terlebih dahulu.');
+            }
+        } catch (error: any) {
+            console.error('Failed to load SmartNota templates:', error);
+            setSmartNotaError('Gagal memuat template SmartNota. Pastikan API Key sudah diatur di Settings.');
+        } finally {
+            setIsLoadingTemplates(false);
+        }
+    };
+
+    const bulkFillFromSmartNota = async () => {
+        if (!selectedTemplateId) {
+            alert('Pilih template SmartNota terlebih dahulu');
+            return;
+        }
+
+        if (!dateFrom || !dateTo) {
+            alert('Pilih range tanggal (dari dan sampai)');
+            return;
+        }
+
+        try {
+            setIsFetchingInvoice(true);
+            setSmartNotaError(null);
+            
+            // Get all invoices in the date range
+            const response = await smartNotaApi.getInvoices({
+                page: 1,
+                limit: 1000,
+                date_from: dateFrom,
+                date_to: dateTo,
+            });
+
+            let invoices = response.data;
+
+            // Filter by template
+            invoices = invoices.filter(inv => inv.template_id === selectedTemplateId);
+
+            // Apply BP filter if provided
+            if (filterBP) {
+                invoices = invoices.filter(inv => {
+                    const keterangan = inv.data?.keterangan || inv.data?.Keterangan || '';
+                    return keterangan.toLowerCase().includes(filterBP.toLowerCase());
+                });
+            }
+
+            // Apply location filter if provided
+            if (filterLocation) {
+                invoices = invoices.filter(inv => {
+                    const lokasi = inv.data?.lokasi || inv.data?.Lokasi || inv.data?.location || '';
+                    return lokasi.toLowerCase().includes(filterLocation.toLowerCase());
+                });
+            }
+
+            // Group invoices by date
+            const invoicesByDate: Record<string, typeof invoices> = {};
+            invoices.forEach(invoice => {
+                // Try to get date from various possible fields
+                let dateStr = '';
+                if (invoice.data?.tanggal) {
+                    dateStr = invoice.data.tanggal;
+                } else if (invoice.data?.Tanggal) {
+                    dateStr = invoice.data.Tanggal;
+                } else if (invoice.data?.date) {
+                    dateStr = invoice.data.date;
+                } else {
+                    // Fallback to created_at
+                    dateStr = invoice.created_at.split('T')[0];
+                }
+                
+                // Normalize date to YYYY-MM-DD format
+                const date = new Date(dateStr).toISOString().split('T')[0];
+                
+                if (!invoicesByDate[date]) {
+                    invoicesByDate[date] = [];
+                }
+                invoicesByDate[date].push(invoice);
+            });
+
+            // Generate all dates in range
+            const startDate = new Date(dateFrom);
+            const endDate = new Date(dateTo);
+            const dateList: string[] = [];
+            
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                dateList.push(dateStr);
+            }
+
+            // Create or update daily reports for each date
+            const newReports = [...dailyReports];
+            let createdCount = 0;
+            let updatedCount = 0;
+            let totalVolume = 0;
+
+            dateList.forEach(date => {
+                // Check if report already exists for this date
+                const existingIndex = newReports.findIndex(r => r.date === date);
+                
+                // Calculate volume for this date
+                let dateVolume = 0;
+                if (invoicesByDate[date]) {
+                    invoicesByDate[date].forEach(invoice => {
+                        let volume = 0;
+                        
+                        // Priority 1: Use 'total' field from invoice.data (Total Nilai)
+                        if (invoice.data?.total) {
+                            volume = Number(invoice.data.total);
+                        } 
+                        // Priority 2: Use 'Total' field (case variation)
+                        else if (invoice.data?.Total) {
+                            volume = Number(invoice.data.Total);
+                        }
+                        // Priority 3: Use 'volume' field
+                        else if (invoice.data?.volume) {
+                            volume = Number(invoice.data.volume);
+                        } 
+                        // Priority 4: Use 'Volume' field
+                        else if (invoice.data?.Volume) {
+                            volume = Number(invoice.data.Volume);
+                        } 
+                        // Priority 5: Use 'total_volume' field
+                        else if (invoice.data?.total_volume) {
+                            volume = Number(invoice.data.total_volume);
+                        } 
+                        // Fallback: Sum from items (last resort)
+                        else if (invoice.items && invoice.items.length > 0) {
+                            volume = invoice.items.reduce((sum, item) => sum + (item.total || item.quantity), 0);
+                        }
+                        
+                        dateVolume += volume;
+                    });
+                }
+
+                totalVolume += dateVolume;
+
+                const reportData = {
+                    id: 0,
+                    projectId: project.id,
+                    date: date,
+                    revenue: 0,
+                    paid: 0,
+                    volume: 0,
+                    targetVolume: 0,
+                    plan: planValue, // Fill with user input plan
+                    aktual: dateVolume, // Fill with SmartNota data or 0
+                    workers: {
+                        "Pengawas": 0,
+                        "Mandor": 0,
+                        "Supir": 0,
+                        "Operator": 0,
+                        "Pekerja": 0
+                    },
+                    equipment: {
+                        "Excavator": 0,
+                        "Dozer": 0,
+                        "Dumptruck": 0,
+                        "Loader": 0,
+                        "Bulldozer": 0
+                    },
+                    totalWorkers: 0,
+                    totalEquipment: 0,
+                    images: [],
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                };
+
+                if (existingIndex >= 0) {
+                    // Update existing report
+                    newReports[existingIndex] = {
+                        ...newReports[existingIndex],
+                        plan: planValue,
+                        aktual: dateVolume,
+                        updatedAt: Date.now()
+                    };
+                    updatedCount++;
+                } else {
+                    // Create new report
+                    newReports.push(reportData);
+                    createdCount++;
+                }
+            });
+
+            // Sort by date
+            newReports.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            // Calculate cumulative volume (running total)
+            // Find the starting volume from reports before the date range
+            let cumulativeVolume = 0;
+            
+            // Get volume from the day before the start date as base
+            const dayBeforeStart = new Date(dateFrom);
+            dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
+            const dayBeforeStr = dayBeforeStart.toISOString().split('T')[0];
+            
+            const reportBeforeRange = newReports.find(r => r.date === dayBeforeStr);
+            if (reportBeforeRange) {
+                cumulativeVolume = reportBeforeRange.volume || 0;
+            }
+
+            // Calculate cumulative volume for each report in date order
+            newReports.forEach(report => {
+                if (report.date >= dateFrom && report.date <= dateTo) {
+                    // Volume = Previous Volume + Current Aktual
+                    cumulativeVolume = cumulativeVolume + (report.aktual || 0);
+                    report.volume = cumulativeVolume;
+                }
+            });
+
+            // Calculate cumulative target (running total)
+            // Find the starting target from reports before the date range
+            let cumulativeTarget = 0;
+            
+            if (reportBeforeRange) {
+                cumulativeTarget = reportBeforeRange.targetVolume || 0;
+            }
+
+            // Calculate cumulative target for each report in date order
+            newReports.forEach(report => {
+                if (report.date >= dateFrom && report.date <= dateTo) {
+                    // Target = Previous Target + Current Plan
+                    cumulativeTarget = cumulativeTarget + (report.plan || 0);
+                    report.targetVolume = cumulativeTarget;
+                }
+            });
+
+            setDailyReports(newReports);
+
+            const filterText = [];
+            if (filterBP) filterText.push(`BP: ${filterBP}`);
+            if (filterLocation) filterText.push(`Lokasi: ${filterLocation}`);
+            const filterInfo = filterText.length > 0 ? `\nFilter: ${filterText.join(', ')}` : '';
+
+            // Get final cumulative volume and target
+            const reportsInRange = newReports.filter(r => r.date >= dateFrom && r.date <= dateTo);
+            const finalCumulativeVolume = reportsInRange.reduce((max, r) => Math.max(max, r.volume || 0), 0);
+            const finalCumulativeTarget = reportsInRange.reduce((max, r) => Math.max(max, r.targetVolume || 0), 0);
+
+            alert(
+                `✅ Berhasil membuat/update daily reports!` +
+                `\n📅 Periode: ${dateFrom} - ${dateTo}` +
+                `\n📄 Reports dibuat: ${createdCount}` +
+                `\n🔄 Reports diupdate: ${updatedCount}` +
+                `\n\n📊 Hasil Perhitungan:` +
+                `\n├─ Plan per hari: ${planValue.toLocaleString()}` +
+                `\n├─ Total Aktual: ${totalVolume.toLocaleString()}` +
+                `\n├─ Volume Akumulatif: ${finalCumulativeVolume.toLocaleString()}` +
+                `\n└─ Target Akumulatif: ${finalCumulativeTarget.toLocaleString()}` +
+                `\n\n📋 Invoice ditemukan: ${invoices.length}` +
+                filterInfo +
+                `\n\n💡 Rumus:` +
+                `\n• Volume = Volume kemarin + Aktual hari ini` +
+                `\n• Target = Target kemarin + Plan hari ini` +
+                `\n\n💾 Jangan lupa klik "Save All Changes" untuk menyimpan!`
+            );
+        } catch (error: any) {
+            console.error('Failed to bulk fill from SmartNota:', error);
+            setSmartNotaError('Gagal mengambil data dari SmartNota: ' + (error.message || 'Unknown error'));
+            alert('Gagal mengambil data dari SmartNota. Periksa koneksi dan API Key Anda.');
+        } finally {
+            setIsFetchingInvoice(false);
+        }
+    };
+
+    const fetchVolumeFromSmartNota = async (index: number) => {
+        const report = dailyReports[index];
+        
+        if (!selectedTemplateId) {
+            alert('Pilih template SmartNota terlebih dahulu');
+            return;
+        }
+
+        // Use date range or single date
+        const startDate = dateFrom || report.date;
+        const endDate = dateTo || report.date;
+
+        if (!startDate) {
+            alert('Pilih tanggal atau range tanggal terlebih dahulu');
+            return;
+        }
+
+        try {
+            setIsFetchingInvoice(true);
+            setSmartNotaError(null);
+            
+            // Get all invoices in the date range
+            const response = await smartNotaApi.getInvoices({
+                page: 1,
+                limit: 1000, // Get many invoices
+                date_from: startDate,
+                date_to: endDate,
+            });
+
+            let invoices = response.data;
+
+            // Filter by template
+            invoices = invoices.filter(inv => inv.template_id === selectedTemplateId);
+
+            if (invoices.length === 0) {
+                alert('Tidak ada invoice SmartNota untuk tanggal dan template ini');
+                return;
+            }
+
+            // Apply filters if provided
+            if (filterBP) {
+                invoices = invoices.filter(inv => {
+                    const keterangan = inv.data?.keterangan || inv.data?.Keterangan || '';
+                    return keterangan.toLowerCase().includes(filterBP.toLowerCase());
+                });
+            }
+
+            if (filterLocation) {
+                invoices = invoices.filter(inv => {
+                    const lokasi = inv.data?.lokasi || inv.data?.Lokasi || inv.data?.location || '';
+                    return lokasi.toLowerCase().includes(filterLocation.toLowerCase());
+                });
+            }
+
+            if (invoices.length === 0) {
+                alert('Tidak ada invoice yang sesuai dengan filter');
+                return;
+            }
+
+            // Sum up volume from all matching invoices
+            let totalVolume = 0;
+            let invoiceCount = 0;
+
+            invoices.forEach(invoice => {
+                let volume = 0;
+                
+                // Priority 1: Use 'total' field from invoice.data (Total Nilai)
+                if (invoice.data?.total) {
+                    volume = Number(invoice.data.total);
+                } 
+                // Priority 2: Use 'Total' field (case variation)
+                else if (invoice.data?.Total) {
+                    volume = Number(invoice.data.Total);
+                }
+                // Priority 3: Use 'volume' field
+                else if (invoice.data?.volume) {
+                    volume = Number(invoice.data.volume);
+                } 
+                // Priority 4: Use 'Volume' field
+                else if (invoice.data?.Volume) {
+                    volume = Number(invoice.data.Volume);
+                } 
+                // Priority 5: Use 'total_volume' field
+                else if (invoice.data?.total_volume) {
+                    volume = Number(invoice.data.total_volume);
+                } 
+                // Fallback: Sum from items (last resort)
+                else if (invoice.items && invoice.items.length > 0) {
+                    volume = invoice.items.reduce((sum, item) => sum + (item.total || item.quantity), 0);
+                }
+
+                if (volume > 0) {
+                    totalVolume += volume;
+                    invoiceCount++;
+                }
+            });
+
+            // Update the aktual field with the total volume from SmartNota
+            handleDailyChange(index, 'aktual', totalVolume);
+            
+            const dateRangeText = dateFrom && dateTo && dateFrom !== dateTo 
+                ? `\nPeriode: ${dateFrom} - ${dateTo}`
+                : `\nTanggal: ${startDate}`;
+            
+            const filterText = [];
+            if (filterBP) filterText.push(`BP: ${filterBP}`);
+            if (filterLocation) filterText.push(`Lokasi: ${filterLocation}`);
+            const filterInfo = filterText.length > 0 ? `\nFilter: ${filterText.join(', ')}` : '';
+
+            alert(
+                `✅ Berhasil mengambil data dari SmartNota!` +
+                dateRangeText +
+                `\n📦 Total Volume: ${totalVolume.toLocaleString()}` +
+                `\n📄 Jumlah Invoice: ${invoiceCount}` +
+                filterInfo
+            );
+        } catch (error: any) {
+            console.error('Failed to fetch invoice from SmartNota:', error);
+            setSmartNotaError('Gagal mengambil data dari SmartNota: ' + (error.message || 'Unknown error'));
+            alert('Gagal mengambil data dari SmartNota. Periksa koneksi dan API Key Anda.');
+        } finally {
+            setIsFetchingInvoice(false);
+        }
+    };
 
     const startEditingDaily = (index: number) => {
         setEditingDailyIndex(index);
+        // Reset SmartNota filters when opening form
+        const report = dailyReports[index];
+        setDateFrom(report.date || '');
+        setDateTo(report.date || '');
+        setFilterBP('');
+        setFilterLocation('');
+        setSelectedTemplateId(null);
+        setSmartNotaError(null);
     };
 
     const startEditingWeekly = (index: number) => {
@@ -330,6 +772,123 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                     {/* Content */}
                     <div className="p-8">
                         <form className="space-y-8">
+                            {/* SmartNota Integration Section */}
+                            <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-6 border-2 border-cyan-300">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-cyan-500 rounded-lg flex items-center justify-center mr-3">
+                                        <span className="text-white font-bold text-xl">🔗</span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-lg font-bold text-gray-800">SmartNota Integration</h4>
+                                        <p className="text-sm text-gray-600">Ambil data volume otomatis dari SmartNota Online dengan filter</p>
+                                    </div>
+                                </div>
+
+                                {smartNotaError && (
+                                    <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                                        <p className="text-sm text-red-600">{smartNotaError}</p>
+                                    </div>
+                                )}
+
+                                <div className="space-y-4">
+                                    {/* Template Selection */}
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">📋 Template SmartNota</label>
+                                        {isLoadingTemplates ? (
+                                            <div className="text-sm text-gray-500">Memuat templates...</div>
+                                        ) : (
+                                            <select
+                                                value={selectedTemplateId || ''}
+                                                onChange={(e) => setSelectedTemplateId(Number(e.target.value))}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                                            >
+                                                <option value="">Pilih Template</option>
+                                                {smartNotaTemplates.map((template) => (
+                                                    <option key={template.id} value={template.id}>
+                                                        {template.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+
+                                    {/* Date Range */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">📅 Dari Tanggal</label>
+                                            <input
+                                                type="date"
+                                                value={dateFrom || report.date}
+                                                onChange={(e) => setDateFrom(e.target.value)}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">📅 Sampai Tanggal</label>
+                                            <input
+                                                type="date"
+                                                value={dateTo || report.date}
+                                                onChange={(e) => setDateTo(e.target.value)}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Filters */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">🚗 Filter BP/Keterangan (Opsional)</label>
+                                            <input
+                                                type="text"
+                                                value={filterBP}
+                                                onChange={(e) => setFilterBP(e.target.value)}
+                                                placeholder="Contoh: BP 9280 DE"
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">📍 Filter Lokasi (Opsional)</label>
+                                            <input
+                                                type="text"
+                                                value={filterLocation}
+                                                onChange={(e) => setFilterLocation(e.target.value)}
+                                                placeholder="Contoh: Himalaya, Gajahmada"
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Action Button */}
+                                    <div>
+                                        <button
+                                            type="button"
+                                            onClick={() => fetchVolumeFromSmartNota(index)}
+                                            disabled={!selectedTemplateId || (!dateFrom && !report.date) || isFetchingInvoice}
+                                            className={`w-full px-6 py-4 rounded-lg font-semibold transition-all duration-200 ${
+                                                !selectedTemplateId || (!dateFrom && !report.date) || isFetchingInvoice
+                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600 shadow-lg hover:shadow-xl'
+                                            }`}
+                                        >
+                                            {isFetchingInvoice ? '⏳ Mengambil data...' : '📥 Ambil Data dari SmartNota'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 bg-cyan-50 rounded-lg p-4 border border-cyan-200">
+                                    <p className="text-xs text-cyan-800">
+                                        <strong>💡 Cara Pakai:</strong>
+                                    </p>
+                                    <ul className="text-xs text-cyan-700 mt-2 space-y-1 list-disc list-inside">
+                                        <li>Pilih template SmartNota yang sesuai</li>
+                                        <li>Atur range tanggal (atau biarkan default ke tanggal report)</li>
+                                        <li>Opsional: Tambahkan filter BP/Keterangan atau Lokasi</li>
+                                        <li>Klik "Ambil Data" untuk mengisi field Aktual</li>
+                                        <li>📊 Sistem menggunakan <strong>Total Nilai</strong> dari invoice (bukan Total Nota)</li>
+                                    </ul>
+                                </div>
+                            </div>
+
                             {/* Data Input Section */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                 {/* Basic Data Column */}
@@ -1049,6 +1608,166 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
 
                 {/* Content */}
                 <div className="p-6 space-y-8">
+                    {/* SmartNota Bulk Fill Section */}
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-300">
+                        <div className="flex items-center mb-6">
+                            <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                                <span className="text-white font-bold text-2xl">⚡</span>
+                            </div>
+                            <div>
+                                <h4 className="text-xl font-bold text-gray-800">Auto-Fill dari SmartNota</h4>
+                                <p className="text-sm text-gray-600">Buat multiple daily reports otomatis untuk range tanggal tertentu</p>
+                            </div>
+                        </div>
+
+                        {smartNotaError && (
+                            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p className="text-sm text-red-600">{smartNotaError}</p>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {/* Template Selection */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">📋 Template SmartNota</label>
+                                {isLoadingTemplates ? (
+                                    <div className="text-sm text-gray-500">Memuat templates...</div>
+                                ) : (
+                                    <select
+                                        value={selectedTemplateId || ''}
+                                        onChange={(e) => setSelectedTemplateId(Number(e.target.value))}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                    >
+                                        <option value="">Pilih Template</option>
+                                        {smartNotaTemplates.map((template) => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            {/* Date From */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">📅 Dari Tanggal</label>
+                                <input
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                />
+                            </div>
+
+                            {/* Date To */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">📅 Sampai Tanggal</label>
+                                <input
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={(e) => setDateTo(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                />
+                            </div>
+
+                            {/* Plan Input */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">📊 Plan (per hari)</label>
+                                <input
+                                    type="number"
+                                    value={planValue}
+                                    onChange={(e) => setPlanValue(Number(e.target.value))}
+                                    placeholder="Contoh: 100"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                    min="0"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Akan diisi ke semua tanggal dalam range</p>
+                            </div>
+
+                            {/* Filter BP */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">🚗 Filter BP/Keterangan</label>
+                                <input
+                                    type="text"
+                                    value={filterBP}
+                                    onChange={(e) => setFilterBP(e.target.value)}
+                                    placeholder="Contoh: BP 9280 DE (opsional)"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                />
+                            </div>
+
+                            {/* Filter Location */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">📍 Filter Lokasi</label>
+                                <input
+                                    type="text"
+                                    value={filterLocation}
+                                    onChange={(e) => setFilterLocation(e.target.value)}
+                                    placeholder="Contoh: Himalaya (opsional)"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                />
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-end gap-2 col-span-1 lg:col-span-2 xl:col-span-1">
+                                <button
+                                    type="button"
+                                    onClick={bulkFillFromSmartNota}
+                                    disabled={!selectedTemplateId || !dateFrom || !dateTo || isFetchingInvoice}
+                                    className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                                        !selectedTemplateId || !dateFrom || !dateTo || isFetchingInvoice
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg hover:shadow-xl'
+                                    }`}
+                                >
+                                    {isFetchingInvoice ? '⏳ Memproses...' : '⚡ Auto-Fill'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedTemplateId(null);
+                                        setDateFrom('');
+                                        setDateTo('');
+                                        setPlanValue(0);
+                                        setFilterBP('');
+                                        setFilterLocation('');
+                                        setSmartNotaError(null);
+                                    }}
+                                    className="px-4 py-3 rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all duration-200"
+                                    title="Reset semua filter"
+                                >
+                                    🔄
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 bg-purple-50 rounded-lg p-4 border border-purple-200">
+                            <p className="text-xs text-purple-800 font-semibold mb-2">
+                                💡 Cara Pakai & Rumus:
+                            </p>
+                            <ul className="text-xs text-purple-700 space-y-1 list-disc list-inside">
+                                <li><strong>Pilih template</strong> SmartNota yang sesuai</li>
+                                <li><strong>Atur range tanggal</strong> (contoh: 16 Feb - 2 Mar)</li>
+                                <li><strong>Input Plan per hari</strong> (contoh: 100 m³/hari)</li>
+                                <li><strong>Opsional:</strong> Tambahkan filter BP atau Lokasi</li>
+                                <li><strong>Klik "Auto-Fill"</strong> untuk membuat/update daily reports otomatis</li>
+                                <li>✨ Sistem akan membuat report untuk <strong>setiap tanggal</strong> dalam range</li>
+                            </ul>
+                            <div className="mt-3 p-3 bg-white rounded border border-purple-300">
+                                <p className="text-xs text-purple-900 font-bold mb-1">📐 Rumus Auto-Calculate:</p>
+                                <ul className="text-xs text-purple-800 space-y-1">
+                                    <li>• <strong>Plan</strong> = Nilai yang Anda input (sama untuk semua hari)</li>
+                                    <li>• <strong>Aktual</strong> = Total Nilai dari SmartNota (atau 0)</li>
+                                    <li>• <strong>Target</strong> = Target Kemarin + Plan Hari Ini <span className="text-purple-600">(akumulatif)</span></li>
+                                    <li>• <strong>Volume</strong> = Volume Kemarin + Aktual Hari Ini <span className="text-purple-600">(akumulatif)</span></li>
+                                </ul>
+                            </div>
+                            <p className="text-xs text-purple-600 mt-2">
+                                ⚠️ Jangan lupa <strong>Save All Changes</strong> setelah auto-fill!
+                            </p>
+                        </div>
+                    </div>
+
                     {/* Daily Reports Section */}
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
                         <div className="flex justify-between items-center mb-6">

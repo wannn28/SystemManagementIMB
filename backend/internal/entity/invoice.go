@@ -56,6 +56,7 @@ type InvoiceItem struct {
 	ID             uint    `gorm:"primaryKey" json:"id"`
 	InvoiceID      uint    `gorm:"not null;index" json:"invoice_id"`
 	ItemName       string  `gorm:"type:varchar(300);not null" json:"item_name"`
+	ItemDisplayName string `gorm:"type:varchar(300)" json:"item_display_name,omitempty"` // Tampilan Keterangan: plat untuk dump truck, nama untuk alat berat (jika kolom pakai auto)
 	Description    string  `gorm:"type:text" json:"description"`
 	Quantity       float64 `gorm:"type:decimal(10,2);not null;default:1" json:"quantity"` // Bisa 0.5, 1, 1.5, dll
 	Price          float64 `gorm:"type:decimal(15,2);not null" json:"price"`

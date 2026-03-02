@@ -469,10 +469,13 @@ func (h *InvoiceHandler) ExtractRowFromImage(c echo.Context) error {
 		days = out.Quantity * 8
 	}
 
-	return response.Success(c, http.StatusOK, map[string]interface{}{
-		"row_date": strings.TrimSpace(out.RowDate),
-		"days":     days,
-	})
+	resp := map[string]interface{}{
+		"row_date":  strings.TrimSpace(out.RowDate),
+		"days":      days,
+		"unit":      targetUnit, // "hari" atau "jam" — satuan dari nilai days
+		"item_name": strings.TrimSpace(out.ItemName),
+	}
+	return response.Success(c, http.StatusOK, resp)
 }
 
 // --- Parse timesheet dari teks OCR (Ollama /api/generate) ---

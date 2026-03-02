@@ -48,6 +48,18 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
     setFormData({});
   };
 
+  const handleInlineSave = () => {
+    if (!editingId) return;
+    onEdit(editingId, formData);
+    setEditingId(null);
+    setFormData({});
+  };
+
+  const handleInlineCancel = () => {
+    setEditingId(null);
+    setFormData({});
+  };
+
   // Smart Nota Import functions
   const handleImportFromSmartNota = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,10 +514,11 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
         </div>
       )}
 
-      {showForm && data.length > 0 && (
+      {data.length > 0 && (
         <div className="overflow-x-auto">
           {/* Duplicate Detection and Cleanup */}
           {(() => {
+            if (!showForm) return null;
             const dateCounts = data.reduce((acc, item) => {
               acc[item.tanggal] = (acc[item.tanggal] || 0) + 1;
               return acc;
@@ -584,52 +597,128 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
             <tbody>
               {data
                 .sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime())
-                .map((item, index) => (
-                 <tr key={item.id || `temp-${index}`}>
-                  <td className="py-2 px-4 border-b text-center">{index + 1}</td>
-                  <td className="py-2 px-4 border-b">
-                    {new Date(item.tanggal).toLocaleDateString()}
-                  </td>
-                  {type === 'salary' && (
-                    <>
-                      <td className="py-2 px-4 border-b text-center">
-                        {(item as SalaryDetail).jam_trip}
-                      </td>
-                      <td className="py-2 px-4 border-b text-center">
-                        Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
-                      </td>
-                      <td className="py-2 px-4 border-b text-center">
-                        Rp{((item as SalaryDetail).jam_trip *
-                          (item as SalaryDetail).harga_per_jam).toLocaleString()}
-                      </td>
-                    </>
-                  )}
-                  {type === 'kasbon' && (
-                    <td className="py-2 px-4 border-b text-center">
-                      Rp{(item as Kasbon).jumlah.toLocaleString()}
-                    </td>
-                  )}
-                  <td className="py-2 px-4 border-b text-center">{item.keterangan}</td>
-                  <td className="py-2 px-4 border-b text-center">
-                    <button
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setFormData(item);
-                        setShowForm(true);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 mr-2"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onDelete(item.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                .map((item, index) => {
+                  const isEditing = editingId === item.id;
+                  return (
+                    <tr key={item.id || `temp-${index}`} className={isEditing ? 'bg-blue-50' : ''}>
+                      <td className="py-2 px-4 border-b text-center">{index + 1}</td>
+                      {isEditing ? (
+                        <>
+                          <td className="py-2 px-4 border-b">
+                            <input
+                              type="date"
+                              value={formData.tanggal ? String(formData.tanggal).split('T')[0] : ''}
+                              onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
+                              className="p-1 border rounded w-full text-sm"
+                            />
+                          </td>
+                          {type === 'salary' && (
+                            <>
+                              <td className="py-2 px-4 border-b">
+                                <input
+                                  type="number"
+                                  value={formData.jam_trip ?? ''}
+                                  onChange={(e) => setFormData({ ...formData, jam_trip: Number(e.target.value) })}
+                                  className="p-1 border rounded w-full text-sm text-center"
+                                />
+                              </td>
+                              <td className="py-2 px-4 border-b">
+                                <input
+                                  type="number"
+                                  value={formData.harga_per_jam ?? ''}
+                                  onChange={(e) => setFormData({ ...formData, harga_per_jam: Number(e.target.value) })}
+                                  className="p-1 border rounded w-full text-sm text-center"
+                                />
+                              </td>
+                              <td className="py-2 px-4 border-b text-center">
+                                Rp{((Number(formData.jam_trip) || 0) * (Number(formData.harga_per_jam) || 0)).toLocaleString()}
+                              </td>
+                            </>
+                          )}
+                          {type === 'kasbon' && (
+                            <td className="py-2 px-4 border-b">
+                              <input
+                                type="number"
+                                value={formData.jumlah ?? ''}
+                                onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })}
+                                className="p-1 border rounded w-full text-sm text-center"
+                              />
+                            </td>
+                          )}
+                          <td className="py-2 px-4 border-b">
+                            <input
+                              type="text"
+                              value={formData.keterangan ?? ''}
+                              onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
+                              className="p-1 border rounded w-full text-sm"
+                            />
+                          </td>
+                          <td className="py-2 px-4 border-b">
+                            <button
+                              type="button"
+                              onClick={handleInlineSave}
+                              className="text-green-600 hover:text-green-800 font-medium mr-2"
+                            >
+                              Simpan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleInlineCancel}
+                              className="text-gray-600 hover:text-gray-800 mr-2"
+                            >
+                              Batal
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-2 px-4 border-b">
+                            {new Date(item.tanggal).toLocaleDateString()}
+                          </td>
+                          {type === 'salary' && (
+                            <>
+                              <td className="py-2 px-4 border-b text-center">
+                                {(item as SalaryDetail).jam_trip}
+                              </td>
+                              <td className="py-2 px-4 border-b text-center">
+                                Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-4 border-b text-center">
+                                Rp{((item as SalaryDetail).jam_trip *
+                                  (item as SalaryDetail).harga_per_jam).toLocaleString()}
+                              </td>
+                            </>
+                          )}
+                          {type === 'kasbon' && (
+                            <td className="py-2 px-4 border-b text-center">
+                              Rp{(item as Kasbon).jumlah.toLocaleString()}
+                            </td>
+                          )}
+                          <td className="py-2 px-4 border-b text-center">{item.keterangan}</td>
+                          <td className="py-2 px-4 border-b text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(item.id);
+                                setFormData(type === 'salary' ? { id: item.id, tanggal: item.tanggal, jam_trip: (item as SalaryDetail).jam_trip, harga_per_jam: (item as SalaryDetail).harga_per_jam, keterangan: item.keterangan } : { id: item.id, tanggal: item.tanggal, jumlah: (item as Kasbon).jumlah, keterangan: item.keterangan });
+                              }}
+                              className="text-blue-600 hover:text-blue-800 mr-2"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDelete(item.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              Hapus
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

@@ -15,7 +15,7 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
   const [filterType, setFilterType] = useState<string>('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<CreateEquipmentRequest>({ name: '', type: 'alat_berat', price_per_day: 0, price_per_hour: 0 });
+  const [form, setForm] = useState<CreateEquipmentRequest>({ name: '', type: 'alat_berat', license_plate: '', price_per_day: 0, price_per_hour: 0 });
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const fetchList = useCallback(async () => {
@@ -38,10 +38,10 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
   const openModal = (item?: Equipment) => {
     if (item) {
       setEditingId(item.id);
-      setForm({ name: item.name, type: item.type, price_per_day: item.price_per_day ?? 0, price_per_hour: item.price_per_hour ?? 0 });
+      setForm({ name: item.name, type: item.type, license_plate: item.license_plate ?? '', price_per_day: item.price_per_day ?? 0, price_per_hour: item.price_per_hour ?? 0 });
     } else {
       setEditingId(null);
-      setForm({ name: '', type: 'alat_berat', price_per_day: 0, price_per_hour: 0 });
+      setForm({ name: '', type: 'alat_berat', license_plate: '', price_per_day: 0, price_per_hour: 0 });
     }
     setShowModal(true);
   };
@@ -122,6 +122,7 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plat (Dumptruck)</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga/Hari</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga/Jam</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
@@ -133,6 +134,7 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                       <td className="px-4 py-3 text-sm text-gray-500">{idx + 1}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.name}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{item.type === 'dump_truck' ? 'Dumptruck' : 'Alat berat'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{item.type === 'dump_truck' ? (item.license_plate || '-') : '-'}</td>
                       <td className="px-4 py-3 text-right text-sm">{(item.price_per_day ?? 0) > 0 ? `Rp ${Number(item.price_per_day).toLocaleString('id-ID')}` : '-'}</td>
                       <td className="px-4 py-3 text-right text-sm">{(item.price_per_hour ?? 0) > 0 ? `Rp ${Number(item.price_per_hour).toLocaleString('id-ID')}` : '-'}</td>
                       <td className="px-4 py-3 text-right">
@@ -183,6 +185,18 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                   <option value="dump_truck">Dumptruck</option>
                 </select>
               </div>
+              {form.type === 'dump_truck' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Plat nomor (untuk tampilan di kolom Keterangan)</label>
+                  <input
+                    type="text"
+                    value={form.license_plate ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, license_plate: e.target.value.trim() }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="Contoh: BP 9280 DE"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Harga/Hari (default di invoice)</label>
                 <input

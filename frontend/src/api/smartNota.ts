@@ -204,6 +204,21 @@ class SmartNotaApiService {
       method: 'DELETE',
     });
   }
+
+  // Get invoices by template and date
+  async getInvoicesByTemplateAndDate(params: {
+    template_id: number;
+    date: string; // Format: YYYY-MM-DD
+  }): Promise<SmartNotaInvoice[]> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('template_id', params.template_id.toString());
+    searchParams.append('date_from', params.date);
+    searchParams.append('date_to', params.date);
+    
+    const endpoint = `${SMART_NOTA_ENDPOINTS.INVOICES}?${searchParams.toString()}`;
+    const response = await this.makeRequest<PaginatedResponse<SmartNotaInvoice>>(endpoint);
+    return response.data;
+  }
 }
 
 // Export singleton instance
