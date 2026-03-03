@@ -20,15 +20,17 @@ import (
 
 type MemberHandler struct {
 	service         service.MemberService
+	salaryService   service.SalaryService
 	uploadDir       string
 	activityService service.ActivityService
 }
 
-func NewMemberHandler(service service.MemberService, uploadDir string, activityService service.ActivityService) *MemberHandler {
+func NewMemberHandler(service service.MemberService, salaryService service.SalaryService, uploadDir string, activityService service.ActivityService) *MemberHandler {
 	return &MemberHandler{
 		service:         service,
+		salaryService:   salaryService,
 		uploadDir:       uploadDir,
-		activityService: activityService, // Add this line
+		activityService: activityService,
 	}
 }
 func (h *MemberHandler) GetMemberCount(c echo.Context) error {
@@ -201,8 +203,12 @@ func (h *MemberHandler) DeleteMember(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
+	// Hapus semua data terkait (gaji, kasbon, detail) agar tidak melanggar foreign key
+	if err := h.salaryService.DeleteAllByMemberID(id); err != nil {
+		return response.Error(c, http.StatusInternalServerError, fmt.Errorf("gagal menghapus data gaji member: %w", err))
+	}
 	if err := h.service.DeleteMember(id); err != nil {
-		return response.Error(c, http.StatusNotFound, err)
+		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	err = h.activityService.LogActivity(
 		entity.ActivityMember,
@@ -210,7 +216,6 @@ func (h *MemberHandler) DeleteMember(c echo.Context) error {
 		fmt.Sprintf("berhasil Delete member %s", member.FullName),
 	)
 	if err != nil {
-		// Handle error logging, maybe just log to console
 		fmt.Println("Gagal log activity:", err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)

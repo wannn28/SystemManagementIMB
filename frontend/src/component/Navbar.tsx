@@ -64,7 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
       {/* Menu Items */}
       <div className="px-3 space-y-1 overflow-y-auto" style={{ height: 'calc(100vh - 250px)' }}>
         {menuItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = item.path === '/team' ? location.pathname.startsWith('/team') : location.pathname === item.path;
           return (
             <div key={item.name} className="relative group">
               <Link

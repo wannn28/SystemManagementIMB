@@ -10,7 +10,7 @@ import (
 )
 
 func RegisterMemberRoutes(e *echo.Echo, memberService service.MemberService, salaryService service.SalaryService, config config.Config, DetailService service.SalaryDetailService, kasbonService service.KasbonService, activityService service.ActivityService) {
-	handler := http.NewMemberHandler(memberService, "uploads", activityService)
+	handler := http.NewMemberHandler(memberService, salaryService, "uploads", activityService)
 	salaryHandler := http.NewSalaryHandler(salaryService, memberService, config.UploadDir, DetailService, activityService)
 	kasbonHandler := http.NewKasbonHandler(kasbonService, salaryService, activityService)
 	activityHandler := http.NewActivityHandler(activityService)

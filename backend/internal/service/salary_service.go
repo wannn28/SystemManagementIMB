@@ -10,10 +10,11 @@ type SalaryService interface {
 	CreateSalary(salary *entity.Salary) error
 	UpdateSalary(salary *entity.Salary) error
 	DeleteSalary(salaryID uint) error
+	DeleteAllByMemberID(memberID string) error
 	GetSalariesByMember(memberID string) ([]entity.Salary, error)
 	GetAllSalariesWithPagination(params response.QueryParams) ([]entity.Salary, int, error)
 	GetSalaryByID(id uint) (*entity.Salary, error)
-	RecalculateSalary(salaryID uint) error // Tambahkan method ini
+	RecalculateSalary(salaryID uint) error
 }
 
 type salaryService struct {
@@ -56,6 +57,28 @@ func (s *salaryService) DeleteSalary(salaryID uint) error {
 		return err
 	}
 	return s.salaryRepo.Delete(salary)
+}
+
+// DeleteAllByMemberID deletes all salaries and related kasbons/details for a member (for cascade delete before member delete).
+func (s *salaryService) DeleteAllByMemberID(memberID string) error {
+	salaries, err := s.salaryRepo.FindByMemberID(memberID)
+	if err != nil {
+		return err
+	}
+	for _, sal := range salaries {
+		kasbons, _ := s.kasbonService.GetKasbonsBySalary(sal.ID)
+		for _, k := range kasbons {
+			_ = s.kasbonService.DeleteKasbon(k.ID)
+		}
+		details, _ := s.detailService.GetDetailsBySalary(sal.ID)
+		for _, d := range details {
+			_ = s.detailService.DeleteDetail(d.ID)
+		}
+		if err := s.salaryRepo.Delete(&sal); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *salaryService) GetSalariesByMember(memberID string) ([]entity.Salary, error) {

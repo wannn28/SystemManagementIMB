@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
-import { projectsAPI, projectExpensesAPI, projectIncomesAPI, ProjectExpense, ProjectIncome, ProjectFinancialSummary, financeAPI } from '../api';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { projectsAPI, projectExpensesAPI, projectIncomesAPI, ProjectExpense, ProjectIncome, ProjectFinancialSummary } from '../api';
 import { Project } from '../types/BasicTypes';
 import EditReportForm from './EditReportForm';
 
@@ -10,24 +11,29 @@ interface ProjectDetailProps {
 }
 
 // Helper functions for chart data
+const isValidDate = (d: Date) => !isNaN(d.getTime());
+
 const getAggregatedRevenueData = (project: Project, timeRange: string) => {
-    const dailyData = project.reports.daily;
+    const dailyData = project.reports.daily || [];
 
     const groupIntoWeeks = () => {
         const weeksMap = new Map<string, any>();
         const projectStart = new Date(project.startDate);
+        if (!isValidDate(projectStart)) return [];
 
-        dailyData.forEach(day => {
+        dailyData.forEach((day, index) => {
             const dayDate = new Date(day.date);
+            if (!isValidDate(dayDate)) return;
             const diffTime = dayDate.getTime() - projectStart.getTime();
             const weekNumber = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000)) + 1;
+            const safeWeekNum = Number.isFinite(weekNumber) && weekNumber >= 1 ? weekNumber : index + 1;
 
-            const weekKey = `Week ${weekNumber}`;
+            const weekKey = `Week ${safeWeekNum}`;
             if (!weeksMap.has(weekKey)) {
                 weeksMap.set(weekKey, {
-                    weekLabel: `Week ${weekNumber}`,
-                    weekNumber: weekNumber,
-                    weekStart: new Date(projectStart.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000),
+                    weekLabel: `Week ${safeWeekNum}`,
+                    weekNumber: safeWeekNum,
+                    weekStart: new Date(projectStart.getTime() + (safeWeekNum - 1) * 7 * 24 * 60 * 60 * 1000),
                     revenue: 0,
                     paid: 0,
                 });
@@ -47,12 +53,18 @@ const getAggregatedRevenueData = (project: Project, timeRange: string) => {
 
         dailyData.forEach(day => {
             const dayDate = new Date(day.date);
-            const monthKey = `${dayDate.getFullYear()}-${dayDate.getMonth()}`;
+            if (!isValidDate(dayDate)) return;
+            const year = dayDate.getFullYear();
+            const monthIdx = dayDate.getMonth();
+            const monthKey = `${year}-${monthIdx}`;
 
             if (!monthsMap.has(monthKey)) {
-                const monthDate = new Date(dayDate.getFullYear(), dayDate.getMonth(), 1);
+                const monthDate = new Date(year, monthIdx, 1);
+                const monthLabel = isValidDate(monthDate)
+                    ? monthDate.toLocaleString('default', { month: 'short', year: 'numeric' })
+                    : `${monthIdx + 1}/${year}`;
                 monthsMap.set(monthKey, {
-                    monthLabel: monthDate.toLocaleString('default', { month: 'short', year: 'numeric' }),
+                    monthLabel,
                     monthStart: monthDate,
                     revenue: 0,
                     paid: 0,
@@ -75,40 +87,44 @@ const getAggregatedRevenueData = (project: Project, timeRange: string) => {
         case 'monthly':
             return groupIntoMonths();
         default:
-            return dailyData.map(day => ({
-                date: new Date(day.date),
-                revenue: day.revenue || 0,
-                paid: day.paid || 0,
-                totalRevenue: project.totalRevenue,
-            }));
+            return dailyData
+                .filter(day => isValidDate(new Date(day.date)))
+                .map(day => ({
+                    date: new Date(day.date),
+                    revenue: day.revenue || 0,
+                    paid: day.paid || 0,
+                    totalRevenue: project.totalRevenue,
+                }));
     }
 };
 
 const getProgressData = (project: Project, timeRange: string) => {
-    const dailyData = project.reports.daily;
+    const dailyData = project.reports.daily || [];
 
     const groupIntoWeeks = () => {
         const weeksMap = new Map<string, any>();
         const projectStart = new Date(project.startDate);
+        if (!isValidDate(projectStart)) return [];
 
-        dailyData.forEach(day => {
+        dailyData.forEach((day, index) => {
             const dayDate = new Date(day.date);
+            if (!isValidDate(dayDate)) return;
             const diffTime = dayDate.getTime() - projectStart.getTime();
             const weekNumber = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000)) + 1;
+            const safeWeekNum = Number.isFinite(weekNumber) && weekNumber >= 1 ? weekNumber : index + 1;
 
-            const weekKey = `Week ${weekNumber}`;
+            const weekKey = `Week ${safeWeekNum}`;
             if (!weeksMap.has(weekKey)) {
                 weeksMap.set(weekKey, {
-                    weekLabel: `Week ${weekNumber}`,
-                    weekNumber: weekNumber,
-                    weekStart: new Date(projectStart.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000),
+                    weekLabel: `Week ${safeWeekNum}`,
+                    weekNumber: safeWeekNum,
+                    weekStart: new Date(projectStart.getTime() + (safeWeekNum - 1) * 7 * 24 * 60 * 60 * 1000),
                     volume: 0,
                     target: 0,
                 });
             }
 
             const week = weeksMap.get(weekKey);
-            // Use the latest (cumulative) values
             week.volume = day.volume || 0;
             week.target = day.targetVolume || 0;
             week.totalVolume = project.totalVolume;
@@ -122,12 +138,18 @@ const getProgressData = (project: Project, timeRange: string) => {
 
         dailyData.forEach(day => {
             const dayDate = new Date(day.date);
-            const monthKey = `${dayDate.getFullYear()}-${dayDate.getMonth()}`;
+            if (!isValidDate(dayDate)) return;
+            const year = dayDate.getFullYear();
+            const monthIdx = dayDate.getMonth();
+            const monthKey = `${year}-${monthIdx}`;
 
             if (!monthsMap.has(monthKey)) {
-                const monthDate = new Date(dayDate.getFullYear(), dayDate.getMonth(), 1);
+                const monthDate = new Date(year, monthIdx, 1);
+                const monthLabel = isValidDate(monthDate)
+                    ? monthDate.toLocaleString('default', { month: 'short', year: 'numeric' })
+                    : `${monthIdx + 1}/${year}`;
                 monthsMap.set(monthKey, {
-                    monthLabel: monthDate.toLocaleString('default', { month: 'short', year: 'numeric' }),
+                    monthLabel,
                     monthStart: monthDate,
                     volume: 0,
                     target: 0,
@@ -136,7 +158,6 @@ const getProgressData = (project: Project, timeRange: string) => {
             }
 
             const month = monthsMap.get(monthKey);
-            // Use the latest (cumulative) values
             month.volume = day.volume || 0;
             month.target = day.targetVolume || 0;
             month.totalVolume = project.totalVolume;
@@ -151,25 +172,54 @@ const getProgressData = (project: Project, timeRange: string) => {
         case 'monthly':
             return groupIntoMonths();
         default:
-            return dailyData.map(day => ({
-                dateLabel: new Date(day.date).toLocaleDateString(),
-                date: new Date(day.date),
-                volume: day.volume || 0,
-                target: day.targetVolume || 0,
-                totalVolume: project.totalVolume,
-            }));
+            return dailyData
+                .filter(day => isValidDate(new Date(day.date)))
+                .map(day => ({
+                    dateLabel: new Date(day.date).toLocaleDateString(),
+                    date: new Date(day.date),
+                    volume: day.volume || 0,
+                    target: day.targetVolume || 0,
+                    totalVolume: project.totalVolume,
+                }));
     }
 };
 
-const getProgress = (project: Project): number => {
-    if (!project.totalVolume || project.totalVolume === 0) return 0;
-    const currentVolume = project.reports?.daily?.length > 0
-        ? project.reports.daily[project.reports.daily.length - 1].volume || 0
-        : 0;
-    return (currentVolume / project.totalVolume) * 100;
+/** Total volume for display: use project.totalVolume, or fallback to max target from daily reports */
+const getEffectiveTotalVolume = (project: Project): number => {
+    if (project.totalVolume != null && project.totalVolume > 0) return project.totalVolume;
+    const daily = project.reports?.daily;
+    if (!daily?.length) return 0;
+    const maxTarget = Math.max(...daily.map(d => d.targetVolume || 0), 0);
+    if (maxTarget > 0) return maxTarget;
+    const last = daily[daily.length - 1];
+    return last?.targetVolume || 0;
 };
 
-const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange: string, showTotals: boolean }) => {
+/** Current volume from latest daily report */
+const getCurrentVolume = (project: Project): number => {
+    const daily = project.reports?.daily;
+    if (!daily?.length) return 0;
+    return daily[daily.length - 1].volume || 0;
+};
+
+/** Target volume dari periode terakhir (laporan harian terakhir) */
+const getCurrentTargetVolume = (project: Project): number => {
+    const daily = project.reports?.daily;
+    if (!daily?.length) return 0;
+    return daily[daily.length - 1].targetVolume || 0;
+};
+
+const getProgress = (project: Project): number => {
+    const totalVolume = getEffectiveTotalVolume(project);
+    if (!totalVolume) return 0;
+    const currentVolume = getCurrentVolume(project);
+    return (currentVolume / totalVolume) * 100;
+};
+
+const RevenueChart = ({ data, timeRange, showTotals, showTargetLine, targetValue }: {
+    data: any[]; timeRange: string; showTotals: boolean;
+    showTargetLine?: boolean; targetValue?: number;
+}) => {
     const getXAxisConfig = () => {
         if (timeRange === 'daily') {
             return {
@@ -200,9 +250,12 @@ const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange:
                     tickFormatter={xAxisConfig.tickFormatter}
                     tick={{ fontSize: 12, fill: '#666' }}
                 />
-                <YAxis tick={{ fontSize: 12, fill: '#666' }} />
-                <Tooltip />
+                <YAxis tick={{ fontSize: 12, fill: '#666' }} tickFormatter={v => v >= 1e6 ? `${(v / 1e6).toFixed(0)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v)} />
+                <Tooltip formatter={(v: number) => v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : v} />
                 <Legend />
+                {showTargetLine && data.length > 0 && (
+                    <Line type="monotone" dataKey="totalRevenue" stroke="#64748b" strokeDasharray="5 5" strokeWidth={2} name="Total Revenue" dot={false} />
+                )}
                 <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} name="Revenue" />
                 <Line type="monotone" dataKey="paid" stroke="#10b981" strokeWidth={2} name="Paid" />
             </LineChart>
@@ -210,7 +263,10 @@ const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange:
     );
 };
 
-const ProgressChart = ({ data, timeRange }: { data: any[], timeRange: string }) => {
+const ProgressChart = ({ data, timeRange, showTargetLine, targetValue }: {
+    data: any[]; timeRange: string;
+    showTargetLine?: boolean; targetValue?: number;
+}) => {
     const getXAxisConfig = () => {
         if (timeRange === 'daily') {
             return {
@@ -244,6 +300,9 @@ const ProgressChart = ({ data, timeRange }: { data: any[], timeRange: string }) 
                 <YAxis tick={{ fontSize: 12, fill: '#666' }} />
                 <Tooltip />
                 <Legend />
+                {showTargetLine && data.length > 0 && (
+                    <Line type="monotone" dataKey="totalVolume" stroke="#64748b" strokeDasharray="5 5" strokeWidth={2} name="Total Volume" dot={false} />
+                )}
                 <Line type="monotone" dataKey="volume" stroke="#8b5cf6" strokeWidth={2} name="Actual Volume" />
                 <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeWidth={2} name="Target" />
             </LineChart>
@@ -260,6 +319,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     const [showShareModal, setShowShareModal] = useState(false);
     const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
     const [showTotals, setShowTotals] = useState(true);
+    const [showRevenueTotal, setShowRevenueTotal] = useState(false);
+    const [showVolumeTotal, setShowVolumeTotal] = useState(false);
+    const [expandedChart, setExpandedChart] = useState<'revenue' | 'volume' | null>(null);
+    const [analisisView, setAnalisisView] = useState<'semua' | 'progress' | 'keduanya'>('progress');
+    const fullscreenChartRef = useRef<HTMLDivElement>(null);
     
     // Financial data
     const [projectExpenses, setProjectExpenses] = useState<ProjectExpense[]>([]);
@@ -272,6 +336,25 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
             fetchFinancialData();
         }
     }, [id]);
+
+    // Fullscreen API: grafik tampil fullscreen asli (bukan modal)
+    useEffect(() => {
+        if (!expandedChart) {
+            if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+            return;
+        }
+        const onFullscreenChange = () => { if (!document.fullscreenElement) setExpandedChart(null); };
+        document.addEventListener('fullscreenchange', onFullscreenChange);
+        const id = setTimeout(() => {
+            const el = fullscreenChartRef.current;
+            if (el) el.requestFullscreen().catch(() => {});
+        }, 50);
+        return () => {
+            clearTimeout(id);
+            document.removeEventListener('fullscreenchange', onFullscreenChange);
+            if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        };
+    }, [expandedChart]);
 
     const fetchProject = async () => {
         try {
@@ -288,9 +371,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     const fetchFinancialData = async () => {
         try {
             const [expenses, incomes, summary] = await Promise.all([
-                projectExpensesAPI.getExpensesByProject(Number(id)),
-                projectIncomesAPI.getIncomesByProject(Number(id)),
-                financeAPI.getProjectFinancialSummary(Number(id))
+                projectExpensesAPI.getExpensesByProjectId(Number(id)),
+                projectIncomesAPI.getIncomesByProjectId(Number(id)),
+                projectExpensesAPI.getFinancialSummary(Number(id))
             ]);
             setProjectExpenses(expenses);
             setProjectIncomes(incomes);
@@ -315,7 +398,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
 
     if (loading) {
         return (
-            <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-64'} transition-all duration-300`}>
+            <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-72'} transition-all duration-300 pl-10 pr-8 py-8`}>
                 <div className="flex items-center justify-center h-screen">
                     <div className="text-xl">Loading...</div>
                 </div>
@@ -325,7 +408,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
 
     if (!project) {
         return (
-            <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-64'} transition-all duration-300`}>
+            <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-72'} transition-all duration-300 pl-10 pr-8 py-8`}>
                 <div className="flex items-center justify-center h-screen">
                     <div className="text-xl">Project not found</div>
                 </div>
@@ -334,7 +417,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     }
 
     return (
-        <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-64'} transition-all duration-300 p-8`}>
+        <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-72'} transition-all duration-300 pl-10 pr-8 py-8`}>
             {/* Back Button */}
             <button
                 onClick={() => navigate(-1)}
@@ -382,21 +465,23 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                 </div>
                             </div>
                             
-                            {/* Quick Stats */}
-                            <div className="grid grid-cols-3 gap-4 mt-4">
-                                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-                                    <p className="text-blue-100 text-xs mb-1">Total Revenue</p>
-                                    <p className="text-white text-lg font-bold">Rp {(project.totalRevenue / 1000000).toFixed(1)}M</p>
+                            {/* Quick Stats - only when Show Totals is on */}
+                            {showTotals && (
+                                <div className="grid grid-cols-3 gap-4 mt-4">
+                                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                                        <p className="text-blue-100 text-xs mb-1">Total Revenue</p>
+                                        <p className="text-white text-lg font-bold">Rp {((project.totalRevenue || 0) / 1000000).toFixed(1)}M</p>
+                                    </div>
+                                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                                        <p className="text-blue-100 text-xs mb-1">Progress</p>
+                                        <p className="text-white text-lg font-bold">{getProgress(project).toFixed(1)}%</p>
+                                    </div>
+                                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                                        <p className="text-blue-100 text-xs mb-1">Total Volume</p>
+                                        <p className="text-white text-lg font-bold">{(getEffectiveTotalVolume(project) / 1000).toFixed(1)}K</p>
+                                    </div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-                                    <p className="text-blue-100 text-xs mb-1">Progress</p>
-                                    <p className="text-white text-lg font-bold">{getProgress(project).toFixed(1)}%</p>
-                                </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-                                    <p className="text-blue-100 text-xs mb-1">Total Volume</p>
-                                    <p className="text-white text-lg font-bold">{(project.totalVolume / 1000).toFixed(1)}K</p>
-                                </div>
-                            </div>
+                            )}
                         </div>
                         
                         <div className="flex flex-col gap-2 ml-6">
@@ -464,7 +549,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                             
                             <div className="relative z-10">
-                                <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -476,12 +561,44 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                             <p className="text-sm text-gray-500">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} overview</p>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRevenueTotal(v => !v)}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                                showRevenueTotal ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            📊 Show Total
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpandedChart('revenue')}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
+                                            title="Tampilkan grafik fullscreen"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                            </svg>
+                                            Fullscreen
+                                        </button>
+                                    </div>
                                 </div>
+                                {showRevenueTotal && (
+                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+                                        <div className="flex flex-wrap gap-4">
+                                            <span><strong>Total Revenue:</strong> Rp {((project.totalRevenue || 0) / 1e6).toFixed(1)}M</span>
+                                            <span><strong>Progress:</strong> {(project.totalRevenue ? (getAggregatedRevenueData(project, timeRange).reduce((s, d) => s + (d.paid || 0), 0) / project.totalRevenue * 100) : 0).toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="h-64 bg-gradient-to-br from-blue-50/30 to-transparent rounded-xl p-2">
                                     <RevenueChart
                                         data={getAggregatedRevenueData(project, timeRange)}
                                         timeRange={timeRange}
                                         showTotals={showTotals}
+                                        showTargetLine={showRevenueTotal}
+                                        targetValue={project.totalRevenue}
                                     />
                                 </div>
                             </div>
@@ -492,7 +609,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                             <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-emerald-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                             
                             <div className="relative z-10">
-                                <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -504,46 +621,195 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                             <p className="text-sm text-gray-500">Target vs Actual</p>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowVolumeTotal(v => !v)}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                                showVolumeTotal ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            📊 Show Total
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpandedChart('volume')}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
+                                            title="Tampilkan grafik fullscreen"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                            </svg>
+                                            Fullscreen
+                                        </button>
+                                    </div>
                                 </div>
+                                {showVolumeTotal && (
+                                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
+                                        <div className="flex flex-wrap gap-4">
+                                            <span><strong>Total Volume:</strong> {(getEffectiveTotalVolume(project) / 1000).toFixed(1)}K</span>
+                                            <span><strong>Progress:</strong> {getProgress(project).toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="h-64 bg-gradient-to-br from-green-50/30 to-transparent rounded-xl p-2">
-                                    <ProgressChart data={getProgressData(project, timeRange)} timeRange={timeRange} />
+                                    <ProgressChart
+                                        data={getProgressData(project, timeRange).map(d => ({ ...d, totalVolume: getEffectiveTotalVolume(project) }))}
+                                        timeRange={timeRange}
+                                        showTargetLine={showVolumeTotal}
+                                        targetValue={getEffectiveTotalVolume(project)}
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Financial Summary */}
-                    {financialSummary && (
-                        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-800">Financial Summary</h3>
-                                    <p className="text-sm text-gray-500">Income, Expenses & Profit</p>
-                                </div>
+                    {/* Analisis: pilih Semua / Progress Saat Ini / Keduanya */}
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 p-6 border-b border-gray-100">
+                            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
-                                    <div className="text-sm text-red-600 font-semibold mb-1">Total Expenses</div>
-                                    <div className="text-xl font-bold text-red-700">Rp {financialSummary.totalExpenses?.toLocaleString()}</div>
-                                </div>
-                                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-                                    <div className="text-sm text-green-600 font-semibold mb-1">Total Income</div>
-                                    <div className="text-xl font-bold text-green-700">Rp {financialSummary.totalIncome?.toLocaleString()}</div>
-                                </div>
-                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-                                    <div className="text-sm text-purple-600 font-semibold mb-1">Net Profit</div>
-                                    <div className="text-xl font-bold text-purple-700">
-                                        Rp {((financialSummary.totalIncome || 0) - (financialSummary.totalExpenses || 0)).toLocaleString()}
-                                    </div>
-                                </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">Analisis</h3>
+                                <p className="text-sm text-gray-500">Pilih tampilan: Semua, Progress Saat Ini, atau Keduanya</p>
                             </div>
                         </div>
-                    )}
+                        <div className="flex flex-col sm:flex-row min-h-0">
+                            {/* Sidebar pilihan */}
+                            <div className="sm:w-48 shrink-0 border-b sm:border-b-0 sm:border-r border-gray-200 bg-gray-50/50 p-3 flex sm:flex-col gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setAnalisisView('semua')}
+                                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                        analisisView === 'semua' ? 'bg-amber-500 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    Semua
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setAnalisisView('progress')}
+                                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                        analisisView === 'progress' ? 'bg-amber-500 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    Progress Saat Ini
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setAnalisisView('keduanya')}
+                                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                        analisisView === 'keduanya' ? 'bg-amber-500 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    Keduanya
+                                </button>
+                            </div>
+                            {/* Konten sesuai pilihan */}
+                            <div className="flex-1 p-6 overflow-auto">
+                                {(analisisView === 'semua' || analisisView === 'keduanya') && (
+                                    <div className={analisisView === 'keduanya' ? 'mb-8' : ''}>
+                                        <h4 className="text-sm font-semibold text-gray-700 mb-3">Analisis Semua (kumulatif)</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-5 border border-blue-200">
+                                                <p className="text-sm font-medium text-blue-700 mb-1">Target Volume Total</p>
+                                                <p className="text-2xl font-bold text-blue-900">{(getEffectiveTotalVolume(project) / 1000).toFixed(1)}K</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl p-5 border border-green-200">
+                                                <p className="text-sm font-medium text-green-700 mb-1">Actual Volume Total</p>
+                                                <p className="text-2xl font-bold text-green-900">{(getCurrentVolume(project) / 1000).toFixed(1)}K</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl p-5 border border-orange-200">
+                                                <p className="text-sm font-medium text-orange-700 mb-1">Deviasi (Actual − Target)</p>
+                                                <p className={`text-2xl font-bold ${getCurrentVolume(project) - getEffectiveTotalVolume(project) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                                    {((getCurrentVolume(project) - getEffectiveTotalVolume(project)) / 1000).toFixed(1)}K
+                                                </p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-5 border border-purple-200">
+                                                <p className="text-sm font-medium text-purple-700 mb-1">Progress</p>
+                                                <p className="text-2xl font-bold text-purple-900">{getProgress(project).toFixed(1)}%</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {(analisisView === 'progress' || analisisView === 'keduanya') && (
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-700 mb-3">Analisis Progress Saat Ini</h4>
+                                        <p className="text-xs text-gray-500 mb-3">Volume & target dari periode terakhir (laporan harian terakhir)</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-5 border border-slate-200">
+                                                <p className="text-sm font-medium text-slate-700 mb-1">Volume Saat Ini</p>
+                                                <p className="text-2xl font-bold text-slate-900">{(getCurrentVolume(project) / 1000).toFixed(1)}K</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-5 border border-amber-200">
+                                                <p className="text-sm font-medium text-amber-700 mb-1">Target Volume Saat Ini</p>
+                                                <p className="text-2xl font-bold text-amber-900">{(getCurrentTargetVolume(project) / 1000).toFixed(1)}K</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl p-5 border border-orange-200">
+                                                <p className="text-sm font-medium text-orange-700 mb-1">Deviasi Saat Ini (Actual − Target)</p>
+                                                <p className={`text-2xl font-bold ${(getCurrentVolume(project) - getCurrentTargetVolume(project)) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                                    {((getCurrentVolume(project) - getCurrentTargetVolume(project)) / 1000).toFixed(1)}K
+                                                </p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl p-5 border border-indigo-200">
+                                                <p className="text-sm font-medium text-indigo-700 mb-1">Progress Saat Ini</p>
+                                                <p className="text-2xl font-bold text-indigo-900">
+                                                    {getCurrentTargetVolume(project) ? ((getCurrentVolume(project) / getCurrentTargetVolume(project)) * 100).toFixed(1) : '—'}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Financial Summary: Total yang akan didapat, Pemasukan, Pengeluaran, Profit saat ini */}
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">Financial Summary</h3>
+                                <p className="text-sm text-gray-500">Total target, Pemasukan, Pengeluaran & Profit saat ini</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                                <div className="text-sm text-blue-600 font-semibold mb-1">Total yang Akan Didapat</div>
+                                <div className="text-xl font-bold text-blue-700">Rp {(project.totalRevenue || financialSummary?.totalRevenue || 0).toLocaleString()}</div>
+                                <div className="text-xs text-blue-600/80 mt-1">Target pemasukan proyek</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                                <div className="text-sm text-green-600 font-semibold mb-1">Pemasukan</div>
+                                <div className="text-xl font-bold text-green-700">
+                                    Rp {(projectIncomes.filter(i => i.status === 'Received').reduce((s, i) => s + (i.jumlah || 0), 0) || project.amountPaid || 0).toLocaleString()}
+                                </div>
+                                <div className="text-xs text-green-600/80 mt-1">Dana yang sudah diterima</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
+                                <div className="text-sm text-red-600 font-semibold mb-1">Pengeluaran</div>
+                                <div className="text-xl font-bold text-red-700">Rp {(financialSummary?.totalExpenses ?? 0).toLocaleString()}</div>
+                                <div className="text-xs text-red-600/80 mt-1">Total biaya yang sudah dikeluarkan</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                                <div className="text-sm text-purple-600 font-semibold mb-1">Profit saat ini</div>
+                                <div className="text-xl font-bold text-purple-700">
+                                    Rp {(
+                                        (projectIncomes.filter(i => i.status === 'Received').reduce((s, i) => s + (i.jumlah || 0), 0) || project.amountPaid || 0) -
+                                        (financialSummary?.totalExpenses ?? 0)
+                                    ).toLocaleString()}
+                                </div>
+                                <div className="text-xs text-purple-600/80 mt-1">Pemasukan − Pengeluaran</div>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Reports Tables */}
                     <div className="space-y-6">
@@ -676,6 +942,52 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                     project={project}
                     onClose={() => setShowShareModal(false)}
                 />
+            )}
+
+            {/* Grafik fullscreen asli (Fullscreen API) — bukan modal */}
+            {expandedChart && createPortal(
+                <div
+                    key={expandedChart}
+                    ref={fullscreenChartRef}
+                    className="bg-white flex flex-col overflow-hidden"
+                    style={{ width: '100vw', height: '100vh', position: 'fixed', inset: 0, zIndex: 2147483647 }}
+                    role="application"
+                    aria-label="Grafik fullscreen"
+                >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0 bg-white">
+                        <h2 className="text-lg font-bold text-gray-800">
+                            {expandedChart === 'revenue' ? 'Revenue Analysis' : 'Volume Progress'}
+                        </h2>
+                        <button
+                            type="button"
+                            onClick={() => { document.exitFullscreen().catch(() => {}); setExpandedChart(null); }}
+                            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
+                            aria-label="Keluar fullscreen"
+                        >
+                            Keluar Fullscreen
+                        </button>
+                    </div>
+                    <div className="flex-1 w-full min-h-0 p-4" style={{ height: 'calc(100vh - 56px)' }}>
+                        {expandedChart === 'revenue' && (
+                            <RevenueChart
+                                data={getAggregatedRevenueData(project, timeRange)}
+                                timeRange={timeRange}
+                                showTotals={showTotals}
+                                showTargetLine={showRevenueTotal}
+                                targetValue={project.totalRevenue}
+                            />
+                        )}
+                        {expandedChart === 'volume' && (
+                            <ProgressChart
+                                data={getProgressData(project, timeRange).map(d => ({ ...d, totalVolume: getEffectiveTotalVolume(project) }))}
+                                timeRange={timeRange}
+                                showTargetLine={showVolumeTotal}
+                                targetValue={getEffectiveTotalVolume(project)}
+                            />
+                        )}
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );

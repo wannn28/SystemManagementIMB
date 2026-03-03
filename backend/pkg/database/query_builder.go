@@ -136,7 +136,18 @@ func (qb *QueryBuilder) BuildMemberQuery(params response.QueryParams) *gorm.DB {
 		"role": "role",
 	}
 
-	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Member{})
+	query := qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Member{})
+
+	// Apply is_active filter with boolean conversion (BuildQuery passes string "true"/"false")
+	if params.Filter != "" {
+		filters := parseFilters(params.Filter)
+		if v, ok := filters["is_active"]; ok {
+			active := strings.EqualFold(v, "true") || v == "1"
+			query = query.Where("is_active = ?", active)
+		}
+	}
+
+	return query
 }
 
 // BuildFinanceQuery builds a query specifically for finances

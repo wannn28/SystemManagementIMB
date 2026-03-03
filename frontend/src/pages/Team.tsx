@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import { teamAPI } from '../api';
 import { teamMembers } from '../types/teamMembersData';
 
@@ -15,6 +16,9 @@ interface TeamProps {
 
 
 const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
+  const location = useLocation();
+  const isInactivePage = location.pathname === '/team/inactive';
+
   const [teamMembersData, setTeamMembersData] = useState<Member[]>([]); // State untuk menyimpan anggota tim
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -313,11 +317,15 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   }, [selectedMember]);
   const fetchTeamMembers = async (params: QueryParams = { page: 1, limit: 10 }) => {
     setLoading(true);
+    const activeFilter = isInactivePage ? 'is_active:false' : 'is_active:true';
+    const mergedParams: QueryParams = {
+      ...params,
+      filter: params.filter ? `${params.filter},${activeFilter}` : activeFilter
+    };
     try {
-      const paginatedResponse = await teamAPI.members.getPaginated(params);
+      const paginatedResponse = await teamAPI.members.getPaginated(mergedParams);
       const membersWithSalaries = paginatedResponse.data.map((member: any) => ({
         ...member,
-        // Pastikan salaries selalu array
         salaries: Array.isArray(member.salaries) ? member.salaries : []
       }));
       setTeamMembersData(membersWithSalaries);
@@ -338,7 +346,7 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     fetchTeamMembers();
     fetchTotalTeamSalary();
     fetchMembersWithSalary();
-  }, []);
+  }, [isInactivePage]);
 
   const fetchTotalTeamSalary = async (year?: string, month?: string) => {
     try {
@@ -570,7 +578,11 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       setIsDeleteModalOpen(false);
     } catch (error: any) {
       console.error('Error deleting member:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to delete member. Please check the console for details.';
+      const rawMessage = error?.response?.data?.message || error?.message || '';
+      const isFkError = typeof rawMessage === 'string' && (rawMessage.includes('foreign key') || rawMessage.includes('1451') || rawMessage.includes('23000'));
+      const errorMessage = isFkError
+        ? 'Member tidak dapat dihapus karena masih memiliki data gaji terkait. Data telah diperbaiki di sistem; silakan coba lagi.'
+        : (rawMessage || 'Gagal menghapus member. Silakan coba lagi.');
       alert(errorMessage);
     } finally {
       setIsDeleting(false);
@@ -966,47 +978,76 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
       <div className="max-w-7xl mx-auto p-8">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-orange-900 to-amber-900 bg-clip-text text-transparent mb-2">
-              Manajemen Tim
-            </h2>
-            <p className="text-gray-600 text-sm">Kelola anggota tim dan informasi karyawan</p>
-            
-            {/* Total Team Salary Card */}
-            <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className="inline-flex items-center space-x-4 bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-3 rounded-xl border border-green-200">
-                <div>
-                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">
-                    Total Gaji Tim {salaryFilter.year && `- ${salaryFilter.year}${salaryFilter.month ? `-${salaryFilter.month}` : ''}`}
-                  </p>
-                  <p className="text-2xl font-bold text-green-900">
-                    Rp {totalTeamSalary.toLocaleString('id-ID')}
-                  </p>
-                </div>
-              </div>
-              
-              <button
-                onClick={() => setShowSalaryTable(!showSalaryTable)}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+            {/* Tab: Anggota Aktif / Anggota Nonaktif */}
+            <div className="flex gap-2 mb-3">
+              <Link
+                to="/team"
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  !isInactivePage
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                }`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                {showSalaryTable ? 'Sembunyikan' : 'Lihat'} Laporan Gaji
+                Anggota Aktif
+              </Link>
+              <Link
+                to="/team/inactive"
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  isInactivePage
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                }`}
+              >
+                Anggota Nonaktif
+              </Link>
+            </div>
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-orange-900 to-amber-900 bg-clip-text text-transparent mb-2">
+              {isInactivePage ? 'Anggota Nonaktif' : 'Manajemen Tim'}
+            </h2>
+            <p className="text-gray-600 text-sm">
+              {isInactivePage ? 'Daftar anggota tim yang sudah tidak aktif' : 'Kelola anggota tim dan informasi karyawan'}
+            </p>
+            
+            {/* Total Team Salary Card - hanya di halaman aktif */}
+            {!isInactivePage && (
+              <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="inline-flex items-center space-x-4 bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-3 rounded-xl border border-green-200">
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">
+                      Total Gaji Tim {salaryFilter.year && `- ${salaryFilter.year}${salaryFilter.month ? `-${salaryFilter.month}` : ''}`}
+                    </p>
+                    <p className="text-2xl font-bold text-green-900">
+                      Rp {totalTeamSalary.toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => setShowSalaryTable(!showSalaryTable)}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  {showSalaryTable ? 'Sembunyikan' : 'Lihat'} Laporan Gaji
+                </button>
+              </div>
+            )}
+          </div>
+          {!isInactivePage && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsAddMemberModal(true)}
+                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200 hover:scale-105"
+              >
+                Tambah Anggota Tim
               </button>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsAddMemberModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all duration-200 hover:scale-105"
-            >
-              Tambah Anggota Tim
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Salary Report Section */}
-        {showSalaryTable && (
+        {/* Salary Report Section - hanya di halaman aktif */}
+        {!isInactivePage && showSalaryTable && (
           <div className="mb-8 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-4">

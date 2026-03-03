@@ -48,6 +48,7 @@ const App: React.FC = () => {
             <Route path="/finance" element={<Finance isCollapsed={isCollapsed} />} />
             <Route path="/inventory" element={<Inventory isCollapsed={isCollapsed} />} />
             <Route path="/team" element={<Team isCollapsed={isCollapsed} />} />
+            <Route path="/team/inactive" element={<Team isCollapsed={isCollapsed} />} />
             <Route path="/reports" element={<Reports isCollapsed={isCollapsed} />} />
             <Route path="/settings" element={<Settings isCollapsed={isCollapsed} />} />
             <Route path="/smart-nota" element={<SmartNotaInvoices isCollapsed={isCollapsed} />} />

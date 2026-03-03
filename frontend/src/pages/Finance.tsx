@@ -592,7 +592,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
     return (
         <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-72'} bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50 min-h-screen`}>
-            <div className="max-w-7xl mx-auto p-8">
+            <div className="max-w-7xl mx-auto pl-10 pr-8 py-8">
                 {/* Modern Header */}
                 <div className="mb-8 animate-fadeInUp">
                     <div className="flex items-center gap-3 mb-2">
