@@ -154,20 +154,12 @@ const getProgressData = (project: Project, timeRange: string) => {
     }
 };
 
-const getProgress = (project: Project): number => {
-    if (!project.totalVolume || project.totalVolume === 0) return 0;
-    const currentVolume = project.reports?.daily?.length > 0
-        ? project.reports.daily[project.reports.daily.length - 1].volume || 0
-        : 0;
-    return (currentVolume / project.totalVolume) * 100;
-};
-
 const SharedProjectView: React.FC = () => {
-    const { projectId, token } = useParams<{ projectId: string; token: string }>();
+    const { projectId } = useParams<{ projectId: string; token: string }>();
     const [project, setProject] = useState<Project | null>(null);
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
-    const [showTotals, setShowTotals] = useState(true);
+    const [showTotals] = useState(true);
     const [shareSettings] = useState({
         showRevenue: true,
         showFinancial: true,
@@ -224,7 +216,7 @@ const SharedProjectView: React.FC = () => {
         );
     }
 
-    const RevenueChart = ({ data, timeRange, showTotals }: { data: any[], timeRange: string, showTotals: boolean }) => {
+    const RevenueChart = ({ data, timeRange }: { data: any[]; timeRange: string; showTotals: boolean }) => {
         const getXAxisConfig = () => {
             if (timeRange === 'daily') {
                 return {

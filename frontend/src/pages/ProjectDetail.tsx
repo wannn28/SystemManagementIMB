@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { projectsAPI, projectExpensesAPI, projectIncomesAPI, ProjectExpense, ProjectIncome, ProjectFinancialSummary } from '../api';
 import { Project } from '../types/BasicTypes';
 import EditReportForm from './EditReportForm';
@@ -216,7 +216,7 @@ const getProgress = (project: Project): number => {
     return (currentVolume / totalVolume) * 100;
 };
 
-const RevenueChart = ({ data, timeRange, showTotals, showTargetLine, targetValue }: {
+const RevenueChart = ({ data, timeRange, showTargetLine }: {
     data: any[]; timeRange: string; showTotals: boolean;
     showTargetLine?: boolean; targetValue?: number;
 }) => {
@@ -263,7 +263,7 @@ const RevenueChart = ({ data, timeRange, showTotals, showTargetLine, targetValue
     );
 };
 
-const ProgressChart = ({ data, timeRange, showTargetLine, targetValue }: {
+const ProgressChart = ({ data, timeRange, showTargetLine }: {
     data: any[]; timeRange: string;
     showTargetLine?: boolean; targetValue?: number;
 }) => {
@@ -326,7 +326,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     const fullscreenChartRef = useRef<HTMLDivElement>(null);
     
     // Financial data
-    const [projectExpenses, setProjectExpenses] = useState<ProjectExpense[]>([]);
+    const [, setProjectExpenses] = useState<ProjectExpense[]>([]);
     const [projectIncomes, setProjectIncomes] = useState<ProjectIncome[]>([]);
     const [financialSummary, setFinancialSummary] = useState<ProjectFinancialSummary | null>(null);
 

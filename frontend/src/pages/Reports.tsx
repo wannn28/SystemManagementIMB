@@ -374,7 +374,7 @@ const VolumeDataChart = ({ data, timeRange }: { data: any[], timeRange: string }
 const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
-  const [selectedProject, setSelectedProject] = useState<number | null>(null);
+  const [selectedProject] = useState<number | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null); // State for editing project
   const [projects, setProjects] = useState<Project[]>([]);
   const [fullscreenChart, setFullscreenChart] = useState<{ projectId: number; chartType: string } | null>(null);

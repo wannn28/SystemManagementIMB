@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Project } from '../types/BasicTypes';
-import { smartNotaApi, SmartNotaInvoice } from '../api/smartNota';
+import { smartNotaApi } from '../api/smartNota';
 
 interface EditReportsProps {
     project: Project;
@@ -239,7 +239,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
         let createdCount = 0;
         let updatedCount = 0;
 
-        Object.entries(weeklyData).forEach(([weekKey, reports]) => {
+        Object.entries(weeklyData).forEach(([, reports]) => {
             // Sort reports by date
             const sortedReports = reports.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
