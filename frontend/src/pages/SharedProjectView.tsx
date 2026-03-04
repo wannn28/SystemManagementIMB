@@ -160,14 +160,17 @@ const SharedProjectView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
     const [showTotals] = useState(true);
-    const [shareSettings] = useState({
-        showRevenue: true,
-        showFinancial: true,
-        showDaily: true,
-        showWeekly: true,
-        showMonthly: true,
-        showWorkers: true,
-        showEquipment: true,
+    const [shareSettings] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return {
+            showRevenue: params.has('r'),
+            showFinancial: params.has('f'),
+            showDaily: params.has('d'),
+            showWeekly: params.has('w'),
+            showMonthly: params.has('m'),
+            showWorkers: params.has('wk'),
+            showEquipment: params.has('e'),
+        };
     });
 
     useEffect(() => {

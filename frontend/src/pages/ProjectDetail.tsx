@@ -1010,7 +1010,16 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
     const generateShareLink = () => {
         setIsGenerating(true);
         const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
-        const link = `${window.location.origin}/shared/${project.id}/${token}`;
+        const params = new URLSearchParams();
+        if (shareSettings.showRevenue) params.append('r', '1');
+        if (shareSettings.showFinancial) params.append('f', '1');
+        if (shareSettings.showDaily) params.append('d', '1');
+        if (shareSettings.showWeekly) params.append('w', '1');
+        if (shareSettings.showMonthly) params.append('m', '1');
+        if (shareSettings.showWorkers) params.append('wk', '1');
+        if (shareSettings.showEquipment) params.append('e', '1');
+        const queryStr = params.toString();
+        const link = `${window.location.origin}/shared/${project.id}/${token}${queryStr ? `?${queryStr}` : ''}`;
         setShareLink(link);
         
         setTimeout(() => setIsGenerating(false), 500);
