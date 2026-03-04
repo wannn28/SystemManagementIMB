@@ -89,6 +89,62 @@ function isSafeExpression(s: string): boolean {
   return /^[\d.\s+\-*/()]+$/.test(s);
 }
 
+/** CSP-safe math evaluator - tidak pakai new Function() */
+function safeEval(expr: string): number {
+  expr = expr.replace(/\s+/g, '');
+  
+  function parsePrimary(s: string, pos: { i: number }): number {
+    if (pos.i >= s.length) return 0;
+    if (s[pos.i] === '(') {
+      pos.i++;
+      const val = parseExpression(s, pos);
+      if (s[pos.i] === ')') pos.i++;
+      return val;
+    }
+    let numStr = '';
+    while (pos.i < s.length && /[\d.]/.test(s[pos.i])) {
+      numStr += s[pos.i++];
+    }
+    return numStr ? parseFloat(numStr) : 0;
+  }
+  
+  function parseUnary(s: string, pos: { i: number }): number {
+    if (pos.i < s.length && (s[pos.i] === '+' || s[pos.i] === '-')) {
+      const op = s[pos.i++];
+      const val = parseUnary(s, pos);
+      return op === '-' ? -val : val;
+    }
+    return parsePrimary(s, pos);
+  }
+  
+  function parseTerm(s: string, pos: { i: number }): number {
+    let left = parseUnary(s, pos);
+    while (pos.i < s.length && (s[pos.i] === '*' || s[pos.i] === '/')) {
+      const op = s[pos.i++];
+      const right = parseUnary(s, pos);
+      left = op === '*' ? left * right : left / right;
+    }
+    return left;
+  }
+  
+  function parseExpression(s: string, pos: { i: number }): number {
+    let left = parseTerm(s, pos);
+    while (pos.i < s.length && (s[pos.i] === '+' || s[pos.i] === '-')) {
+      const op = s[pos.i++];
+      const right = parseTerm(s, pos);
+      left = op === '+' ? left + right : left - right;
+    }
+    return left;
+  }
+  
+  try {
+    const result = parseExpression(expr, { i: 0 });
+    return Number.isFinite(result) ? result : NaN;
+  } catch {
+    return NaN;
+  }
+}
+
 /**
  * Menghitung nilai rumus untuk satu baris.
  * computedColumns: nilai kolom rumus lain (indeks = indeks kolom di item_columns).
@@ -108,8 +164,7 @@ export function evaluateFormula(
     return NaN;
   }
   try {
-    const fn = new Function(`"use strict"; return (${s})`);
-    const result = fn();
+    const result = safeEval(s);
     console.log(`   ✅ Evaluated to: ${result}`);
     return Number.isFinite(result) ? result : NaN;
   } catch (err) {
@@ -180,7 +235,12 @@ export function getComputedFormulaValues(
       computed[i] = getInputColumnValue(row, lbl);
       continue;
     }
-    console.log(`📐 Evaluating col[${i}] "${col.label}":`, { formula: col.formula, byLabel, computed: {...computed} });
+    console.log(`📐 Evaluating col[${i}] "${col.label}":`, { 
+      formula: col.formula, 
+      byLabel: JSON.parse(JSON.stringify(byLabel)), 
+      computed: {...computed},
+      keys: Object.keys(byLabel)
+    });
     let val = evaluateFormula(col.formula, row, computed, byLabel);
     console.log(`📐 Result for col[${i}]:`, val);
     if (!Number.isFinite(val)) {
