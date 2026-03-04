@@ -316,12 +316,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<number | string | null>(null);
   const dateInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  /** Token menu relasi: hanya kolom Angka (rumus) lain (by label) + operator. Tanpa variabel dasar Qty/Hari/Harga/BBM agar daftar hanya kolom yang user definisikan. */
+  /** Token menu relasi: kolom Angka (rumus) dan Angka (no rumus) di atas kolom ini + operator. Keduanya berupa angka sehingga bisa dipakai dalam rumus (×, /, +, -). */
   const getFormulaRelationTokensForCol = (colIdx: number): { token: string; label: string }[] => {
     const cols = templateForm.options.item_columns;
     const varTokens: { token: string; label: string }[] = [];
     cols.forEach((c, i) => {
-      if (i === colIdx || c.key !== 'formula') return;
+      if (i >= colIdx) return;
+      if (c.key !== 'formula' && c.key !== 'number') return;
       const label = (c.label || '').trim() || `Kolom ${i + 1}`;
       varTokens.push({ token: `col_${i}`, label });
     });
@@ -2684,9 +2685,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           />
                           {formulaPopoverColIdx === idx && (
                             <div className="absolute left-0 top-full z-20 mt-1 p-2 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px]">
-                              <p className="text-xs text-gray-500 mb-2 px-1">Pilih kolom Angka (rumus) lain (urutannya di atas kolom ini) dan operator:</p>
+                              <p className="text-xs text-gray-500 mb-2 px-1">Pilih kolom Angka (rumus atau no rumus) di atas kolom ini dan operator (×, /, +, -):</p>
                               {!getFormulaRelationTokensForCol(idx).some((t) => !['*', '/', '+', '-'].includes(t.token)) && (
-                                <p className="text-xs text-amber-600 mb-2 px-1">Tambahkan kolom Angka (rumus) dengan rumus satu variabel (mis. quantity atau price) agar variabel muncul di sini.</p>
+                                <p className="text-xs text-amber-600 mb-2 px-1">Tambahkan kolom Angka (rumus atau no rumus) di atas agar bisa dipakai di rumus ini.</p>
                               )}
                               <div className="flex flex-wrap gap-1">
                                 {getFormulaRelationTokensForCol(idx).map(({ token, label }) => (

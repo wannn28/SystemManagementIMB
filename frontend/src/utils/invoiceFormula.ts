@@ -142,6 +142,13 @@ export function getComputedFormulaValues(
 ): Record<number, number> {
   const computed: Record<number, number> = {};
   for (let i = 0; i < columns.length; i++) {
+    if (columns[i].key === 'number') {
+      const fieldKey = `custom_num_${i}`;
+      const v = (row as Record<string, unknown>)[fieldKey];
+      computed[i] = v != null && Number.isFinite(Number(v)) ? Number(v) : 0;
+    }
+  }
+  for (let i = 0; i < columns.length; i++) {
     const col = columns[i];
     if (col.key !== 'formula') continue;
     const byLabel: Record<string, number> = {};
