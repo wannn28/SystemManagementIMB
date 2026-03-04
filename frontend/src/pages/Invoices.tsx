@@ -562,8 +562,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     if (!inv) return;
     setEditInvoiceId(id);
     setInvoiceNumber(inv.invoice_number);
-    setInvoiceDate(inv.invoice_date);
-    setDueDate(inv.due_date || '');
+    setInvoiceDate(inv.invoice_date.slice(0, 10));
+    setDueDate(inv.due_date ? inv.due_date.slice(0, 10) : '');
     setCustomerName(inv.customer_name);
     setCustomerPhone(inv.customer_phone || '');
     setCustomerEmail(inv.customer_email || '');
