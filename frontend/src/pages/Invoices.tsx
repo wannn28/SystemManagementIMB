@@ -2024,6 +2024,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               : (row.quantity || 0) * (row.price || 0);
                           const itemCols = groupColumns || [];
                           const rowComputed = useGroupTemplateColumns && itemCols.length > 0 ? getComputedFormulaValues(row, itemCols) : {};
+                          if (index === 0 && itemCols.length > 0) {
+                            console.log('🔍 Debug Formula:', { groupKey, itemCols, row, rowComputed });
+                          }
                           return (
                             <tr key={index} className="border-b border-gray-100">
                               {templateShowNo && <td className={`${itemRowPad} pr-2 text-center text-gray-600`}>{rowNum + 1}</td>}
