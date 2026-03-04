@@ -70,6 +70,15 @@ export interface TemplateItemColumn {
    * - 'auto_plate_or_name': dump truck → plat nomor (license_plate), alat berat → nama
    */
   item_display_mode?: 'name' | 'auto_plate_or_name';
+  /**
+   * Untuk kolom Angka (no rumus) dan Angka (rumus): tampilkan total (jumlah) di baris bawah tabel.
+   */
+  show_total_in_footer?: boolean;
+  /**
+   * Jika true, jumlah nilai kolom ini (per baris) dipakai sebagai total invoice (terbilang, daftar invoice).
+   * Hanya satu kolom yang sebaiknya diset true (biasanya kolom Jumlah/rumus).
+   */
+  use_as_invoice_total?: boolean;
 }
 
 export interface InvoiceTemplate {
@@ -176,6 +185,7 @@ export interface CreateInvoiceRequest {
     description?: string;
     quantity: number;
     price: number;
+    total?: number;
     row_date?: string;
     days?: number;
     bbm_quantity?: number;

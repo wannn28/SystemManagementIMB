@@ -176,6 +176,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     use_ai_display?: boolean;
     quantity: number;
     price: number;
+    total?: number;
     row_date?: string;
     days?: number;
     bbm_quantity?: number;
@@ -1016,12 +1017,27 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         const itemNameCol = groupCols.find((c) => c.key === 'item_name');
         const displayMode = itemNameCol?.item_display_mode ?? 'name';
         const item_display_name = (r as FormItem).item_display_name ?? (displayMode === 'auto_plate_or_name' ? getItemNameDisplay(r.item_name, equipmentList, 'auto_plate_or_name') : undefined);
+        let rowTotal: number | undefined;
+        if (groupCols.length > 0) {
+          let totalColIdx = groupCols.findIndex((c) => c.use_as_invoice_total);
+          if (totalColIdx < 0) {
+            totalColIdx = groupCols.length - 1;
+            while (totalColIdx >= 0 && groupCols[totalColIdx].key !== 'formula') totalColIdx--;
+          }
+          if (totalColIdx >= 0) {
+            const computed = getComputedFormulaValues(r, groupCols);
+            const val = computed[totalColIdx];
+            if (val != null && Number.isFinite(val)) rowTotal = val;
+          }
+        }
+        if (rowTotal == null && Number.isFinite(r.total)) rowTotal = r.total;
         return {
           item_name: r.item_name,
           ...(item_display_name !== undefined && item_display_name !== '' ? { item_display_name } : {}),
           description: r.description,
           quantity: r.quantity,
           price: r.price,
+          ...(rowTotal != null ? { total: rowTotal } : {}),
           row_date: r.row_date,
           days: r.days,
           bbm_quantity: r.bbm_quantity,
@@ -1467,7 +1483,6 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tanggal</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Customer</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Template</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
                       </tr>
@@ -1489,7 +1504,6 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           <td className="px-4 py-3 text-sm text-gray-600 text-center">{formatDateOnly(inv.invoice_date || '')}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{inv.customer_name}</td>
                           <td className="px-4 py-3 text-sm text-gray-600">{inv.template?.name ?? templates.find((t) => Number(t.id) === Number(inv.template_id))?.name ?? '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 text-right">{formatRupiah(Number(inv.total ?? 0))}</td>
                           <td className="px-4 py-3 text-center">
                             <span
                               className={`px-2 py-1 rounded text-xs ${
@@ -2285,6 +2299,40 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             </tr>
                           );
                               })}
+                              {useGroupTemplateColumns && templateShowTotal && displayGroupColumns.some((c) => c.show_total_in_footer) && (() => {
+                                const footerTotals: Record<number, number> = {};
+                                sortedIndices.forEach((idx) => {
+                                  const row = items[idx];
+                                  if (!row) return;
+                                  const itemCols = groupColumns || [];
+                                  const computed = getComputedFormulaValues(row, itemCols);
+                                  displayGroupColumns.forEach((col, colIdx) => {
+                                    if (!col.show_total_in_footer) return;
+                                    if (col.key === 'number') {
+                                      const v = (row as Record<string, unknown>)[`custom_num_${colIdx}`];
+                                      const n = v != null ? Number(v) : 0;
+                                      footerTotals[colIdx] = (footerTotals[colIdx] ?? 0) + (Number.isFinite(n) ? n : 0);
+                                    } else if (col.key === 'formula') {
+                                      const v = computed[colIdx];
+                                      footerTotals[colIdx] = (footerTotals[colIdx] ?? 0) + (Number.isFinite(v) ? v : 0);
+                                    }
+                                  });
+                                });
+                                return (
+                                  <tr className="border-t-2 border-gray-300 bg-gray-50 font-medium">
+                                    {templateShowNo && <td className={`${itemRowPad} pr-2 text-center`}>Total</td>}
+                                    <td className={`${itemRowPad} pr-2`} />
+                                    {displayGroupColumns.map((col, colIdx) => (
+                                      <td key={`footer-${colIdx}`} className={`${itemRowPad} pr-2 text-sm text-gray-800 ${getContentAlignClass(col)}`}>
+                                        {col.show_total_in_footer && footerTotals[colIdx] != null
+                                          ? formatNumberByColumn({ format: col.format ?? (col.key === 'formula' ? 'rupiah' : 'number') }, footerTotals[colIdx])
+                                          : ''}
+                                      </td>
+                                    ))}
+                                    <td className="py-2" />
+                                  </tr>
+                                );
+                              })()}
                             </tbody>
                           </table>
                             );
@@ -2806,6 +2854,50 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         <option value="center">Isi: Tengah</option>
                         <option value="right">Isi: Kanan</option>
                       </select>
+                      {(col.key === 'number' || col.key === 'formula') && (
+                        <>
+                          <label className="flex items-center gap-1.5 text-xs text-gray-700 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={col.show_total_in_footer ?? false}
+                              onChange={(e) =>
+                                setTemplateForm((f) => ({
+                                  ...f,
+                                  options: {
+                                    ...f.options,
+                                    item_columns: f.options.item_columns.map((c, i) =>
+                                      i === idx ? { ...c, show_total_in_footer: e.target.checked } : c
+                                    ),
+                                  },
+                                }))
+                              }
+                              className="rounded border-gray-300"
+                            />
+                            Total di baris bawah
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-orange-700 whitespace-nowrap" title="Jumlah kolom ini dipakai sebagai total invoice (terbilang & daftar)">
+                            <input
+                              type="checkbox"
+                              checked={col.use_as_invoice_total ?? false}
+                              onChange={(e) =>
+                                setTemplateForm((f) => ({
+                                  ...f,
+                                  options: {
+                                    ...f.options,
+                                    item_columns: f.options.item_columns.map((c, i) =>
+                                      i === idx
+                                        ? { ...c, use_as_invoice_total: e.target.checked }
+                                        : { ...c, use_as_invoice_total: e.target.checked ? false : c.use_as_invoice_total }
+                                    ),
+                                  },
+                                }))
+                              }
+                              className="rounded border-gray-300"
+                            />
+                            Jadikan sebagai total invoice
+                          </label>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() =>

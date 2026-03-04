@@ -180,6 +180,45 @@ function getItemCellValue(
   }
 }
 
+/** Nilai numerik untuk perhitungan total baris (hanya kolom number/formula). */
+function getItemCellNumericValue(
+  item: Invoice['items'][0],
+  column: TemplateItemColumn,
+  allColumns: TemplateItemColumn[],
+  columnIndex: number
+): number {
+  if (column.key === 'number') {
+    const fieldKey = `custom_num_${columnIndex}`;
+    const val = (item as unknown as Record<string, unknown>)[fieldKey];
+    const num = val != null && val !== '' ? Number(val) : NaN;
+    return Number.isFinite(num) ? num : 0;
+  }
+  if (column.key === 'formula' && column.formula) {
+    const customFields = Object.keys(item as unknown as Record<string, unknown>)
+      .filter((k) => k.startsWith('custom_num_'))
+      .reduce((acc, k) => ({ ...acc, [k]: (item as unknown as Record<string, unknown>)[k] }), {});
+    const row = {
+      quantity: item.quantity ?? 0,
+      days: item.days ?? item.quantity ?? 0,
+      price: item.price ?? 0,
+      bbm_quantity: item.bbm_quantity ?? 0,
+      bbm_unit_price: item.bbm_unit_price ?? 0,
+      ...customFields,
+    };
+    const computed = getComputedFormulaValues(row, allColumns);
+    const val = columnIndex >= 0 ? (computed[columnIndex] ?? NaN) : evaluateFormula(column.formula, row);
+    return Number.isFinite(val) ? val : 0;
+  }
+  return 0;
+}
+
+function formatColumnTotal(column: TemplateItemColumn, sum: number): string {
+  const fmt = column.format ?? (column.key === 'formula' ? 'rupiah' : 'number');
+  if (fmt === 'rupiah') return formatRupiah(sum);
+  if (fmt === 'percent') return `${sum} %`;
+  return String(sum);
+}
+
 function loadTtdImage(): Promise<{ dataUrl: string; widthPx: number; heightPx: number } | null> {
   return fetch(TTD_SIGNATURE_URL)
     .then((res) => (res.ok ? res.blob() : Promise.reject(new Error('TTD not found'))))
@@ -361,8 +400,7 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       templateColumnsRaw?.length
         ? templateColumnsRaw.filter((c) => (c.key === 'row_date' && !showDate) || (c.key === 'total' && !showTotal) ? false : true)
         : null;
-    const hasRowDateInTemplate = templateColumns?.some((c) => c.key === 'row_date');
-    const injectDateColumn = !!templateColumns?.length && showDate && !hasRowDateInTemplate;
+    const injectDateColumn = false;
     const useBbm = !templateColumns && (templateOpts?.use_bbm_columns ?? invoiceToUse.use_bbm_columns);
     const qtyLabel =
       (templateOpts?.quantity_unit || invoiceToUse.quantity_unit) === 'jam'
@@ -379,7 +417,21 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       invoiceToUse.price_unit_label ||
       (invoiceToUse.quantity_unit === 'jam' ? 'Harga/Jam' : invoiceToUse.quantity_unit === 'unit' ? 'Harga/Unit' : invoiceToUse.quantity_unit === 'jerigen' ? 'Harga/Jerigen' : invoiceToUse.quantity_unit === 'volume' ? 'Harga/Volume' : 'Harga/Hari');
     const itemsList = invoiceToUse.items || [];
-    const total = invoiceToUse.total ?? itemsList.reduce((s, i) => s + (i.total ?? 0), 0);
+    let total = invoiceToUse.total ?? itemsList.reduce((s, i) => s + (i.total ?? 0), 0);
+    if (templateColumns?.length && (total == null || total === 0)) {
+      let totalColIdx = templateColumns.findIndex((c) => c.use_as_invoice_total);
+      if (totalColIdx < 0) {
+        totalColIdx = templateColumns.length - 1;
+        while (totalColIdx >= 0 && templateColumns[totalColIdx].key !== 'formula') totalColIdx--;
+      }
+      if (totalColIdx >= 0) {
+        const sumFromColumn = itemsList.reduce(
+          (s, item) => s + getItemCellNumericValue(item, templateColumns[totalColIdx], templateColumns, totalColIdx),
+          0
+        );
+        if (Number.isFinite(sumFromColumn)) total = sumFromColumn;
+      }
+    }
 
     const getGroupKey = (item: typeof itemsList[0]) => {
       const eg = (item.equipment_group || '').trim();
@@ -462,10 +514,27 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       const sumB = g ? g.bbm : 0;
       const totalRow = showTotal
         ? (templateColumns?.length
-            ? [{ content: 'Total', colSpan: (showNo ? 1 : 0) + (injectDateColumn ? 1 : 0) + templateColumns.length - 1 }, formatRupiah(sumT)]
+            ? (() => {
+                const mergeCols = (showNo ? 1 : 0) + (injectDateColumn ? 1 : 0) + 1;
+                const remainingCells: (string | number)[] = [];
+                const hasFooterTotals = templateColumns.some((c) => c.show_total_in_footer);
+                for (let i = 1; i < templateColumns.length; i++) {
+                  const col = templateColumns[i];
+                  if (col.show_total_in_footer) {
+                    const sum = groupItemsSorted.reduce(
+                      (s, item) => s + getItemCellNumericValue(item, col, templateColumns, i),
+                      0
+                    );
+                    remainingCells.push(formatColumnTotal(col, sum));
+                  } else {
+                    remainingCells.push(hasFooterTotals ? '' : (i === templateColumns.length - 1 ? formatRupiah(sumT) : ''));
+                  }
+                }
+                return [{ content: 'Total Keseluruhan', colSpan: mergeCols, styles: { halign: 'left' as const } }, ...remainingCells];
+              })()
             : useBbm
-              ? [{ content: 'Total', colSpan: showDate ? 2 : 1 }, String(sumH), '', String(sumB), ...(showDate ? ['', formatRupiah(sumT)] : [formatRupiah(sumT)])]
-              : [{ content: 'Total', colSpan: showDate ? 3 : 2 }, String(sumH), '', formatRupiah(sumT)])
+              ? [{ content: 'Total Keseluruhan', colSpan: showDate ? 2 : 1, styles: { halign: 'left' as const } }, String(sumH), '', String(sumB), ...(showDate ? ['', formatRupiah(sumT)] : [formatRupiah(sumT)])]
+              : [{ content: 'Total Keseluruhan', colSpan: showDate ? 3 : 2, styles: { halign: 'left' as const } }, String(sumH), '', formatRupiah(sumT)])
         : null;
       const bodyWithTotal = totalRow ? [...tableData, totalRow] : tableData;
 
@@ -507,6 +576,9 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
             data.cell.styles.fillColor = [255, 255, 255];
             data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.cellPadding = 4;
+            const colIndex = (data.column as { index?: number })?.index ?? 0;
+            if (colIndex === 0) data.cell.styles.halign = 'left';
           }
           const colIndex = (data.column as { index?: number })?.index ?? 0;
           if (showNo && colIndex === 0) {
