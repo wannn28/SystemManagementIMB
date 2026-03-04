@@ -21,8 +21,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
   onEdit,
   onDelete,
   onExpand,
-  isLoading = false,
-  totalCount
+  isLoading = false
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
