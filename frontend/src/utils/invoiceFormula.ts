@@ -157,9 +157,7 @@ export function getComputedFormulaValues(
       if (!lbl) continue;
       let val = 0;
       if (columns[j].key === 'number') {
-        const fieldKey = `custom_num_${j}`;
-        const v = (row as Record<string, unknown>)[fieldKey];
-        val = v != null ? Number(v) : 0;
+        val = computed[j] !== undefined && Number.isFinite(computed[j]) ? computed[j] : 0;
       } else if (columns[j].key === 'formula') {
         val = computed[j] !== undefined ? computed[j] : getInputColumnValue(row, lbl);
       }
