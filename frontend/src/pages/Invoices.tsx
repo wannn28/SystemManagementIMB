@@ -1075,8 +1075,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       setEditInvoiceId(null);
       setActiveTab('list');
       fetchInvoices();
-    } catch {
-      setMessage({ type: 'error', text: 'Gagal menyimpan invoice.' });
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.message || err?.message || 'Gagal menyimpan invoice.';
+      console.error('Error saving invoice:', err?.response?.data || err);
+      setMessage({ type: 'error', text: errorMsg });
     } finally {
       setSaving(false);
     }
