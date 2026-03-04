@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { projectsAPI } from '../api';
 import { Project } from '../types/BasicTypes';
@@ -160,6 +161,9 @@ const SharedProjectView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
     const [showTotals] = useState(true);
+    const [expandedChart, setExpandedChart] = useState<'revenue' | 'volume' | null>(null);
+    const [analisisView, setAnalisisView] = useState<'semua' | 'progress' | 'keduanya'>('progress');
+    const fullscreenChartRef = useRef<HTMLDivElement>(null);
     const [shareSettings] = useState(() => {
         const params = new URLSearchParams(window.location.search);
         return {
@@ -178,6 +182,24 @@ const SharedProjectView: React.FC = () => {
             fetchProject();
         }
     }, [projectId]);
+
+    useEffect(() => {
+        if (!expandedChart) {
+            if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+            return;
+        }
+        const onFullscreenChange = () => { if (!document.fullscreenElement) setExpandedChart(null); };
+        document.addEventListener('fullscreenchange', onFullscreenChange);
+        const id = setTimeout(() => {
+            const el = fullscreenChartRef.current;
+            if (el) el.requestFullscreen().catch(() => {});
+        }, 50);
+        return () => {
+            clearTimeout(id);
+            document.removeEventListener('fullscreenchange', onFullscreenChange);
+            if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        };
+    }, [expandedChart]);
 
     const fetchProject = async () => {
         try {
@@ -388,20 +410,112 @@ const SharedProjectView: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Analisis Section */}
+                    {shareSettings.showFinancial && (
+                        <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100 mb-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg">
+                                    <span className="text-white font-bold text-2xl">📊</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-800">Analisis</h3>
+                                    <p className="text-sm text-gray-500">Pilih tampilan: Semua, Progress Saat Ini, atau Keduanya</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2 mb-6">
+                                {(['semua', 'progress', 'keduanya'] as const).map((view) => (
+                                    <button
+                                        key={view}
+                                        type="button"
+                                        onClick={() => setAnalisisView(view)}
+                                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                                            analisisView === view
+                                                ? 'bg-orange-500 text-white shadow-md'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {view === 'semua' ? 'Semua' : view === 'progress' ? 'Progress Saat Ini' : 'Keduanya'}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {(analisisView === 'semua' || analisisView === 'keduanya') && (
+                                        <>
+                                            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                                <p className="text-xs text-gray-600 mb-1">Volume Saat Ini</p>
+                                                <p className="text-xl font-bold text-blue-600">
+                                                    {project.reports?.daily?.length > 0 
+                                                        ? project.reports.daily[project.reports.daily.length - 1].volume.toFixed(1)
+                                                        : '0'} M³
+                                                </p>
+                                            </div>
+                                            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                                <p className="text-xs text-gray-600 mb-1">Target Volume Saat Ini</p>
+                                                <p className="text-xl font-bold text-amber-600">
+                                                    {project.totalVolume?.toFixed(1) || '0'} M³
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                    {(analisisView === 'progress' || analisisView === 'keduanya') && (
+                                        <>
+                                            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                                <p className="text-xs text-gray-600 mb-1">Deviasi Saat Ini (Actual - Target)</p>
+                                                <p className={`text-xl font-bold ${
+                                                    project.reports?.daily?.length > 0 && project.totalVolume
+                                                        ? (project.reports.daily[project.reports.daily.length - 1].volume - project.totalVolume) >= 0 
+                                                            ? 'text-green-600' 
+                                                            : 'text-red-600'
+                                                        : 'text-gray-600'
+                                                }`}>
+                                                    {project.reports?.daily?.length > 0 && project.totalVolume
+                                                        ? (project.reports.daily[project.reports.daily.length - 1].volume - project.totalVolume).toFixed(1)
+                                                        : '0'} M³
+                                                </p>
+                                            </div>
+                                            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                                <p className="text-xs text-gray-600 mb-1">Progress Saat Ini</p>
+                                                <p className="text-xl font-bold text-purple-600">
+                                                    {project.reports?.daily?.length > 0 && project.totalVolume
+                                                        ? ((project.reports.daily[project.reports.daily.length - 1].volume / project.totalVolume) * 100).toFixed(1)
+                                                        : '0'}%
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {shareSettings.showRevenue && (
                             <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-800">Revenue Analysis</h3>
+                                            <p className="text-sm text-gray-500">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} overview</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandedChart('revenue')}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
+                                        title="Tampilkan grafik fullscreen"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                                         </svg>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-800">Revenue Analysis</h3>
-                                        <p className="text-sm text-gray-500">{timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} overview</p>
-                                    </div>
+                                        Fullscreen
+                                    </button>
                                 </div>
                                 <div className="h-64">
                                     <RevenueChart data={getAggregatedRevenueData(project, timeRange)} timeRange={timeRange} showTotals={showTotals} />
@@ -410,16 +524,29 @@ const SharedProjectView: React.FC = () => {
                         )}
 
                         <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-800">Volume Progress</h3>
+                                        <p className="text-sm text-gray-500">Target vs Actual</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setExpandedChart('volume')}
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
+                                    title="Tampilkan grafik fullscreen"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                                     </svg>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-800">Volume Progress</h3>
-                                    <p className="text-sm text-gray-500">Target vs Actual</p>
-                                </div>
+                                    Fullscreen
+                                </button>
                             </div>
                             <div className="h-64">
                                 <ProgressChart data={getProgressData(project, timeRange)} timeRange={timeRange} />
@@ -545,6 +672,48 @@ const SharedProjectView: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Fullscreen Chart Portal */}
+            {expandedChart && createPortal(
+                <div
+                    key={expandedChart}
+                    ref={fullscreenChartRef}
+                    className="bg-white flex flex-col overflow-hidden"
+                    style={{ width: '100vw', height: '100vh', position: 'fixed', inset: 0, zIndex: 2147483647 }}
+                    role="application"
+                    aria-label="Grafik fullscreen"
+                >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0 bg-white">
+                        <h2 className="text-lg font-bold text-gray-800">
+                            {expandedChart === 'revenue' ? 'Revenue Analysis' : 'Volume Progress'}
+                        </h2>
+                        <button
+                            type="button"
+                            onClick={() => { document.exitFullscreen().catch(() => {}); setExpandedChart(null); }}
+                            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
+                            aria-label="Keluar fullscreen"
+                        >
+                            Keluar Fullscreen
+                        </button>
+                    </div>
+                    <div className="flex-1 w-full min-h-0 p-4" style={{ height: 'calc(100vh - 56px)' }}>
+                        {expandedChart === 'revenue' && (
+                            <RevenueChart
+                                data={getAggregatedRevenueData(project, timeRange)}
+                                timeRange={timeRange}
+                                showTotals={showTotals}
+                            />
+                        )}
+                        {expandedChart === 'volume' && (
+                            <ProgressChart
+                                data={getProgressData(project, timeRange)}
+                                timeRange={timeRange}
+                            />
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

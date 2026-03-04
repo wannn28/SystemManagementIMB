@@ -1185,8 +1185,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">💰 Revenue</label>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={report.revenue}
-                                                onChange={(e) => handleDailyChange(index, 'revenue', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'revenue', parseFloat(val) || 0);
+                                                }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
                                             />
@@ -1195,8 +1199,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">💳 Paid</label>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={report.paid}
-                                                onChange={(e) => handleDailyChange(index, 'paid', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'paid', parseFloat(val) || 0);
+                                                }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
                                             />
@@ -1205,8 +1213,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">📦 Volume</label>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={report.volume}
-                                                onChange={(e) => handleDailyChange(index, 'volume', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'volume', parseFloat(val) || 0);
+                                                }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
                                             />
@@ -1215,8 +1227,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">🎯 Target Volume</label>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={report.targetVolume}
-                                                onChange={(e) => handleDailyChange(index, 'targetVolume', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'targetVolume', parseFloat(val) || 0);
+                                                }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
                                             />
@@ -1225,8 +1241,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">📋 Plan</label>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={report.plan}
-                                                onChange={(e) => handleDailyChange(index, 'plan', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'plan', parseFloat(val) || 0);
+                                                }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
                                             />
@@ -1235,8 +1255,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">✅ Aktual</label>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={report.aktual}
-                                                onChange={(e) => handleDailyChange(index, 'aktual', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'aktual', parseFloat(val) || 0);
+                                                }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
                                             />
@@ -1567,8 +1591,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Target Plan</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.targetPlan}
-                                        onChange={(e) => handleWeeklyChange(index, 'targetPlan', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleWeeklyChange(index, 'targetPlan', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1576,8 +1604,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Target Aktual</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.targetAktual}
-                                        onChange={(e) => handleWeeklyChange(index, 'targetAktual', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleWeeklyChange(index, 'targetAktual', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1585,8 +1617,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Volume</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.volume}
-                                        onChange={(e) => handleWeeklyChange(index, 'volume', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleWeeklyChange(index, 'volume', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1594,8 +1630,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Target Volume</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.targetVolume}
-                                        onChange={(e) => handleWeeklyChange(index, 'targetVolume', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleWeeklyChange(index, 'targetVolume', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1793,9 +1833,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Target Plan</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.targetPlan}
-                                        onChange={(e) => handleMonthlyChange(index, 'targetPlan', Number(e.target.value))
-                                        }
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleMonthlyChange(index, 'targetPlan', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1807,8 +1850,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Target Aktual</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.targetAktual}
-                                        onChange={(e) => handleMonthlyChange(index, 'targetAktual', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleMonthlyChange(index, 'targetAktual', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1816,8 +1863,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Volume</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.volume}
-                                        onChange={(e) => handleMonthlyChange(index, 'volume', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleMonthlyChange(index, 'volume', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1825,8 +1876,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                     <label className="block text-sm font-medium text-gray-700">Target Volume</label>
                                     <input
                                         type="number"
+                                        step="any"
                                         value={report.targetVolume}
-                                        onChange={(e) => handleMonthlyChange(index, 'targetVolume', Number(e.target.value))}
+                                        onChange={(e) => {
+                                            const val = String(e.target.value).replace(',', '.');
+                                            handleMonthlyChange(index, 'targetVolume', parseFloat(val) || 0);
+                                        }}
                                         className="border rounded w-full p-2"
                                     />
                                 </div>
@@ -1943,8 +1998,12 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">📊 Plan (per hari)</label>
                                 <input
                                     type="number"
+                                    step="any"
                                     value={planValue}
-                                    onChange={(e) => setPlanValue(Number(e.target.value))}
+                                    onChange={(e) => {
+                                        const val = String(e.target.value).replace(',', '.');
+                                        setPlanValue(parseFloat(val) || 0);
+                                    }}
                                     placeholder="Contoh: 100"
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                                     min="0"
