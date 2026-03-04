@@ -77,7 +77,7 @@ function substitute(
     for (const label of labels) {
       const val = computedByLabel[label];
       if (val === undefined || !Number.isFinite(val)) continue;
-      const re = new RegExp(`\\b${escapeRegex(label)}\\b`, 'g');
+      const re = new RegExp(escapeRegex(label), 'g');
       s = s.replace(re, String(val));
     }
   }
@@ -102,12 +102,18 @@ export function evaluateFormula(
 ): number {
   if (!formula || !formula.trim()) return 0;
   const s = substitute(formula, row, computedColumns, computedByLabel);
-  if (!isSafeExpression(s)) return NaN;
+  console.log(`   🧮 Formula "${formula}" → substituted: "${s}"`);
+  if (!isSafeExpression(s)) {
+    console.log('   ⚠️ Not safe expression!');
+    return NaN;
+  }
   try {
     const fn = new Function(`"use strict"; return (${s})`);
     const result = fn();
+    console.log(`   ✅ Evaluated to: ${result}`);
     return Number.isFinite(result) ? result : NaN;
-  } catch {
+  } catch (err) {
+    console.log('   ❌ Evaluation error:', err);
     return NaN;
   }
 }
@@ -174,7 +180,9 @@ export function getComputedFormulaValues(
       computed[i] = getInputColumnValue(row, lbl);
       continue;
     }
+    console.log(`📐 Evaluating col[${i}] "${col.label}":`, { formula: col.formula, byLabel, computed: {...computed} });
     let val = evaluateFormula(col.formula, row, computed, byLabel);
+    console.log(`📐 Result for col[${i}]:`, val);
     if (!Number.isFinite(val)) {
       const colLabel = (col.label ?? '').trim().toLowerCase();
       if (colLabel.includes('harga') && colLabel.includes('bbm') && !/harga\s*\/\s*bbm/.test(colLabel)) {
