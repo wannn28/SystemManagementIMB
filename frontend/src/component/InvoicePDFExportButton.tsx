@@ -15,6 +15,21 @@ interface InvoicePDFExportButtonProps {
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
+const formatNumberWithThousand = (n: number): string => {
+  const str = String(n);
+  const [intPart, decPart] = str.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart ? `${formattedInt},${decPart}` : formattedInt;
+};
+
+const formatLabelWithSubscript = (label: string): string => {
+  return label
+    .replace(/M3/g, 'M³')
+    .replace(/m3/g, 'm³')
+    .replace(/M2/g, 'M²')
+    .replace(/m2/g, 'm²');
+};
+
 const ANGKA = ['Nol', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan'];
 
 function joinParts(...parts: Array<string | null | undefined>) {
@@ -143,7 +158,7 @@ function getItemCellValue(
     const fmt = column.format ?? 'rupiah';
     if (fmt === 'rupiah') return formatRupiahFn(val);
     if (fmt === 'percent') return `${val} %`;
-    return String(val);
+    return formatNumberWithThousand(val);
   }
   const key = column.key;
   switch (key) {
@@ -173,7 +188,7 @@ function getItemCellValue(
       const fmt = column.format ?? 'number';
       if (fmt === 'rupiah') return formatRupiahFn(num);
       if (fmt === 'percent') return `${num} %`;
-      return String(num);
+      return formatNumberWithThousand(num);
     }
     default:
       return (item as unknown as Record<string, unknown>)[key] != null ? String((item as unknown as Record<string, unknown>)[key]) : '-';
@@ -216,7 +231,7 @@ function formatColumnTotal(column: TemplateItemColumn, sum: number): string {
   const fmt = column.format ?? (column.key === 'formula' ? 'rupiah' : 'number');
   if (fmt === 'rupiah') return formatRupiah(sum);
   if (fmt === 'percent') return `${sum} %`;
-  return String(sum);
+  return formatNumberWithThousand(sum);
 }
 
 function loadTtdImage(): Promise<{ dataUrl: string; widthPx: number; heightPx: number } | null> {
@@ -455,7 +470,7 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
 
     const itemColLabel = (templateOpts?.item_column_label || invoiceToUse.item_column_label || 'Keterangan').trim() || 'Keterangan';
     const headRow = templateColumns?.length
-      ? [...(showNo ? ['No'] : []), ...(injectDateColumn ? ['Tanggal'] : []), ...templateColumns.map((c) => c.label)]
+      ? [...(showNo ? ['No'] : []), ...(injectDateColumn ? ['Tanggal'] : []), ...templateColumns.map((c) => formatLabelWithSubscript(c.label))]
       : useBbm
         ? [...['No', ...(showDate ? ['Tanggal'] : []), qtyLabel, priceLabel, 'Bbm (Jerigen)', 'Harga/Bbm'], ...(showTotal ? ['Jumlah'] : [])]
         : [...['No', ...(showDate ? ['Tanggal'] : []), itemColLabel, qtyLabel, priceLabel], ...(showTotal ? ['Jumlah'] : [])];

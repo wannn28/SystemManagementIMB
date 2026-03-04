@@ -51,7 +51,7 @@ export interface TemplateItemColumn {
   source?: 'manual' | 'equipment_price_per_hour' | 'equipment_price_per_day';
   /**
    * Format tampilan untuk kolom tipe 'number' dan 'formula':
-   * - 'number': angka biasa
+   * - 'number': angka dengan separator ribuan (1000 → 1.000)
    * - 'rupiah': format mata uang Rp (default untuk formula)
    * - 'percent': format persen (%)
    */

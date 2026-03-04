@@ -158,17 +158,11 @@ export function evaluateFormula(
 ): number {
   if (!formula || !formula.trim()) return 0;
   const s = substitute(formula, row, computedColumns, computedByLabel);
-  console.log(`   🧮 Formula "${formula}" → substituted: "${s}"`);
-  if (!isSafeExpression(s)) {
-    console.log('   ⚠️ Not safe expression!');
-    return NaN;
-  }
+  if (!isSafeExpression(s)) return NaN;
   try {
     const result = safeEval(s);
-    console.log(`   ✅ Evaluated to: ${result}`);
     return Number.isFinite(result) ? result : NaN;
-  } catch (err) {
-    console.log('   ❌ Evaluation error:', err);
+  } catch {
     return NaN;
   }
 }
@@ -235,14 +229,7 @@ export function getComputedFormulaValues(
       computed[i] = getInputColumnValue(row, lbl);
       continue;
     }
-    console.log(`📐 Evaluating col[${i}] "${col.label}":`, { 
-      formula: col.formula, 
-      byLabel: JSON.parse(JSON.stringify(byLabel)), 
-      computed: {...computed},
-      keys: Object.keys(byLabel)
-    });
     let val = evaluateFormula(col.formula, row, computed, byLabel);
-    console.log(`📐 Result for col[${i}]:`, val);
     if (!Number.isFinite(val)) {
       const colLabel = (col.label ?? '').trim().toLowerCase();
       if (colLabel.includes('harga') && colLabel.includes('bbm') && !/harga\s*\/\s*bbm/.test(colLabel)) {

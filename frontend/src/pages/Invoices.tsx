@@ -29,7 +29,19 @@ function formatNumberByColumn(col: { format?: 'number' | 'rupiah' | 'percent' },
   const fmt = col.format ?? 'number';
   if (fmt === 'rupiah') return formatRupiah(value);
   if (fmt === 'percent') return `${value} %`;
-  return String(value);
+  const str = String(value);
+  const [intPart, decPart] = str.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart ? `${formattedInt},${decPart}` : formattedInt;
+}
+
+/** Konversi label dengan subscript/superscript: M3 → M³, M2 → M², etc */
+function formatLabelWithSubscript(label: string): string {
+  return label
+    .replace(/M3/g, 'M³')
+    .replace(/m3/g, 'm³')
+    .replace(/M2/g, 'M²')
+    .replace(/m2/g, 'm²');
 }
 
 /** Kelas Tailwind untuk perataan header kolom (default: tengah) */
@@ -1985,7 +1997,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 {templateShowDate && !useGroupTemplateColumns && <th className="pb-2 pr-2">Tanggal</th>}
                                 {useGroupTemplateColumns ? (
                                   displayGroupColumns.map((col, colIdx) => (
-                                    <th key={`item-col-${colIdx}`} className={`pb-2 pr-2 ${getHeaderAlignClass(col)}`}>{(col.label || '').trim() || col.key}{col.key === 'item_name' ? ' *' : ''}</th>
+                                    <th key={`item-col-${colIdx}`} className={`pb-2 pr-2 ${getHeaderAlignClass(col)}`}>{formatLabelWithSubscript((col.label || '').trim() || col.key)}{col.key === 'item_name' ? ' *' : ''}</th>
                                   ))
                                 ) : useBbmColumns ? (
                                   <>
@@ -2024,9 +2036,6 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               : (row.quantity || 0) * (row.price || 0);
                           const itemCols = groupColumns || [];
                           const rowComputed = useGroupTemplateColumns && itemCols.length > 0 ? getComputedFormulaValues(row, itemCols) : {};
-                          if (index === 0 && itemCols.length > 0) {
-                            console.log('🔍 Debug Formula:', { groupKey, itemCols, row, rowComputed });
-                          }
                           return (
                             <tr key={index} className="border-b border-gray-100">
                               {templateShowNo && <td className={`${itemRowPad} pr-2 text-center text-gray-600`}>{rowNum + 1}</td>}
@@ -2690,7 +2699,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             className="w-32 border border-gray-300 rounded px-2 py-1.5 text-xs"
                             title="Format tampilan"
                           >
-                            <option value="number">Angka</option>
+                            <option value="number">Angka (1.000)</option>
                             <option value="rupiah">Rupiah</option>
                             <option value="percent">Persen (%)</option>
                           </select>
@@ -2793,7 +2802,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           className="w-32 border border-gray-300 rounded px-2 py-1.5 text-xs"
                           title="Format tampilan hasil rumus"
                         >
-                          <option value="number">Angka</option>
+                          <option value="number">Angka (1.000)</option>
                           <option value="rupiah">Rupiah</option>
                           <option value="percent">Persen (%)</option>
                         </select>
@@ -3285,7 +3294,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           className="w-28 border border-gray-300 rounded px-2 py-1.5 text-xs"
                           title="Format tampilan"
                         >
-                          <option value="number">Angka</option>
+                          <option value="number">Angka (1.000)</option>
                           <option value="rupiah">Rupiah</option>
                           <option value="percent">Persen (%)</option>
                         </select>
@@ -3351,7 +3360,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           className="w-28 border border-gray-300 rounded px-2 py-1.5 text-xs"
                           title="Format hasil rumus"
                         >
-                          <option value="number">Angka</option>
+                          <option value="number">Angka (1.000)</option>
                           <option value="rupiah">Rupiah</option>
                           <option value="percent">Persen (%)</option>
                         </select>
