@@ -99,6 +99,59 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     status: string;
     created_at: string;
   }>>([]);
+  const [expandedSalaries, setExpandedSalaries] = useState<Set<string>>(new Set());
+  const [loadingSalaryDetails, setLoadingSalaryDetails] = useState<Set<string>>(new Set());
+
+  const handleExpandSalaryDetails = async (salaryId: string, type: 'salary' | 'kasbon') => {
+    const key = `${salaryId}-${type}`;
+    if (expandedSalaries.has(key)) return;
+
+    setLoadingSalaryDetails(prev => new Set(prev).add(key));
+
+    try {
+      if (type === 'salary') {
+        const details = await teamAPI.salaryDetails.getBySalaryId(salaryId);
+        setSelectedMember(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            salaries: prev.salaries.map(salary =>
+              salary.id === Number(salaryId) ? { 
+                ...salary, 
+                details,
+                detailsCount: details.length 
+              } : salary
+            )
+          };
+        });
+      } else {
+        const kasbons = await teamAPI.kasbons.getBySalaryId(salaryId);
+        setSelectedMember(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            salaries: prev.salaries.map(salary =>
+              salary.id === Number(salaryId) ? { 
+                ...salary, 
+                kasbons,
+                kasbonsCount: kasbons.length 
+              } : salary
+            )
+          };
+        });
+      }
+      setExpandedSalaries(prev => new Set(prev).add(key));
+    } catch (error) {
+      console.error(`Error fetching ${type} details:`, error);
+      alert(`Gagal memuat data ${type === 'salary' ? 'rincian gaji' : 'kasbon'}`);
+    } finally {
+      setLoadingSalaryDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    }
+  };
 
   const handleAddSalaryDetail = async (salaryId: number, newData: SalaryDetail) => {
     const tempId = Date.now().toString(); // ID sementara
@@ -109,7 +162,8 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
         salaries: prev.salaries.map(salary =>
           salary.id === Number(salaryId) ? {
             ...salary,
-            details: [...(salary.details || []), { ...newData, id: tempId }]
+            details: [...(salary.details || []), { ...newData, id: tempId }],
+            detailsCount: (salary.details?.length || 0) + 1
           } : salary
         )
       };
@@ -132,7 +186,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           salaries: prev.salaries.map(salary =>
             salary.id === salaryId ? {
               ...updatedSalary,
-              details: updatedDetails
+              details: updatedDetails,
+              detailsCount: updatedDetails.length,
+              kasbons: salary.kasbons,
+              kasbonsCount: salary.kasbonsCount
             } : salary
           )
         };
@@ -161,7 +218,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           salaries: prev.salaries.map(salary =>
             salary.id === salaryId ? {
               ...updatedSalary,
-              kasbons: updatedKasbons
+              details: salary.details,
+              detailsCount: salary.detailsCount,
+              kasbons: updatedKasbons,
+              kasbonsCount: updatedKasbons.length
             } : salary
           )
         };
@@ -192,7 +252,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
             if (salary.id === salaryId2) {
               return {
                 ...updatedSalary,
-                details: updatedDetails
+                details: updatedDetails,
+                detailsCount: updatedDetails.length,
+                kasbons: salary.kasbons,
+                kasbonsCount: salary.kasbonsCount
               };
             }
             return salary;
@@ -227,7 +290,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           if (salary.id === salaryId2) {
             return { 
               ...updatedSalary, 
-              details: updatedDetails 
+              details: updatedDetails,
+              detailsCount: updatedDetails.length,
+              kasbons: salary.kasbons,
+              kasbonsCount: salary.kasbonsCount
             };
           }
           return salary;
@@ -261,7 +327,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           salaries: prev.salaries.map(salary =>
             salary.id === Number(salaryId) ? {
               ...updatedSalary,
-              kasbons: updatedKasbons
+              details: salary.details,
+              detailsCount: salary.detailsCount,
+              kasbons: updatedKasbons,
+              kasbonsCount: updatedKasbons.length
             } : salary
           )
         };
@@ -290,7 +359,10 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
           salaries: prev.salaries.map(salary =>
             salary.id === Number(salaryId) ? {
               ...updatedSalary,
-              kasbons: updatedKasbons
+              details: salary.details,
+              detailsCount: salary.detailsCount,
+              kasbons: updatedKasbons,
+              kasbonsCount: updatedKasbons.length
             } : salary
           )
         };
@@ -789,21 +861,20 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
     }
 
     try {
-      // Ambil data gaji member
+      // Ambil data gaji member tanpa details/kasbon (lazy load nanti)
       const salaries = await teamAPI.salaries.getByMemberId(member.id);
 
-      // Ambil details dan kasbon untuk setiap salary
-      const salariesWithDetails = await Promise.all(
-        salaries.map(async (salary: any) => ({
-          ...salary,
-          details: await teamAPI.salaryDetails.getBySalaryId(salary.id),
-          kasbons: await teamAPI.kasbons.getBySalaryId(salary.id)
-        }))
-      );
+      const salariesWithEmptyDetails = salaries.map((salary: any) => ({
+        ...salary,
+        details: [],
+        kasbons: [],
+        detailsCount: 0,
+        kasbonsCount: 0
+      }));
 
       const updatedMember = {
         ...member,
-        salaries: salariesWithDetails
+        salaries: salariesWithEmptyDetails
       };
 
       setSelectedMember(updatedMember);
@@ -1796,18 +1867,24 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
                           {/* Tampilkan detail gaji */}
                           <SalaryDetailsTable
                             type="salary"
-                            data={salary.details || []} // Fallback ke array kosong
+                            data={salary.details || []}
+                            totalCount={salary.detailsCount || 0}
                             onAdd={(newData) => handleAddSalaryDetail(Number(salary.id), newData)}
                             onEdit={(id, data) => handleUpdateSalaryDetail(String(salary.id), id, data)}
                             onDelete={(id) => handleDeleteSalaryDetail(String(salary.id), id)}
+                            onExpand={() => handleExpandSalaryDetails(String(salary.id), 'salary')}
+                            isLoading={loadingSalaryDetails.has(`${salary.id}-salary`)}
                           />
 
                           <SalaryDetailsTable
                             type="kasbon"
-                            data={salary.kasbons || []} // Fallback ke array kosong
+                            data={salary.kasbons || []}
+                            totalCount={salary.kasbonsCount || 0}
                             onAdd={(newData) => handleAddKasbon(Number(salary.id), newData)}
                             onEdit={(id, data) => handleEditKasbon(String(salary.id), id, data)}
                             onDelete={(id) => handleDeleteKasbon(String(salary.id), id)}
+                            onExpand={() => handleExpandSalaryDetails(String(salary.id), 'kasbon')}
+                            isLoading={loadingSalaryDetails.has(`${salary.id}-kasbon`)}
                           />
                           {salary.documents && salary.documents.length > 0 && (
                             <div className="mt-2">

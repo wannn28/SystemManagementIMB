@@ -9,7 +9,9 @@ interface SalaryDetailsTableProps {
   onAdd: (newData: any) => void;
   onEdit: (id: string, updatedData: any) => void;
   onDelete: (id: string) => void;
-
+  onExpand?: () => void;
+  isLoading?: boolean;
+  totalCount?: number;
 }
 
 export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
@@ -17,7 +19,10 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
   data = [],
   onAdd,
   onEdit,
-  onDelete
+  onDelete,
+  onExpand,
+  isLoading = false,
+  totalCount
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,6 +41,12 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<any[]>([]);
+
+  const formatDateIndonesian = (dateString: string): string => {
+    const date = new Date(dateString);
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,15 +275,19 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
           {type === 'salary' ? 'Rincian Gaji Harian' : 'Kasbon'}
         </h3>
         <div className="flex gap-2 flex-wrap">
-          {data.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsTableExpanded(!isTableExpanded)}
-              className="text-amber-600 hover:text-amber-800 font-medium"
-            >
-              {isTableExpanded ? 'Sembunyikan tabel' : `Tampilkan tabel (${data.length} baris)`}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!isTableExpanded && data.length === 0 && onExpand) {
+                onExpand();
+              }
+              setIsTableExpanded(!isTableExpanded);
+            }}
+            disabled={isLoading}
+            className="text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50"
+          >
+            {isLoading ? 'Loading...' : isTableExpanded ? 'Sembunyikan tabel' : data.length > 0 ? `Tampilkan tabel (${data.length} baris)` : 'Tampilkan tabel'}
+          </button>
           {type === 'salary' && (
             <button
               type="button"
@@ -480,7 +495,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                     {importPreview.map((item, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="py-2 px-4 border-b">
-                          {new Date(item.tanggal).toLocaleDateString()}
+                          {formatDateIndonesian(item.tanggal)}
                         </td>
                         <td className="py-2 px-4 border-b text-center">
                           {item.jam_trip}
@@ -690,7 +705,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                       ) : (
                         <>
                           <td className="py-2 px-4 border-b">
-                            {new Date(item.tanggal).toLocaleDateString()}
+                            {formatDateIndonesian(item.tanggal)}
                           </td>
                           {type === 'salary' && (
                             <>

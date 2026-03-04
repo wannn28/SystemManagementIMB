@@ -30,6 +30,8 @@ export interface SalaryRecord {
   documents: string[];
   details: SalaryDetail[];
   kasbons: Kasbon[];
+  detailsCount?: number;
+  kasbonsCount?: number;
 }
 
 // BasicTypes.ts - Sesuaikan interface dengan response backend
