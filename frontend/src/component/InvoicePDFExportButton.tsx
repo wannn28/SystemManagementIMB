@@ -95,6 +95,7 @@ type TemplateDisplayOptions = {
   show_total: boolean;
   show_grand_total: boolean;
   show_bank_account: boolean;
+  show_kop_next_page: boolean;
   use_bbm_columns: boolean;
   include_bbm_note: boolean;
   quantity_unit: string;
@@ -125,6 +126,7 @@ function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): Templ
     show_total: parsed?.show_total !== false,
     show_grand_total: parsed?.show_grand_total ?? defaultShowGrandTotal,
     show_bank_account: parsed?.show_bank_account !== false,
+    show_kop_next_page: parsed?.show_kop_next_page === true,
     use_bbm_columns: !!parsed?.use_bbm_columns,
     include_bbm_note: !!parsed?.include_bbm_note,
     quantity_unit: parsed?.quantity_unit || 'hari',
@@ -325,6 +327,9 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     const bottomMargin = 10;
     const topMargin = 32;
     const maxY = pageHeight - bottomMargin;
+    const template = invoiceToUse.template;
+    const templateOpts = getTemplateDisplayOptions(template);
+    const showKopNextPage = templateOpts?.show_kop_next_page === true;
     let y = topMargin;
 
     let kopSuratForNewPage: { dataUrl: string; heightMm: number } | null = null;
@@ -338,7 +343,7 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     const ensureSpace = (neededMm: number) => {
       if (y + neededMm > maxY) {
         doc.addPage();
-        if (kopSuratForNewPage) {
+        if (kopSuratForNewPage && showKopNextPage) {
           doc.addImage(kopSuratForNewPage.dataUrl, 'PNG', 0, 0, PAGE_WIDTH_MM, kopSuratForNewPage.heightMm);
           y = kopSuratForNewPage.heightMm + 6;
         } else {
@@ -376,7 +381,6 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     }
     y += 10;
 
-    const template = invoiceToUse.template;
     const isDumpTruck = (name: string) => /dump\s*truck|dumptruck|roda\s*6/i.test(name);
     const onlyDumpTruck = (name: string) => isDumpTruck(name) && !name.includes(' dan ');
     const introText = (() => {
@@ -422,7 +426,6 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       y += spacingIntroToTable;
     }
 
-    const templateOpts = getTemplateDisplayOptions(template);
     const templateColumnsRaw = getTemplateItemColumns(template);
     const showNo = templateOpts?.show_no !== false;
     const showDate = templateOpts?.show_date !== false;

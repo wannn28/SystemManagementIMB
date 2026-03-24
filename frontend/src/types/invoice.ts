@@ -110,6 +110,8 @@ export interface InvoiceTemplate {
     show_grand_total?: boolean;
     /** Tampilkan nomor rekening & bank di dokumen */
     show_bank_account?: boolean;
+    /** Jika true, kop surat juga ditampilkan di halaman berikutnya (default false) */
+    show_kop_next_page?: boolean;
     /** Tampilkan kolom BBM per baris */
     use_bbm_columns?: boolean;
     /** Catatan "Sudah termasuk BBM" di bawah total */

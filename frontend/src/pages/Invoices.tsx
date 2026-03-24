@@ -10,7 +10,7 @@ import type {
 } from '../types/invoice';
 import type { Customer } from '../types/customer';
 import type { Equipment } from '../types/equipment';
-import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy } from 'react-icons/fi';
+import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy, FiLock, FiUnlock } from 'react-icons/fi';
 import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
 import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
@@ -244,6 +244,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     equipment_group?: string;
     quantity_unit?: 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume';
     row_image?: string;
+    /** Mode total per baris: auto ikut rumus (locked) atau manual (unlocked). */
+    total_mode?: 'auto' | 'manual';
   };
   const [items, setItems] = useState<FormItem[]>([
     { item_name: '', description: '', quantity: 1, price: 0, row_date: '', days: 0, bbm_quantity: 0, bbm_unit_price: 0 },
@@ -372,6 +374,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       show_total?: boolean;
       show_grand_total?: boolean;
       show_bank_account?: boolean;
+      show_kop_next_page?: boolean;
       use_bbm_columns?: boolean;
       include_bbm_note?: boolean;
       quantity_unit?: string;
@@ -395,6 +398,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       show_total: true,
       show_grand_total: true,
       show_bank_account: true,
+      show_kop_next_page: false,
       use_bbm_columns: false,
       include_bbm_note: false,
       quantity_unit: 'hari',
@@ -721,6 +725,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               quantity: i.quantity ?? 1,
               price: i.price ?? 0,
               total: i.total ?? undefined,
+              total_mode: Number.isFinite(i.total as number) && (Number(i.total) !== 0) && ((Number(i.price ?? 0) === 0) || (Number(i.quantity ?? 0) === 0) || (Number(i.days ?? 0) === 0))
+                ? 'manual'
+                : 'auto',
               row_date: i.row_date || '',
               days: i.days ?? 0,
               bbm_quantity: i.bbm_quantity ?? 0,
@@ -1419,9 +1426,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         const itemNameCol = groupCols.find((c) => c.key === 'item_name');
         const displayMode = itemNameCol?.item_display_mode ?? 'name';
         const item_display_name = (r as FormItem).item_display_name ?? (displayMode === 'auto_plate_or_name' ? getItemNameDisplay(r.item_name, equipmentList, 'auto_plate_or_name') : undefined);
+        const isManualTotalMode = (r as FormItem).total_mode === 'manual';
         let rowTotal: number | undefined;
         // Prioritas utama: jika user isi Jumlah manual, selalu pakai nilai ini.
-        if (r.total !== undefined && r.total !== null && Number.isFinite(r.total)) {
+        if (isManualTotalMode && r.total !== undefined && r.total !== null && Number.isFinite(r.total)) {
           rowTotal = r.total;
         }
         if (groupCols.length > 0) {
@@ -1432,7 +1440,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           }
           if (totalColIdx >= 0 && rowTotal == null) {
             const col = groupCols[totalColIdx];
-            if (col.editable && r.total !== undefined && r.total !== null && Number.isFinite(r.total)) {
+            if (col.editable && isManualTotalMode && r.total !== undefined && r.total !== null && Number.isFinite(r.total)) {
               rowTotal = r.total;
             } else {
               const computed = getComputedFormulaValues(r, groupCols);
@@ -1441,7 +1449,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
             }
           }
         }
-        if (rowTotal == null && Number.isFinite(r.total)) rowTotal = r.total;
+        if (rowTotal == null && isManualTotalMode && Number.isFinite(r.total)) rowTotal = r.total;
         return {
           item_name: r.item_name,
           ...(item_display_name !== undefined && item_display_name !== '' ? { item_display_name } : {}),
@@ -1553,6 +1561,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       show_total?: boolean;
       show_grand_total?: boolean;
       show_bank_account?: boolean;
+      show_kop_next_page?: boolean;
       use_bbm_columns?: boolean;
       include_bbm_note?: boolean;
       quantity_unit?: string;
@@ -1594,6 +1603,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           show_total: opts.show_total !== false,
           show_grand_total: opts.show_grand_total ?? ((template.document_type || 'invoice') === 'penawaran' ? false : true),
           show_bank_account: opts.show_bank_account !== false,
+          show_kop_next_page: opts.show_kop_next_page === true,
           use_bbm_columns: opts.use_bbm_columns ?? false,
           include_bbm_note: opts.include_bbm_note ?? false,
           quantity_unit: opts.quantity_unit || 'hari',
@@ -1619,6 +1629,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           show_total: true,
           show_grand_total: true,
           show_bank_account: true,
+          show_kop_next_page: false,
           use_bbm_columns: false,
           include_bbm_note: false,
           quantity_unit: 'hari',
@@ -2636,30 +2647,55 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     const formulaFmt = col.format ?? 'rupiah';
                                     const isEditable = col.editable === true;
                                     const manualTotal = row.total !== undefined && row.total !== null && Number.isFinite(row.total) ? row.total : null;
-                                    const displayValue = manualTotal !== null ? manualTotal : val;
+                                    const isManualMode = (row as FormItem).total_mode === 'manual';
+                                    const displayValue = isManualMode && manualTotal !== null ? manualTotal : val;
                                     if (isEditable) {
                                       return (
                                         <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
-                                          <input
-                                            type="text"
-                                            value={manualTotal !== null 
-                                              ? Number(manualTotal).toLocaleString('id-ID')
-                                              : (Number.isFinite(val) ? Number(val).toLocaleString('id-ID') : '')}
-                                            onChange={(e) => {
-                                              const v = e.target.value.replace(/\./g, '').replace(',', '.');
-                                              const num = parseFloat(v);
-                                              updateItem(index, 'total', Number.isFinite(num) ? num : undefined);
-                                            }}
-                                            onBlur={(e) => {
-                                              const v = e.target.value.replace(/\./g, '').replace(',', '.');
-                                              const num = parseFloat(v);
-                                              if (Number.isFinite(num)) {
-                                                updateItem(index, 'total', num);
-                                              }
-                                            }}
-                                            placeholder={Number.isFinite(val) ? formatNumberByColumn({ format: formulaFmt }, val) : '0'}
-                                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
-                                          />
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="text"
+                                              readOnly={!isManualMode}
+                                              value={displayValue != null && Number.isFinite(displayValue)
+                                                ? Number(displayValue).toLocaleString('id-ID')
+                                                : ''}
+                                              onChange={(e) => {
+                                                if (!isManualMode) return;
+                                                const v = e.target.value.replace(/\./g, '').replace(',', '.');
+                                                const num = parseFloat(v);
+                                                updateItem(index, 'total', Number.isFinite(num) ? num : undefined);
+                                              }}
+                                              onBlur={(e) => {
+                                                if (!isManualMode) return;
+                                                const v = e.target.value.replace(/\./g, '').replace(',', '.');
+                                                const num = parseFloat(v);
+                                                if (Number.isFinite(num)) {
+                                                  updateItem(index, 'total', num);
+                                                }
+                                              }}
+                                              placeholder={Number.isFinite(val) ? formatNumberByColumn({ format: formulaFmt }, val) : '0'}
+                                              className={`w-full border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 ${
+                                                isManualMode ? 'border-gray-300 bg-white' : 'border-gray-200 bg-gray-50 text-gray-700'
+                                              }`}
+                                            />
+                                            <button
+                                              type="button"
+                                              className={`shrink-0 p-1.5 rounded border ${isManualMode ? 'text-orange-600 border-orange-300 hover:bg-orange-50' : 'text-gray-500 border-gray-300 hover:bg-gray-50'}`}
+                                              title={isManualMode ? 'Mode manual (klik untuk auto hitung)' : 'Mode auto hitung (klik untuk manual)'}
+                                              onClick={() => {
+                                                if (isManualMode) {
+                                                  updateItem(index, 'total_mode', 'auto');
+                                                  updateItem(index, 'total', undefined);
+                                                } else {
+                                                  const initial = Number.isFinite(val) ? Number(val) : 0;
+                                                  updateItem(index, 'total_mode', 'manual');
+                                                  updateItem(index, 'total', initial);
+                                                }
+                                              }}
+                                            >
+                                              {isManualMode ? <FiUnlock className="w-4 h-4" /> : <FiLock className="w-4 h-4" />}
+                                            </button>
+                                          </div>
                                         </td>
                                       );
                                     }
@@ -3051,7 +3087,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                       footerTotals[colIdx] = (footerTotals[colIdx] ?? 0) + (Number.isFinite(n) ? n : 0);
                                     } else if (col.key === 'formula') {
                                       const manualTotal = row.total !== undefined && row.total !== null && Number.isFinite(row.total) ? row.total : null;
-                                      const v = manualTotal !== null ? manualTotal : computed[colIdx];
+                                      const isManualMode = (row as FormItem).total_mode === 'manual';
+                                      const v = isManualMode && manualTotal !== null ? manualTotal : computed[colIdx];
                                       footerTotals[colIdx] = (footerTotals[colIdx] ?? 0) + (Number.isFinite(v) ? v : 0);
                                     }
                                   });
@@ -3348,6 +3385,15 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm">Pakai Total Keseluruhan</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.show_kop_next_page === true}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_kop_next_page: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Tampilkan kop surat di halaman berikutnya</span>
                   </label>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Kolom tabel (Tanggal, Jumlah/Total, dll.) mengikuti &quot;Kolom tabel item&quot; di bawah. BBM dan Harga/BBM bisa ditambah sebagai kolom Angka (rumus) (perhitungan: BBM × Harga/BBM).</p>
