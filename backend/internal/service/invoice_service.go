@@ -24,6 +24,11 @@ func NewInvoiceService(repo repository.InvoiceRepository) InvoiceService {
 }
 
 func itemTotal(item *entity.InvoiceItem) float64 {
+	// Prioritaskan total dari frontend (kolom Jumlah editable / hasil rumus),
+	// termasuk nilai negatif untuk potongan.
+	if item.Total != 0 {
+		return item.Total
+	}
 	// Baris sewa dengan Hari & Harga/Hari (dan optional BBM)
 	if item.Days > 0 {
 		rent := item.Days * item.Price
@@ -33,9 +38,6 @@ func itemTotal(item *entity.InvoiceItem) float64 {
 	// Baris tetap (e.g. Mobilisasi PP): Jumlah tetap = Price (frontend kirim quantity=1, price=jumlah)
 	if item.Price > 0 && item.Quantity > 0 {
 		return float64(item.Quantity) * item.Price
-	}
-	if item.Total > 0 {
-		return item.Total
 	}
 	return float64(item.Quantity) * item.Price
 }

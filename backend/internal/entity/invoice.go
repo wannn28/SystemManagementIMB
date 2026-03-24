@@ -15,6 +15,8 @@ type Invoice struct {
 	ID                     uint             `gorm:"primaryKey" json:"id"`
 	TemplateID             uint             `gorm:"not null" json:"template_id"`
 	Template               *InvoiceTemplate `gorm:"foreignKey:TemplateID" json:"template,omitempty"`
+	CustomerID             *uint            `gorm:"index" json:"customer_id,omitempty"`
+	Customer               *Customer        `gorm:"foreignKey:CustomerID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"customer,omitempty"`
 	InvoiceNumber          string           `gorm:"type:varchar(100);not null;index" json:"invoice_number"`
 	InvoiceDate            string           `gorm:"type:date;not null" json:"invoice_date"`
 	DueDate                *string          `gorm:"type:date" json:"due_date"` // NULL jika tidak diisi
@@ -53,20 +55,20 @@ func (Invoice) TableName() string {
 }
 
 type InvoiceItem struct {
-	ID             uint    `gorm:"primaryKey" json:"id"`
-	InvoiceID      uint    `gorm:"not null;index" json:"invoice_id"`
-	ItemName       string  `gorm:"type:varchar(300);not null" json:"item_name"`
-	ItemDisplayName string `gorm:"type:varchar(300)" json:"item_display_name,omitempty"` // Tampilan Keterangan: plat untuk dump truck, nama untuk alat berat (jika kolom pakai auto)
-	Description    string  `gorm:"type:text" json:"description"`
-	Quantity       float64 `gorm:"type:decimal(10,2);not null;default:1" json:"quantity"` // Bisa 0.5, 1, 1.5, dll
-	Price          float64 `gorm:"type:decimal(15,2);not null" json:"price"`
-	Total          float64 `gorm:"type:decimal(15,2);not null" json:"total"`
-	SortOrder      int     `gorm:"default:0" json:"sort_order"`
-	RowDate        string  `gorm:"type:varchar(50)" json:"row_date"`         // Tanggal (e.g. "31 Januari 2026")
-	Days           float64 `gorm:"type:decimal(10,2);default:0" json:"days"` // Hari (0.5, 1, ...)
-	BbmQuantity    float64 `gorm:"type:decimal(10,2);default:0" json:"bbm_quantity"`
-	BbmUnitPrice   float64 `gorm:"type:decimal(15,2);default:0" json:"bbm_unit_price"`
-	EquipmentGroup string  `gorm:"type:varchar(100)" json:"equipment_group"` // Unit berbeda (dari "Tambah Unit Berbeda")
+	ID              uint    `gorm:"primaryKey" json:"id"`
+	InvoiceID       uint    `gorm:"not null;index" json:"invoice_id"`
+	ItemName        string  `gorm:"type:varchar(300);not null" json:"item_name"`
+	ItemDisplayName string  `gorm:"type:varchar(300)" json:"item_display_name,omitempty"` // Tampilan Keterangan: plat untuk dump truck, nama untuk alat berat (jika kolom pakai auto)
+	Description     string  `gorm:"type:text" json:"description"`
+	Quantity        float64 `gorm:"type:decimal(10,2);not null;default:1" json:"quantity"` // Bisa 0.5, 1, 1.5, dll
+	Price           float64 `gorm:"type:decimal(15,2);not null" json:"price"`
+	Total           float64 `gorm:"type:decimal(15,2);not null" json:"total"`
+	SortOrder       int     `gorm:"default:0" json:"sort_order"`
+	RowDate         string  `gorm:"type:varchar(50)" json:"row_date"`         // Tanggal (e.g. "31 Januari 2026")
+	Days            float64 `gorm:"type:decimal(10,2);default:0" json:"days"` // Hari (0.5, 1, ...)
+	BbmQuantity     float64 `gorm:"type:decimal(10,2);default:0" json:"bbm_quantity"`
+	BbmUnitPrice    float64 `gorm:"type:decimal(15,2);default:0" json:"bbm_unit_price"`
+	EquipmentGroup  string  `gorm:"type:varchar(100)" json:"equipment_group"` // Unit berbeda (dari "Tambah Unit Berbeda")
 	// CustomColumns: JSON object for template custom columns (e.g. {"custom_num_0": 1000000, "custom_num_1": 22000})
 	CustomColumns string `gorm:"type:text" json:"custom_columns,omitempty"`
 }

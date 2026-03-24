@@ -79,7 +79,7 @@ func (r *invoiceRepository) Delete(id uint) error {
 
 func (r *invoiceRepository) FindByID(id uint) (*entity.Invoice, error) {
 	var inv entity.Invoice
-	err := r.db.Preload("Items").Preload("Template").First(&inv, id).Error
+	err := r.db.Preload("Items").Preload("Template").Preload("Customer").First(&inv, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (r *invoiceRepository) FindByID(id uint) (*entity.Invoice, error) {
 func (r *invoiceRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Invoice, int, error) {
 	var list []entity.Invoice
 	qb := database.NewQueryBuilder(r.db)
-	query := qb.BuildInvoiceQuery(params).Preload("Items").Preload("Template")
+	query := qb.BuildInvoiceQuery(params).Preload("Items").Preload("Template").Preload("Customer")
 	query = r.applyInvoiceFilters(query, params)
 	total, err := qb.Paginate(query, params, &list)
 	if err != nil {

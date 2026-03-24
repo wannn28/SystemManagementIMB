@@ -79,6 +79,11 @@ export interface TemplateItemColumn {
    * Hanya satu kolom yang sebaiknya diset true (biasanya kolom Jumlah/rumus).
    */
   use_as_invoice_total?: boolean;
+  /**
+   * Jika true, kolom formula bisa diedit langsung di tabel (untuk kasus seperti mobilisasi PP).
+   * Saat diedit, nilai disimpan di `row.total` dan override hasil rumus.
+   */
+  editable?: boolean;
 }
 
 export interface InvoiceTemplate {
@@ -101,6 +106,8 @@ export interface InvoiceTemplate {
     show_no?: boolean;
     /** Tampilkan kolom Jumlah/Total di tabel */
     show_total?: boolean;
+    /** Tampilkan baris/section "Total Keseluruhan" */
+    show_grand_total?: boolean;
     /** Tampilkan nomor rekening & bank di dokumen */
     show_bank_account?: boolean;
     /** Tampilkan kolom BBM per baris */
@@ -124,6 +131,7 @@ export interface InvoiceTemplate {
 export interface Invoice {
   id?: string | number;
   template_id: number | string;
+  customer_id?: number;
   template?: InvoiceTemplate;
   invoice_number: string;
   invoice_date: string;
@@ -151,7 +159,7 @@ export interface Invoice {
   equipment_name_alat_berat?: string;
   /** Hanya dump truck dari daftar, untuk @dumptruck */
   equipment_name_dumptruck?: string;
-  /** Nama alat yang ditambah manual (bukan dari daftar), untuk @alatberatmanual */
+  /** Nama alat yang ditambah manual (bukan dari daftar), untuk @manual */
   equipment_name_manual?: string;
   intro_paragraph?: string;
   bank_account?: string;
@@ -172,6 +180,7 @@ export interface Invoice {
 /** Payload untuk buat invoice baru */
 export interface CreateInvoiceRequest {
   template_id: number;
+  customer_id?: number;
   invoice_number: string;
   invoice_date: string;
   due_date?: string;

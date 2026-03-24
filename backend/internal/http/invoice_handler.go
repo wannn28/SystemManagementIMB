@@ -51,6 +51,16 @@ func NewInvoiceHandler(service service.InvoiceService, cfg config.Config) *Invoi
 	return &InvoiceHandler{service: service, cfg: cfg}
 }
 
+func hydrateCustomerFields(inv *entity.Invoice) {
+	if inv == nil || inv.Customer == nil {
+		return
+	}
+	inv.CustomerName = inv.Customer.Name
+	inv.CustomerPhone = inv.Customer.Phone
+	inv.CustomerEmail = inv.Customer.Email
+	inv.CustomerAddress = inv.Customer.Address
+}
+
 // inflateInvoiceForResponse returns a map suitable for JSON response with each item's CustomColumns merged as custom_num_0, custom_num_1, etc.
 func inflateInvoiceForResponse(inv *entity.Invoice) map[string]interface{} {
 	b, err := json.Marshal(inv)
@@ -138,6 +148,7 @@ func (h *InvoiceHandler) Create(c echo.Context) error {
 	if err := h.service.Create(&inv); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
+	hydrateCustomerFields(&inv)
 	return response.Success(c, http.StatusCreated, inflateInvoiceForResponse(&inv))
 }
 
@@ -152,6 +163,7 @@ func (h *InvoiceHandler) Update(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	existing.InvoiceNumber = body.InvoiceNumber
+	existing.CustomerID = body.CustomerID
 	existing.InvoiceDate = body.InvoiceDate
 	existing.DueDate = normalizeDueDate(body.DueDate)
 	existing.Status = body.Status
@@ -181,6 +193,7 @@ func (h *InvoiceHandler) Update(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	updated, _ := h.service.GetByID(uint(id))
+	hydrateCustomerFields(updated)
 	return response.Success(c, http.StatusOK, inflateInvoiceForResponse(updated))
 }
 
@@ -201,6 +214,7 @@ func (h *InvoiceHandler) GetByID(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
+	hydrateCustomerFields(inv)
 	return response.Success(c, http.StatusOK, inflateInvoiceForResponse(inv))
 }
 
@@ -209,6 +223,9 @@ func (h *InvoiceHandler) GetAllWithPagination(c echo.Context) error {
 	list, total, err := h.service.GetAllWithPagination(params)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	for i := range list {
+		hydrateCustomerFields(&list[i])
 	}
 	pagination := response.CalculatePagination(params.Page, params.Limit, total)
 	return response.SuccessWithPagination(c, http.StatusOK, list, pagination)

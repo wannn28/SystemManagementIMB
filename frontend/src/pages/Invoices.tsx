@@ -165,11 +165,58 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
+  const [customerId, setCustomerId] = useState<number | undefined>(undefined);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
-  const [customerSuggestions, setCustomerSuggestions] = useState<{ customer_name: string; customer_phone: string; customer_email: string; customer_address: string }[]>([]);
+  const [autoGenerateInvoiceNumber, setAutoGenerateInvoiceNumber] = useState(true);
+
+  const getDocumentNumberCode = useCallback((documentType?: string) => {
+    const dt = (documentType || 'invoice').toLowerCase().trim();
+    if (dt === 'penawaran') return 'PNW';
+    return 'INV';
+  }, []);
+
+  /** Generate nomor dokumen format: 001/INV/IMB/III/2026 atau 001/PNW/IMB/III/2026 */
+  const generateInvoiceNumber = useCallback(async (date: string, documentType?: string) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const monthNum = d.getMonth() + 1;
+    const romanMonths = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+    const month = romanMonths[monthNum];
+    const year = d.getFullYear();
+    const docCode = getDocumentNumberCode(documentType);
+    
+    try {
+      // Fetch invoices dari bulan/tahun yang sama untuk cari nomor terakhir
+      const invoices = await invoiceApi.getInvoices({ page: 1, limit: 1000 });
+      const prefix = `${docCode}/IMB/${month}/${year}`;
+      
+      // Filter invoice dengan bulan/tahun yang sama dan extract nomor urut
+      const sameMonthInvoices = invoices.data.filter((inv: { invoice_number: string }) => 
+        inv.invoice_number.includes(`/${prefix}`)
+      );
+      
+      // Extract angka urut tertinggi
+      let maxNumber = 0;
+      sameMonthInvoices.forEach((inv: { invoice_number: string }) => {
+        const match = inv.invoice_number.match(/^(\d+)\//);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNumber) maxNumber = num;
+        }
+      });
+      
+      const nextNumber = String(maxNumber + 1).padStart(3, '0');
+      return `${nextNumber}/${prefix}`;
+    } catch (error) {
+      console.error('Error generating invoice number:', error);
+      // Fallback: gunakan timestamp
+      return `001/${docCode}/IMB/${month}/${year}`;
+    }
+  }, [getDocumentNumberCode]);
+  const [customerSuggestions, setCustomerSuggestions] = useState<{ customer_id?: number; customer_name: string; customer_phone: string; customer_email: string; customer_address: string }[]>([]);
   const [loadingCustomerSuggestions, setLoadingCustomerSuggestions] = useState(false);
   // Tab Pelanggan: master data customer (bisa edit/hapus)
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -191,6 +238,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     total?: number;
     row_date?: string;
     days?: number;
+    hours?: number;
     bbm_quantity?: number;
     bbm_unit_price?: number;
     equipment_group?: string;
@@ -207,6 +255,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [useBbmColumns, setUseBbmColumns] = useState(false);
   const [quantityUnit, setQuantityUnit] = useState<'hari' | 'jam' | 'unit' | 'jerigen' | 'volume'>('hari');
   const [priceUnitLabel, setPriceUnitLabel] = useState('Harga/Hari');
+  const [itemRowHeight, setItemRowHeight] = useState<'compact' | 'normal' | 'relaxed'>('normal');
   /** Konfigurasi kolom per group (override template). Key = groupKey, Value = array kolom */
   const [groupColumnConfigs, setGroupColumnConfigs] = useState<Record<string, TemplateItemColumn[]>>({});
   /** Modal edit kolom per group */
@@ -217,6 +266,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [equipmentNames, setEquipmentNames] = useState<string[]>([]);
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [newEquipmentInput, setNewEquipmentInput] = useState('');
+  const [editingEquipmentName, setEditingEquipmentName] = useState<string | null>(null);
+  const [editingEquipmentValue, setEditingEquipmentValue] = useState('');
   /** Hasil pembacaan AI terakhir (satu baris) agar bisa dilihat user */
   const [lastExtractResult, setLastExtractResult] = useState<{ row_date: string; days: number; unit?: string; item_name?: string } | null>(null);
   /** Hasil pembacaan AI terakhir (banyak baris) agar bisa dilihat user */
@@ -246,11 +297,34 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   /** Hanya dump truck dari daftar, untuk @dumptruck */
   const getEquipmentNameDumptruckForPayload = () =>
     formatEquipmentNamesForParagraph(equipmentNamesForKeterangan.filter((n) => equipmentList.find((e) => e.name === n)?.type === 'dump_truck'));
-  /** Nama alat yang ditambah manual (bukan dari daftar), untuk @alatberatmanual */
+  /** Nama alat yang ditambah manual (bukan dari daftar), untuk @manual */
   const getEquipmentNameManualForPayload = () =>
     formatEquipmentNamesForParagraph(equipmentNames.filter((n) => !equipmentList.some((e) => e.name === n)));
+  const saveEditedEquipmentName = () => {
+    const from = (editingEquipmentName || '').trim();
+    const to = editingEquipmentValue.trim();
+    if (!from) return;
+    if (!to) {
+      setEditingEquipmentName(null);
+      setEditingEquipmentValue('');
+      return;
+    }
+    setEquipmentNames((prev) => {
+      const idx = prev.findIndex((n) => n === from);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      if (next.some((n, i) => i !== idx && n === to)) {
+        next.splice(idx, 1);
+      } else {
+        next[idx] = to;
+      }
+      return next;
+    });
+    setEditingEquipmentName(null);
+    setEditingEquipmentValue('');
+  };
   const [introParagraph, setIntroParagraph] = useState('');
-  const INTRO_PLACEHOLDERS = ['@alatberat', '@alatberatmanual', '@dumptruck', '@lokasi'];
+  const INTRO_PLACEHOLDERS = ['@alatberat', '@manual', '@dumptruck', '@lokasi'];
   const [showIntroSuggestions, setShowIntroSuggestions] = useState(false);
   const [introSuggestionAt, setIntroSuggestionAt] = useState(0);
   const introParagraphTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -265,6 +339,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const extractRowInputRef = useRef<HTMLInputElement>(null);
   const extractMultiRowInputRef = useRef<HTMLInputElement>(null);
   const extractMultiRowForGroupRef = useRef<string>('__default__');
+  const importSpreadsheetInputRef = useRef<HTMLInputElement>(null);
+  const importSpreadsheetForGroupRef = useRef<string>('__default__');
+  const [spreadsheetSettingsByGroup, setSpreadsheetSettingsByGroup] = useState<Record<string, { generateDescription: boolean; generatePrice: boolean }>>({});
+  const [copySpreadsheetModalGroupKey, setCopySpreadsheetModalGroupKey] = useState<string | null>(null);
+  const [importSpreadsheetModalGroupKey, setImportSpreadsheetModalGroupKey] = useState<string | null>(null);
+  const [importSpreadsheetMode, setImportSpreadsheetMode] = useState<'csv' | 'text'>('csv');
+  const [importSpreadsheetText, setImportSpreadsheetText] = useState('');
   const itemsRef = useRef<FormItem[]>(items);
   itemsRef.current = items;
   useEffect(() => () => {
@@ -289,6 +370,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       show_date?: boolean;
       show_no?: boolean;
       show_total?: boolean;
+      show_grand_total?: boolean;
       show_bank_account?: boolean;
       use_bbm_columns?: boolean;
       include_bbm_note?: boolean;
@@ -311,6 +393,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       show_date: true,
       show_no: true,
       show_total: true,
+      show_grand_total: true,
       show_bank_account: true,
       use_bbm_columns: false,
       include_bbm_note: false,
@@ -355,8 +438,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     newLabelValue: string
   ): TemplateItemColumn[] => {
     const oldLabel = (columns[idx]?.label ?? '').trim();
-    const newLabel = (newLabelValue ?? '').trim();
-    const cols = columns.map((c, i) => (i === idx ? { ...c, label: newLabel || c.label } : c));
+    const newLabelRaw = newLabelValue ?? '';
+    const newLabel = newLabelRaw.trim();
+    const cols = columns.map((c, i) => (i === idx ? { ...c, label: newLabelRaw } : c));
     if (!oldLabel || oldLabel === newLabel) return cols;
     const labelsContainingOld = columns
       .map((c) => (c.label ?? '').trim())
@@ -436,6 +520,18 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       return { ...updated, item_display_name: '', use_ai_display: false };
     }));
   };
+  const clearAutoPriceForManualItem = (row: FormItem): FormItem => {
+    const groupCols = getColumnsForGroup(getGroupKey(row));
+    let next: FormItem = { ...row, price: 0 };
+    groupCols.forEach((col, colIdx) => {
+      if (col.key !== 'number' && col.type !== 'number') return;
+      const isAutoPriceSource = col.source === 'equipment_price_per_day' || col.source === 'equipment_price_per_hour';
+      const isHargaLabel = (col.label || '').toLowerCase().includes('harga');
+      if (!isAutoPriceSource && !isHargaLabel) return;
+      (next as Record<string, unknown>)[`custom_num_${colIdx}`] = undefined;
+    });
+    return next;
+  };
 
   const fetchInvoices = useCallback(async () => {
     setListLoading(true);
@@ -494,6 +590,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setLoadingCustomerSuggestions(true);
     customerApi.getList().then((list) => {
       setCustomerSuggestions(list.map((c) => ({
+        customer_id: c.id,
         customer_name: c.name,
         customer_phone: c.phone || '',
         customer_email: c.email || '',
@@ -524,6 +621,29 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     );
   }, [equipmentList, quantityUnit, step]);
 
+  // Auto-generate invoice number saat template dipilih atau tanggal berubah
+  useEffect(() => {
+    if (step === 'fill-form' && autoGenerateInvoiceNumber && !editInvoiceId && invoiceDate) {
+      generateInvoiceNumber(invoiceDate, selectedTemplate?.document_type).then(num => {
+        if (num && !invoiceNumber) setInvoiceNumber(num);
+      });
+    }
+  }, [step, autoGenerateInvoiceNumber, editInvoiceId, invoiceDate, generateInvoiceNumber, invoiceNumber, selectedTemplate?.document_type]);
+
+  // Re-generate saat tanggal berubah (jika masih auto-generate)
+  useEffect(() => {
+    if (autoGenerateInvoiceNumber && !editInvoiceId && invoiceDate && invoiceNumber) {
+      const docCode = getDocumentNumberCode(selectedTemplate?.document_type);
+      const currentPattern = new RegExp(`^\\d{3}\\/${docCode}\\/IMB\\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\\/\\d{4}$`);
+      // Hanya regenerate jika format saat ini adalah auto-generated
+      if (currentPattern.test(invoiceNumber)) {
+        generateInvoiceNumber(invoiceDate, selectedTemplate?.document_type).then(num => {
+          if (num) setInvoiceNumber(num);
+        });
+      }
+    }
+  }, [invoiceDate, autoGenerateInvoiceNumber, editInvoiceId, generateInvoiceNumber, invoiceNumber, selectedTemplate?.document_type, getDocumentNumberCode]);
+
   const handleSelectTemplate = (template: InvoiceTemplate) => {
     setSelectedTemplate(template);
     setStep('fill-form');
@@ -547,6 +667,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const qu = (opts.quantity_unit as string) || 'hari';
     setQuantityUnit(qu === 'jam' ? 'jam' : qu === 'unit' ? 'unit' : qu === 'jerigen' ? 'jerigen' : qu === 'volume' ? 'volume' : 'hari');
     setPriceUnitLabel((opts.price_unit_label as string) || (qu === 'jam' ? 'Harga/Jam' : qu === 'volume' ? 'Harga/Volume' : qu === 'unit' ? 'Harga/Unit' : qu === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari'));
+    setItemRowHeight(((opts.item_row_height as 'compact' | 'normal' | 'relaxed') || 'normal'));
     setItemColumnLabel((opts.item_column_label as string) || itemCols[0]?.label || 'Keterangan');
     const docLabel =
       (template.document_type || 'invoice')
@@ -567,6 +688,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setItemColumnLabel('Keterangan');
     setTerbilangCustom('');
     setGroupColumnConfigs({});
+    setAutoGenerateInvoiceNumber(true);
+    setInvoiceNumber('');
+    setCustomerId(undefined);
+    setItemRowHeight('normal');
   };
 
   const loadInvoiceForEdit = async (id: number | string) => {
@@ -574,8 +699,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     if (!inv) return;
     setEditInvoiceId(id);
     setInvoiceNumber(inv.invoice_number);
+    setAutoGenerateInvoiceNumber(false); // Matikan auto-generate saat edit
     setInvoiceDate(inv.invoice_date.slice(0, 10));
     setDueDate(inv.due_date ? inv.due_date.slice(0, 10) : '');
+    setCustomerId(inv.customer_id);
     setCustomerName(inv.customer_name);
     setCustomerPhone(inv.customer_phone || '');
     setCustomerEmail(inv.customer_email || '');
@@ -593,6 +720,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               use_ai_display: !!(itemDisplayName && itemDisplayName.trim()),
               quantity: i.quantity ?? 1,
               price: i.price ?? 0,
+              total: i.total ?? undefined,
               row_date: i.row_date || '',
               days: i.days ?? 0,
               bbm_quantity: i.bbm_quantity ?? 0,
@@ -635,6 +763,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     }
     const t = templates.find((x) => Number(x.id) === Number(inv.template_id));
     if (t) setSelectedTemplate(t);
+    {
+      const rawOpt = inv.template?.options ?? t?.options;
+      const opts =
+        rawOpt == null
+          ? {}
+          : typeof rawOpt === 'string'
+            ? (() => { try { return (JSON.parse(rawOpt) as Record<string, unknown>) || {}; } catch { return {}; } })()
+            : (rawOpt as Record<string, unknown>);
+      setItemRowHeight(((opts.item_row_height as 'compact' | 'normal' | 'relaxed') || 'normal'));
+    }
     setStep('fill-form');
     setActiveTab('create');
   };
@@ -656,15 +794,18 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const nonEmpty = keys.filter((k) => (groupIndices[k]?.length ?? 0) > 0);
     return nonEmpty.length > 0 ? nonEmpty : ['__default__'];
   })();
-  const { templateShowNo, templateShowDate, templateShowTotal, templateShowBankAccount, templateHasBbm } = (() => {
+  const { templateShowNo, templateShowDate, templateShowTotal, templateShowGrandTotal, templateShowBankAccount, templateHasBbm } = (() => {
     const raw = selectedTemplate?.options;
     const opts = raw != null
       ? (typeof raw === 'string' ? (() => { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; } })() : (raw as Record<string, unknown>))
       : {};
+    const docType = (selectedTemplate?.document_type || 'invoice').toLowerCase();
+    const defaultShowGrandTotal = docType === 'penawaran' ? false : true;
     return {
       templateShowNo: opts.show_no !== false,
       templateShowDate: opts.show_date !== false,
       templateShowTotal: opts.show_total !== false,
+      templateShowGrandTotal: opts.show_grand_total ?? defaultShowGrandTotal,
       templateShowBankAccount: opts.show_bank_account !== false,
       templateHasBbm: !!(opts.use_bbm_columns || opts.include_bbm_note),
     };
@@ -683,6 +824,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     ? templateItemColumns.filter((c) => !(c.key === 'total' && !templateShowTotal))
     : [];
   const useTemplateColumns = displayItemColumns.length > 0;
+  const documentNumberCode = getDocumentNumberCode(selectedTemplate?.document_type);
   const documentTypeLabel = selectedTemplate?.document_type
     ? selectedTemplate.document_type.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase())
     : 'Invoice';
@@ -792,7 +934,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     });
   };
 
-  const updateItem = (index: number, field: string, value: string | number) => {
+  const updateItem = (index: number, field: string, value: string | number | undefined) => {
     setItems((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
@@ -1008,14 +1150,262 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     }
   };
 
+  const normalizeHeader = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const parseSpreadsheetNumber = (raw: string): number => {
+    const s = String(raw || '').trim().replace(/\s+/g, '');
+    if (!s) return 0;
+    let normalized = s;
+    const hasDot = s.includes('.');
+    const hasComma = s.includes(',');
+    if (hasDot && hasComma) {
+      // Ambil pemisah desimal dari simbol terakhir.
+      const lastDot = s.lastIndexOf('.');
+      const lastComma = s.lastIndexOf(',');
+      normalized = lastDot > lastComma
+        ? s.replace(/,/g, '') // 1,234.56 -> 1234.56
+        : s.replace(/\./g, '').replace(',', '.'); // 1.234,56 -> 1234.56
+    } else if (hasComma) {
+      // 1,234 -> ribuan | 10,5 -> desimal
+      if (/^-?[1-9]\d{0,2}(,\d{3})+$/.test(s)) normalized = s.replace(/,/g, '');
+      else normalized = s.replace(',', '.');
+    } else if (hasDot) {
+      // 1.234 -> ribuan | 0.875 / 10.25 -> desimal
+      if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) normalized = s.replace(/\./g, '');
+      else normalized = s;
+    } else {
+      normalized = s;
+    }
+    const num = parseFloat(normalized);
+    return Number.isFinite(num) ? num : 0;
+  };
+  const parseDelimitedLine = (line: string, delimiter: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cur += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === delimiter && !inQuotes) {
+        out.push(cur.trim());
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  const getSpreadsheetSettings = (groupKey: string) =>
+    spreadsheetSettingsByGroup[groupKey] || { generateDescription: false, generatePrice: false };
+  const buildSpreadsheetPromptForGroup = (groupKey: string): string => {
+    const { generateDescription, generatePrice } = getSpreadsheetSettings(groupKey);
+    const cols = getColumnsForGroup(groupKey);
+    const requiredHeaders = cols
+      .map((col, idx) => {
+        if (col.key === 'row_date' || col.key === 'date' || col.type === 'date') return col.label || 'Tanggal';
+        if (col.key === 'item_name' || col.key === 'description' || col.type === 'text') {
+          return generateDescription ? (col.label || 'Keterangan') : null;
+        }
+        if (col.key === 'number' || col.type === 'number') {
+          const isPriceCol = (col.label || '').toLowerCase().includes('harga');
+          if (isPriceCol && !generatePrice) return null;
+          return col.label || `Angka ${idx + 1}`;
+        }
+        return null;
+      })
+      .filter((h): h is string => !!h);
+    const headers = requiredHeaders.length ? requiredHeaders : ['Tanggal', 'Hari'];
+    const headerNorms = headers.map((h) => normalizeHeader(h));
+    const hasHariHeader = headerNorms.some((h) => h === 'hari' || h.includes('hari'));
+    const hasJamHeader = headerNorms.some((h) => h === 'jam' || h.includes('jam'));
+    const hasVolumeHeader = headerNorms.some((h) => h === 'volume' || h.includes('volume') || h.includes('m3'));
+    const hasPlatHeader = headerNorms.some((h) => h.includes('plat') || h.includes('nopol') || h.includes('nomorpolisi') || h.includes('nomorplat'));
+    return [
+      'Bantu saya bikin spreadsheet (CSV) dari foto nota/invoice terlampir.',
+      '',
+      'ATURAN OUTPUT:',
+      '- Output HARUS CSV plain text (tanpa markdown code block).',
+      '- Baris pertama HARUS header persis seperti di bawah.',
+      `- Header: ${headers.join(', ')}`,
+      '- Angka tanpa simbol mata uang (contoh 5600000, bukan Rp 5.600.000).',
+      '- Tanggal pakai format YYYY-MM-DD.',
+      '- Jangan mengubah urutan kolom.',
+      ...(hasHariHeader ? ["- PENTING: 'Hari' pada header berarti JUMLAH HARI KERJA (durasi), BUKAN nama hari (Senin/Selasa) dan BUKAN tanggal."] : []),
+      ...(hasJamHeader ? ["- PENTING: 'Jam' pada header berarti JUMLAH JAM KERJA (durasi), BUKAN jam pada jam-waktu (mis. 08:30)."] : []),
+      ...(hasHariHeader && hasJamHeader ? ['- Jika sumber data Hari/Jam campur, konversi sesuai kolom header target (1 hari = 8 jam).'] : []),
+      ...(hasHariHeader && !hasJamHeader ? ['- Jika di nota tertulis Jam tetapi header target Hari, konversi: Hari = Jam / 8.'] : []),
+      ...(hasJamHeader && !hasHariHeader ? ['- Jika di nota tertulis Hari tetapi header target Jam, konversi: Jam = Hari * 8.'] : []),
+      ...((hasHariHeader || hasJamHeader) ? ['- Jika di nota ada pecahan jam/hari, pakai angka desimal (contoh: 1.5).'] : []),
+      ...(hasVolumeHeader ? ["- Jika ada kolom Volume, isi nilai volume numerik (contoh m3/m³) sebagai angka, tanpa teks satuan."] : []),
+      ...(hasPlatHeader ? ["- Jika ada kolom Plat Kendaraan/Nopol, isi nomor plat kendaraan apa adanya (contoh: BP 8814 EO)."] : []),
+      `- Keterangan: ${generateDescription ? 'generate dari AI sesuai nota' : 'jangan digenerate, saya isi sendiri di sistem'}.`,
+      `- Harga/Hari: ${generatePrice ? 'generate dari AI sesuai nota' : 'jangan digenerate, ikuti nilai existing di sistem'}.`,
+      '',
+      'ALUR BATCH GAMBAR:',
+      '- Saya akan kirim gambar bertahap 10-10.',
+      '- Untuk batch berikutnya, TAMBAHKAN baris baru (append), jangan hapus batch sebelumnya.',
+      '- Setelah semua batch selesai, kirim CSV final gabungan semua data.',
+      '- Jika diakhir kata ini saya kasih kata final maka berarti saya sudah kirim semua nota',
+    ].join('\n');
+  };
+  const handleCopySpreadsheetPrompt = async (groupKey: string) => {
+    try {
+      const text = buildSpreadsheetPromptForGroup(groupKey);
+      await navigator.clipboard.writeText(text);
+      setMessage({ type: 'success', text: `[${groupKey}] Prompt spreadsheet berhasil disalin. Paste ke GPT/Gemini.` });
+      setCopySpreadsheetModalGroupKey(null);
+    } catch {
+      setMessage({ type: 'error', text: 'Gagal menyalin prompt. Coba copy manual.' });
+    }
+  };
+  const importSpreadsheetFromRaw = (raw: string, groupKey: string) => {
+    const cols = getColumnsForGroup(groupKey);
+    const lines = raw
+      .replace(/^\uFEFF/, '')
+      .split(/\r?\n/)
+      .map((ln) => ln.trim())
+      .filter(Boolean);
+    if (lines.length < 2) {
+      throw new Error('Data kosong atau belum ada baris.');
+    }
+    const headerLine = lines[0];
+    const comma = (headerLine.match(/,/g) || []).length;
+    const semi = (headerLine.match(/;/g) || []).length;
+    const tab = (headerLine.match(/\t/g) || []).length;
+    const delimiter = tab >= semi && tab >= comma ? '\t' : (semi > comma ? ';' : ',');
+    const headers = parseDelimitedLine(headerLine, delimiter);
+    const headersNorm = headers.map(normalizeHeader);
+    const headerIndex = (aliases: string[]) => headersNorm.findIndex((h) => aliases.includes(h));
+    const headerExists = (aliases: string[]) => headerIndex(aliases) >= 0;
+    const hasDescriptionHeader = headerExists(['keterangan', 'description', 'itemname']) || cols.some((c) => {
+      const isText = c.key === 'item_name' || c.key === 'description' || c.type === 'text';
+      return isText && c.label ? headerExists([normalizeHeader(c.label)]) : false;
+    });
+    const hasPriceHeader = cols.some((c) => {
+      const isPriceCol = (c.key === 'number' || c.type === 'number') && (c.label || '').toLowerCase().includes('harga');
+      return isPriceCol && c.label ? headerExists([normalizeHeader(c.label), 'hargahari', 'harga', 'price']) : false;
+    });
+    const generateDescription = hasDescriptionHeader;
+    const generatePrice = hasPriceHeader;
+    const importedRows = lines.slice(1).map((line) => {
+      const vals = parseDelimitedLine(line, delimiter);
+      const row: FormItem = emptyFormItem();
+      cols.forEach((col, idx) => {
+        const targetLabel = normalizeHeader(col.label || '');
+        const valueByLabel = vals[headersNorm.findIndex((h) => h === targetLabel)] ?? '';
+        if (col.key === 'row_date' || col.key === 'date' || col.type === 'date') {
+          const dt = vals[headersNorm.findIndex((h) => h === 'tanggal' || h === 'date' || h === normalizeHeader(col.label || 'tanggal'))] ?? valueByLabel;
+          if (dt) row.row_date = dt;
+          return;
+        }
+        if (col.key === 'item_name' || col.key === 'description' || col.type === 'text') {
+          if (!generateDescription) return;
+          const txt = vals[headerIndex(['keterangan', 'description', 'itemname', targetLabel])] ?? valueByLabel;
+          if (txt) row.item_name = txt;
+          return;
+        }
+        if (col.key === 'number' || col.type === 'number') {
+          const isPriceCol = (col.label || '').toLowerCase().includes('harga');
+          if (isPriceCol && !generatePrice) return;
+          const num = parseSpreadsheetNumber(valueByLabel);
+          (row as Record<string, unknown>)[`custom_num_${idx}`] = num;
+          const lbl = (col.label || '').toLowerCase();
+          if (lbl.includes('hari')) row.days = num;
+          if (lbl.includes('jam')) row.hours = num;
+        }
+      });
+      return row;
+    }).filter((r) => {
+      if ((r.row_date || '').trim()) return true;
+      if ((r.item_name || '').trim()) return true;
+      return Object.keys(r).some((k) => k.startsWith('custom_num_') && Number((r as Record<string, unknown>)[k] || 0) !== 0);
+    });
+    if (!importedRows.length) {
+      throw new Error('Tidak ada baris valid yang bisa diimport dari spreadsheet.');
+    }
+    setItems((prev) => {
+      const indicesInGroup = prev.map((r, i) => ({ r, i })).filter(({ r }) => getGroupKey(r) === groupKey).map(({ i }) => i);
+      const insertAfter = indicesInGroup.length ? Math.max(...indicesInGroup) : -1;
+      const displayName = groupKey === '__default__'
+        ? (prev.find((r) => getGroupKey(r) === '__default__')?.equipment_group ?? '') || 'Unit 1'
+        : groupKey;
+      const fallbackRow = insertAfter >= 0 ? (prev[insertAfter] as FormItem) : undefined;
+      let lastDescription = (fallbackRow?.item_name || displayName || '').trim();
+      const rowsToInsert = importedRows.map((r) => {
+        const nextRow: FormItem = { ...r, equipment_group: groupKey === '__default__' ? '' : groupKey };
+        if (!generateDescription) {
+          // Jika generate keterangan OFF, selalu ikut keterangan baris atas terakhir.
+          nextRow.item_name = lastDescription;
+        } else {
+          nextRow.item_name = (r.item_name || '').trim() || lastDescription || displayName;
+          if ((nextRow.item_name || '').trim()) lastDescription = (nextRow.item_name || '').trim();
+        }
+        if (!generatePrice) {
+          const prevRow = fallbackRow;
+          cols.forEach((col, colIdx) => {
+            if (col.key !== 'number' && col.type !== 'number') return;
+            if (!(col.label || '').toLowerCase().includes('harga')) return;
+            const key = `custom_num_${colIdx}`;
+            const fallbackVal = Number((prevRow as Record<string, unknown> | undefined)?.[key] ?? 0);
+            if (Number.isFinite(fallbackVal) && fallbackVal !== 0) {
+              (nextRow as Record<string, unknown>)[key] = fallbackVal;
+            }
+          });
+        }
+        return nextRow;
+      });
+      return [...prev.slice(0, insertAfter + 1), ...rowsToInsert, ...prev.slice(insertAfter + 1)];
+    });
+    setMessage({ type: 'success', text: `[${groupKey}] Import berhasil: ${importedRows.length} baris ditambahkan.` });
+  };
+  const handleImportSpreadsheet = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const groupKey = importSpreadsheetForGroupRef.current ?? '__default__';
+    try {
+      const raw = await file.text();
+      importSpreadsheetFromRaw(raw, groupKey);
+      setImportSpreadsheetModalGroupKey(null);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Gagal import spreadsheet.' });
+    } finally {
+      e.target.value = '';
+    }
+  };
+  const handleImportSpreadsheetText = () => {
+    const groupKey = importSpreadsheetForGroupRef.current ?? '__default__';
+    try {
+      importSpreadsheetFromRaw(importSpreadsheetText, groupKey);
+      setImportSpreadsheetText('');
+      setImportSpreadsheetModalGroupKey(null);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Gagal import text.' });
+    }
+  };
+
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTemplate) return;
     setSaving(true);
     setMessage(null);
+    
+    // Auto-generate nomor invoice jika masih kosong
+    let finalInvoiceNumber = invoiceNumber.trim();
+    if (!finalInvoiceNumber) {
+      finalInvoiceNumber = await generateInvoiceNumber(invoiceDate, selectedTemplate?.document_type);
+      setInvoiceNumber(finalInvoiceNumber);
+    }
+    
     const payload: CreateInvoiceRequest = {
       template_id: Number(selectedTemplate.id),
-      invoice_number: invoiceNumber.trim() || `INV-${Date.now()}`,
+      customer_id: customerId,
+      invoice_number: finalInvoiceNumber,
       invoice_date: invoiceDate,
       due_date: dueDate || undefined,
       customer_name: customerName.trim(),
@@ -1030,16 +1420,25 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         const displayMode = itemNameCol?.item_display_mode ?? 'name';
         const item_display_name = (r as FormItem).item_display_name ?? (displayMode === 'auto_plate_or_name' ? getItemNameDisplay(r.item_name, equipmentList, 'auto_plate_or_name') : undefined);
         let rowTotal: number | undefined;
+        // Prioritas utama: jika user isi Jumlah manual, selalu pakai nilai ini.
+        if (r.total !== undefined && r.total !== null && Number.isFinite(r.total)) {
+          rowTotal = r.total;
+        }
         if (groupCols.length > 0) {
           let totalColIdx = groupCols.findIndex((c) => c.use_as_invoice_total);
           if (totalColIdx < 0) {
             totalColIdx = groupCols.length - 1;
             while (totalColIdx >= 0 && groupCols[totalColIdx].key !== 'formula') totalColIdx--;
           }
-          if (totalColIdx >= 0) {
-            const computed = getComputedFormulaValues(r, groupCols);
-            const val = computed[totalColIdx];
-            if (val != null && Number.isFinite(val)) rowTotal = val;
+          if (totalColIdx >= 0 && rowTotal == null) {
+            const col = groupCols[totalColIdx];
+            if (col.editable && r.total !== undefined && r.total !== null && Number.isFinite(r.total)) {
+              rowTotal = r.total;
+            } else {
+              const computed = getComputedFormulaValues(r, groupCols);
+              const val = computed[totalColIdx];
+              if (val != null && Number.isFinite(val)) rowTotal = val;
+            }
           }
         }
         if (rowTotal == null && Number.isFinite(r.total)) rowTotal = r.total;
@@ -1068,7 +1467,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       equipment_name_alat_berat: getEquipmentNameAlatBeratForPayload().trim() || undefined,
       equipment_name_dumptruck: getEquipmentNameDumptruckForPayload().trim() || undefined,
       equipment_name_manual: getEquipmentNameManualForPayload().trim() || undefined,
-      intro_paragraph: introParagraph.trim() || undefined,
+      intro_paragraph: introParagraph.trim() ? introParagraph : undefined,
       bank_account: bankAccount.trim() || undefined,
       terbilang_custom: terbilangCustom.trim() || undefined,
       quantity_unit: quantityUnit,
@@ -1152,6 +1551,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       show_date?: boolean;
       show_no?: boolean;
       show_total?: boolean;
+      show_grand_total?: boolean;
       show_bank_account?: boolean;
       use_bbm_columns?: boolean;
       include_bbm_note?: boolean;
@@ -1192,6 +1592,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           show_date: opts.show_date !== false,
           show_no: opts.show_no !== false,
           show_total: opts.show_total !== false,
+          show_grand_total: opts.show_grand_total ?? ((template.document_type || 'invoice') === 'penawaran' ? false : true),
           show_bank_account: opts.show_bank_account !== false,
           use_bbm_columns: opts.use_bbm_columns ?? false,
           include_bbm_note: opts.include_bbm_note ?? false,
@@ -1216,6 +1617,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           show_date: true,
           show_no: true,
           show_total: true,
+          show_grand_total: true,
           show_bank_account: true,
           use_bbm_columns: false,
           include_bbm_note: false,
@@ -1631,6 +2033,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               <form onSubmit={handleSubmitInvoice} className="space-y-6">
                 <input ref={extractRowInputRef} type="file" accept="image/*" className="hidden" onChange={handleExtractRowFromImage} />
                 <input ref={extractMultiRowInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleExtractMultiRowsFromImages} />
+                <input ref={importSpreadsheetInputRef} type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" className="hidden" onChange={handleImportSpreadsheet} />
                 <div className="flex items-center justify-between">
                   <button type="button" onClick={handleBackToTemplates} className="text-orange-600 hover:text-orange-700 text-sm font-medium">
                     ← Ganti template
@@ -1650,13 +2053,43 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nomor {documentTypeLabel}</label>
-                      <input
-                        type="text"
-                        value={invoiceNumber}
-                        onChange={(e) => setInvoiceNumber(e.target.value)}
-                        placeholder="INV-001"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={invoiceNumber}
+                          onChange={(e) => {
+                            setInvoiceNumber(e.target.value);
+                            if (e.target.value) setAutoGenerateInvoiceNumber(false);
+                          }}
+                          placeholder={`001/${documentNumberCode}/IMB/III/2026`}
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500"
+                          disabled={autoGenerateInvoiceNumber}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!autoGenerateInvoiceNumber) {
+                              setAutoGenerateInvoiceNumber(true);
+                              generateInvoiceNumber(invoiceDate, selectedTemplate?.document_type).then(num => {
+                                if (num) setInvoiceNumber(num);
+                              });
+                            } else {
+                              setAutoGenerateInvoiceNumber(false);
+                            }
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                            autoGenerateInvoiceNumber
+                              ? 'bg-orange-100 text-orange-700 border border-orange-300'
+                              : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                          }`}
+                          title={autoGenerateInvoiceNumber ? 'Auto-generate aktif (klik untuk edit manual)' : 'Klik untuk auto-generate'}
+                        >
+                          {autoGenerateInvoiceNumber ? '🤖 Auto' : 'Manual'}
+                        </button>
+                      </div>
+                      {autoGenerateInvoiceNumber && (
+                        <p className="text-xs text-gray-500 mt-1">Format: 001/{documentNumberCode}/IMB/Bulan(Romawi)/Tahun (auto-increment per bulan)</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
@@ -1675,22 +2108,25 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Pilih pelanggan (dari data sebelumnya)</label>
                       <select
-                        value=""
+                        value={customerId != null ? String(customerId) : ''}
                         onChange={(e) => {
-                          const idx = e.target.value === '' ? -1 : parseInt(e.target.value, 10);
-                          if (idx >= 0 && customerSuggestions[idx]) {
-                            const c = customerSuggestions[idx];
+                          const pickedId = e.target.value ? parseInt(e.target.value, 10) : NaN;
+                          const c = Number.isFinite(pickedId) ? customerSuggestions.find((x) => x.customer_id === pickedId) : undefined;
+                          if (c) {
+                            setCustomerId(c.customer_id);
                             setCustomerName(c.customer_name || '');
                             setCustomerPhone(c.customer_phone || '');
                             setCustomerEmail(c.customer_email || '');
                             setCustomerAddress(c.customer_address || '');
+                          } else {
+                            setCustomerId(undefined);
                           }
                         }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 bg-white"
                       >
                         <option value="">— Ketik manual / pelanggan baru —</option>
                         {customerSuggestions.map((c, i) => (
-                          <option key={i} value={i}>{c.customer_name}{c.customer_phone ? ` (${c.customer_phone})` : ''}</option>
+                          <option key={`${c.customer_id ?? i}`} value={c.customer_id ?? ''}>{c.customer_name}{c.customer_phone ? ` (${c.customer_phone})` : ''}</option>
                         ))}
                         {loadingCustomerSuggestions && <option disabled>Memuat...</option>}
                       </select>
@@ -1700,7 +2136,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <input
                         type="text"
                         value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
+                        onChange={(e) => { setCustomerName(e.target.value); setCustomerId(undefined); }}
                         required
                         placeholder="Nama pelanggan"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500"
@@ -1708,15 +2144,15 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Telepon</label>
-                      <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="08..." className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                      <input type="text" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setCustomerId(undefined); }} placeholder="08..." className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email (opsional)</label>
-                      <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="email@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                      <input type="email" value={customerEmail} onChange={(e) => { setCustomerEmail(e.target.value); setCustomerId(undefined); }} placeholder="email@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
-                      <textarea value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} rows={2} placeholder="Alamat lengkap" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                      <textarea value={customerAddress} onChange={(e) => { setCustomerAddress(e.target.value); setCustomerId(undefined); }} rows={2} placeholder="Alamat lengkap" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
                     </div>
                   </div>
                 </div>
@@ -1766,8 +2202,47 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         <div className="flex flex-wrap gap-2">
                           {equipmentNamesForKeterangan.map((name) => (
                             <span key={name} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg text-sm">
-                              {name}
-                              <button type="button" onClick={() => setEquipmentNames((prev) => prev.filter((n) => n !== name))} className="text-orange-600 hover:text-orange-800" aria-label="Hapus">×</button>
+                              {editingEquipmentName === name ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={editingEquipmentValue}
+                                    onChange={(e) => setEditingEquipmentValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        saveEditedEquipmentName();
+                                      }
+                                      if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        setEditingEquipmentName(null);
+                                        setEditingEquipmentValue('');
+                                      }
+                                    }}
+                                    autoFocus
+                                    className="w-56 border border-orange-300 rounded px-2 py-1 text-sm bg-white text-gray-800 focus:ring-2 focus:ring-orange-500"
+                                  />
+                                  <button type="button" onClick={saveEditedEquipmentName} className="text-orange-700 hover:text-orange-900" aria-label="Simpan">✔</button>
+                                  <button type="button" onClick={() => { setEditingEquipmentName(null); setEditingEquipmentValue(''); }} className="text-orange-700 hover:text-orange-900" aria-label="Batal">✕</button>
+                                </>
+                              ) : (
+                                <>
+                                  {name}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingEquipmentName(name);
+                                      setEditingEquipmentValue(name);
+                                    }}
+                                    className="text-orange-600 hover:text-orange-800"
+                                    aria-label="Edit"
+                                    title="Edit nama"
+                                  >
+                                    ✎
+                                  </button>
+                                  <button type="button" onClick={() => setEquipmentNames((prev) => prev.filter((n) => n !== name))} className="text-orange-600 hover:text-orange-800" aria-label="Hapus">×</button>
+                                </>
+                              )}
                             </span>
                           ))}
                         </div>
@@ -1847,7 +2322,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                           }}
                           onBlur={() => setTimeout(() => setShowIntroSuggestions(false), 150)}
                           rows={2}
-                          placeholder="Kosongkan agar pakai kalimat otomatis. Ketik @ untuk pilih: @alatberat, @alatberatmanual, @dumptruck, @lokasi"
+                          placeholder="Kosongkan agar pakai kalimat otomatis. Ketik @ untuk pilih: @alatberat, @manual, @dumptruck, @lokasi"
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500"
                         />
                         {showIntroSuggestions && (() => {
@@ -1895,7 +2370,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                  <div className="flex flex-wrap items-center gap-2 border-b pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                    <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-gray-800">Item / Jasa</h3>
                     {!useTemplateColumns && (
                       <>
@@ -1903,6 +2379,19 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         <input type="text" value={itemColumnLabel} onChange={(e) => setItemColumnLabel(e.target.value)} placeholder="Keterangan" className="w-28 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-orange-500" />
                       </>
                     )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-gray-600">Tinggi baris:</label>
+                      <select
+                        value={itemRowHeight}
+                        onChange={(e) => setItemRowHeight(e.target.value as 'compact' | 'normal' | 'relaxed')}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-orange-500 bg-white"
+                      >
+                        <option value="compact">Compact</option>
+                        <option value="normal">Normal</option>
+                        <option value="relaxed">Relaxed</option>
+                      </select>
+                    </div>
                   </div>
                   {orderedGroupKeys.map((groupKey, groupIdx) => {
                     const indices = groupIndices[groupKey] || [];
@@ -1965,6 +2454,27 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 <>📷 Upload banyak gambar (isi baris kosong unit ini)</>
                               )}
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setCopySpreadsheetModalGroupKey(groupKey)}
+                              className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 text-sm font-medium border border-emerald-300 rounded px-2 py-1"
+                              title="Copy prompt untuk generate CSV di GPT/Gemini"
+                            >
+                              <FiCopy /> Copy for generate spreadsheet
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                importSpreadsheetForGroupRef.current = groupKey;
+                                setImportSpreadsheetModalGroupKey(groupKey);
+                                setImportSpreadsheetMode('csv');
+                                setImportSpreadsheetText('');
+                              }}
+                              className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 text-sm font-medium border border-emerald-300 rounded px-2 py-1"
+                              title="Import CSV hasil rekap GPT/Gemini"
+                            >
+                              <FiPlus /> Import spreadsheet
+                            </button>
                             {useTemplateColumns && (
                               <button
                                 type="button"
@@ -1987,7 +2497,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             const groupColumns = getColumnsForGroup(groupKey);
                             const displayGroupColumns = groupColumns.filter((c) => !(c.key === 'total' && !templateShowTotal));
                             const useGroupTemplateColumns = displayGroupColumns.length > 0;
-                            const itemRowPad = selectedTemplate?.options?.item_row_height === 'compact' ? 'py-1' : selectedTemplate?.options?.item_row_height === 'relaxed' ? 'py-3' : 'py-2';
+                            const itemRowPad = itemRowHeight === 'compact' ? 'py-1' : itemRowHeight === 'relaxed' ? 'py-3' : 'py-2';
                             return (
                           <table className="w-full">
                             <thead>
@@ -2069,9 +2579,44 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     if (singleVar || (selfRefOrEmpty && (isBbmCol || isHargaBbmCol || isQuantityLikeCol || isPriceCol))) {
                                       if (f === 'quantity' || f === 'days' || (selfRefOrEmpty && !isBbmCol && !isHargaBbmCol && isQuantityLikeCol)) {
                                         const isDays = f === 'days' || lbl === 'hari' || lbl === 'days';
+                                        const showHoursInput = isDays;
                                         return (
                                           <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
-                                            <input type="number" min={0} step="any" value={isDays ? (row.days ?? '') : (row.quantity ?? '')} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')); const num = Number.isFinite(v) && v >= 0 ? v : 0; updateItem(index, isDays ? 'days' : 'quantity', num); updateItem(index, isDays ? 'quantity' : 'days', num); }} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                            <div className="flex flex-col gap-1">
+                                              <input 
+                                                type="number" 
+                                                min={0} 
+                                                step="any" 
+                                                value={isDays ? (row.days ?? '') : (row.quantity ?? '')} 
+                                                onChange={(e) => { 
+                                                  const v = parseFloat(String(e.target.value).replace(',', '.')); 
+                                                  const num = Number.isFinite(v) && v >= 0 ? v : 0; 
+                                                  updateItem(index, isDays ? 'days' : 'quantity', num); 
+                                                  updateItem(index, isDays ? 'quantity' : 'days', num); 
+                                                  if (isDays) updateItem(index, 'hours', num * 8);
+                                                }} 
+                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" 
+                                                placeholder="Hari"
+                                              />
+                                              {showHoursInput && (
+                                                <input 
+                                                  type="number" 
+                                                  min={0} 
+                                                  step="any" 
+                                                  value={row.hours ?? ''} 
+                                                  onChange={(e) => { 
+                                                    const v = parseFloat(String(e.target.value).replace(',', '.')); 
+                                                    const hours = Number.isFinite(v) && v >= 0 ? v : 0;
+                                                    const days = hours / 8;
+                                                    updateItem(index, 'hours', hours);
+                                                    updateItem(index, 'days', days);
+                                                    updateItem(index, 'quantity', days);
+                                                  }} 
+                                                  className="w-full border border-orange-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-500 bg-orange-50" 
+                                                  placeholder="Atau ketik Jam (1 hari = 8 jam)"
+                                                />
+                                              )}
+                                            </div>
                                           </td>
                                         );
                                       }
@@ -2089,15 +2634,49 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     const sourceIndex = itemCols.findIndex((c) => c === col);
                                     const val = sourceIndex >= 0 ? (rowComputed[sourceIndex] ?? NaN) : evaluateFormula(col.formula, row);
                                     const formulaFmt = col.format ?? 'rupiah';
-                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 text-sm text-gray-700 bg-gray-50/50 ${cellAlign}`}>{Number.isFinite(val) ? formatNumberByColumn({ format: formulaFmt }, val) : '—'}</td>);
+                                    const isEditable = col.editable === true;
+                                    const manualTotal = row.total !== undefined && row.total !== null && Number.isFinite(row.total) ? row.total : null;
+                                    const displayValue = manualTotal !== null ? manualTotal : val;
+                                    if (isEditable) {
+                                      return (
+                                        <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
+                                          <input
+                                            type="text"
+                                            value={manualTotal !== null 
+                                              ? Number(manualTotal).toLocaleString('id-ID')
+                                              : (Number.isFinite(val) ? Number(val).toLocaleString('id-ID') : '')}
+                                            onChange={(e) => {
+                                              const v = e.target.value.replace(/\./g, '').replace(',', '.');
+                                              const num = parseFloat(v);
+                                              updateItem(index, 'total', Number.isFinite(num) ? num : undefined);
+                                            }}
+                                            onBlur={(e) => {
+                                              const v = e.target.value.replace(/\./g, '').replace(',', '.');
+                                              const num = parseFloat(v);
+                                              if (Number.isFinite(num)) {
+                                                updateItem(index, 'total', num);
+                                              }
+                                            }}
+                                            placeholder={Number.isFinite(val) ? formatNumberByColumn({ format: formulaFmt }, val) : '0'}
+                                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
+                                          />
+                                        </td>
+                                      );
+                                    }
+                                    return (<td key={cellKey} className={`${itemRowPad} pr-2 text-sm text-gray-700 bg-gray-50/50 ${cellAlign}`}>{Number.isFinite(displayValue) ? formatNumberByColumn({ format: formulaFmt }, displayValue) : '—'}</td>);
                                   }
                                   if (k === 'row_date') {
                                     return (
                                       <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
                                         <div className="flex items-center gap-1 relative">
                                           <input type="text" value={row.row_date ? formatDateToIndonesian(row.row_date) : ''} readOnly placeholder="Klik 📅 untuk pilih tanggal" className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80" />
-                                          <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; if (v) updateItem(index, 'row_date', v); }} />
+                                          <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; updateItem(index, 'row_date', v || ''); }} />
                                           <button type="button" onClick={() => { const inp = dateInputRefs.current[index]; if (inp) (typeof (inp as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function' ? (inp as HTMLInputElement & { showPicker?: () => void }).showPicker!() : inp.click()); }} className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0" title="Pilih tanggal"><FiCalendar className="w-4 h-4" /></button>
+                                          {row.row_date && (
+                                            <button type="button" onClick={() => updateItem(index, 'row_date', '')} className="p-1.5 text-red-500 hover:text-red-700 rounded shrink-0" title="Hapus tanggal">
+                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                          )}
                                         </div>
                                       </td>
                                     );
@@ -2119,7 +2698,11 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                               const v = e.target.value;
                                               if (v === '__custom__') {
                                                 const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name);
-                                                setItems((prev) => prev.map((r, i) => i !== index ? r : { ...r, item_name: alreadyCustom ? row.item_name : ' ', item_display_name: '', use_ai_display: false }));
+                                                setItems((prev) => prev.map((r, i) => {
+                                                  if (i !== index) return r;
+                                                  const base = { ...r, item_name: alreadyCustom ? row.item_name : ' ', item_display_name: '', use_ai_display: false } as FormItem;
+                                                  return clearAutoPriceForManualItem(base);
+                                                }));
                                               } else if (v === '__ai__') {
                                                 setItems((prev) => prev.map((r, i) => i !== index ? r : { ...r, item_name: equipmentNamesForKeterangan[0] || r.item_name, use_ai_display: true }));
                                               } else {
@@ -2164,13 +2747,46 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="text" value={row.description ?? ''} onChange={(e) => updateItem(index, 'description', e.target.value)} placeholder="String/huruf" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" /></td>);
                                   }
                                   if (k === 'quantity' || k === 'days') {
+                                    const isHariUnit = (row.quantity_unit ?? quantityUnit) === 'hari';
                                     return (
                                       <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
-                                        <div className="flex gap-1 items-center">
-                                          <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
-                                            <option value="hari">Hari</option><option value="jam">Jam</option><option value="unit">Unit</option><option value="jerigen">Jerigen</option><option value="volume">Volume</option>
-                                          </select>
-                                          <input type="number" min={0} step="any" value={k === 'days' ? (row.days ?? '') : (row.quantity ?? '')} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; updateItem(index, k === 'days' ? 'days' : 'quantity', v); updateItem(index, k === 'days' ? 'quantity' : 'days', v); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                        <div className="flex flex-col gap-1">
+                                          <div className="flex gap-1 items-center">
+                                            <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                              <option value="hari">Hari</option><option value="jam">Jam</option><option value="unit">Unit</option><option value="jerigen">Jerigen</option><option value="volume">Volume</option>
+                                            </select>
+                                            <input 
+                                              type="number" 
+                                              min={0} 
+                                              step="any" 
+                                              value={k === 'days' ? (row.days ?? '') : (row.quantity ?? '')} 
+                                              onChange={(e) => { 
+                                                const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; 
+                                                updateItem(index, k === 'days' ? 'days' : 'quantity', v); 
+                                                updateItem(index, k === 'days' ? 'quantity' : 'days', v); 
+                                                if (isHariUnit) updateItem(index, 'hours', v * 8);
+                                              }} 
+                                              className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" 
+                                            />
+                                          </div>
+                                          {isHariUnit && (
+                                            <input 
+                                              type="number" 
+                                              min={0} 
+                                              step="any" 
+                                              value={row.hours ?? ''} 
+                                              onChange={(e) => { 
+                                                const v = parseFloat(String(e.target.value).replace(',', '.')); 
+                                                const hours = Number.isFinite(v) && v >= 0 ? v : 0;
+                                                const days = hours / 8;
+                                                updateItem(index, 'hours', hours);
+                                                updateItem(index, 'days', days);
+                                                updateItem(index, 'quantity', days);
+                                              }} 
+                                              className="w-full border border-orange-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-500 bg-orange-50" 
+                                              placeholder="Atau ketik Jam (1 hari = 8 jam)"
+                                            />
+                                          )}
                                         </div>
                                       </td>
                                     );
@@ -2186,33 +2802,73 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   }
                                   if (k === 'number') {
                                     const fieldKey = `custom_num_${colIdx}`;
+                                    const hoursFieldKey = `custom_num_${colIdx}_hours`;
                                     const val = (row as Record<string, unknown>)[fieldKey];
-                                    const isAuto = col.source && col.source !== 'manual';
-                                    const numVal = val != null && val !== '' ? Number(val) : NaN;
+                                    const hoursVal = (row as Record<string, unknown>)[hoursFieldKey];
                                     const fmt = col.format ?? 'number';
+                                    const labelLower = (col.label || '').toLowerCase();
+                                    const isHariColumn = labelLower.includes('hari') || labelLower.includes('days');
                                     return (
                                       <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
-                                        {isAuto ? (
-                                          <span className="text-sm text-gray-700">{formatNumberByColumn(col, numVal)}</span>
-                                        ) : (
-                                          <div className="flex items-center gap-1">
-                                            {fmt === 'rupiah' && <span className="text-gray-500 text-sm shrink-0">Rp</span>}
-                                            <input
-                                              type="number"
-                                              min={0}
-                                              step="any"
-                                              value={val != null && val !== '' ? String(val) : ''}
-                                              onChange={(e) => {
-                                                const v = String(e.target.value).replace(',', '.');
-                                                const num = v ? parseFloat(v) : 0;
-                                                setItems((prev) => prev.map((r, i) => i === index ? { ...r, [fieldKey]: Number.isFinite(num) && num >= 0 ? num : 0 } as typeof r : r));
-                                              }}
-                                              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
-                                              placeholder={col.label || 'Angka'}
-                                            />
-                                            {fmt === 'percent' && <span className="text-gray-500 text-sm shrink-0">%</span>}
+                                          <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                              {fmt === 'rupiah' && <span className="text-gray-500 text-sm shrink-0">Rp</span>}
+                                              {fmt === 'rupiah' ? (
+                                                <input
+                                                  type="text"
+                                                  value={val != null && val !== '' ? Number(val).toLocaleString('id-ID') : ''}
+                                                  onChange={(e) => {
+                                                    const v = e.target.value.replace(/\./g, '').replace(',', '.');
+                                                    const num = v ? parseFloat(v) : 0;
+                                                    const updates: Record<string, number> = { [fieldKey]: Number.isFinite(num) ? num : 0 };
+                                                    setItems((prev) => prev.map((r, i) => i === index ? { ...r, ...updates } as typeof r : r));
+                                                  }}
+                                                  onBlur={(e) => {
+                                                    const v = e.target.value.replace(/\./g, '').replace(',', '.');
+                                                    const num = v ? parseFloat(v) : 0;
+                                                    if (Number.isFinite(num)) {
+                                                      const updates: Record<string, number> = { [fieldKey]: num };
+                                                      setItems((prev) => prev.map((r, i) => i === index ? { ...r, ...updates } as typeof r : r));
+                                                    }
+                                                  }}
+                                                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
+                                                  placeholder={col.label || 'Angka'}
+                                                />
+                                              ) : (
+                                                <input
+                                                  type="number"
+                                                  step="any"
+                                                  value={val != null && val !== '' ? String(val) : ''}
+                                                  onChange={(e) => {
+                                                    const v = String(e.target.value).replace(',', '.');
+                                                    const num = v ? parseFloat(v) : 0;
+                                                    const updates: Record<string, number> = { [fieldKey]: Number.isFinite(num) ? num : 0 };
+                                                    if (isHariColumn) updates[hoursFieldKey] = (Number.isFinite(num) ? num : 0) * 8;
+                                                    setItems((prev) => prev.map((r, i) => i === index ? { ...r, ...updates } as typeof r : r));
+                                                  }}
+                                                  className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500"
+                                                  placeholder={col.label || 'Angka'}
+                                                />
+                                              )}
+                                              {fmt === 'percent' && <span className="text-gray-500 text-sm shrink-0">%</span>}
+                                            </div>
+                                            {isHariColumn && (
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                step="any"
+                                                value={hoursVal != null && hoursVal !== '' ? String(hoursVal) : ''}
+                                                onChange={(e) => {
+                                                  const v = String(e.target.value).replace(',', '.');
+                                                  const hours = v ? parseFloat(v) : 0;
+                                                  const days = Number.isFinite(hours) && hours >= 0 ? hours / 8 : 0;
+                                                  setItems((prev) => prev.map((r, i) => i === index ? { ...r, [fieldKey]: days, [hoursFieldKey]: hours } as typeof r : r));
+                                                }}
+                                                className="w-full border border-orange-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-500 bg-orange-50"
+                                                placeholder="Atau ketik Jam (1 hari = 8 jam)"
+                                              />
+                                            )}
                                           </div>
-                                        )}
                                       </td>
                                     );
                                   }
@@ -2228,8 +2884,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 <td className={`${itemRowPad} pr-2`}>
                                   <div className="flex items-center gap-1 relative">
                                     <input type="text" value={row.row_date ? formatDateToIndonesian(row.row_date) : ''} readOnly placeholder="Klik 📅 untuk pilih tanggal" className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-gray-50/80" />
-                                    <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; if (v) updateItem(index, 'row_date', v); }} />
+                                    <input type="date" value={row.row_date || ''} ref={(el) => { dateInputRefs.current[index] = el; }} className="absolute left-0 opacity-0 w-0 h-0 overflow-hidden" onChange={(e) => { const v = e.target.value; updateItem(index, 'row_date', v || ''); }} />
                                     <button type="button" onClick={() => { const inp = dateInputRefs.current[index]; if (inp) (typeof (inp as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function' ? (inp as HTMLInputElement & { showPicker?: () => void }).showPicker!() : inp.click()); }} className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0" title="Pilih tanggal"><FiCalendar className="w-4 h-4" /></button>
+                                    {row.row_date && (
+                                      <button type="button" onClick={() => updateItem(index, 'row_date', '')} className="p-1.5 text-red-500 hover:text-red-700 rounded shrink-0" title="Hapus tanggal">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                      </button>
+                                    )}
                                     <button type="button" onClick={() => { setExtractingRowIndex(index); extractRowInputRef.current?.click(); }} disabled={extractingRowIndex !== null} className="p-1.5 text-gray-500 hover:text-orange-600 rounded shrink-0 disabled:opacity-50" title="Upload gambar nota – isi tanggal & hari/jam">{extractingRowIndex === index ? <span className="text-xs">...</span> : <FiImage className="w-4 h-4" />}</button>
                                   </div>
                                 </td>
@@ -2240,7 +2901,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   const isCustom = (row.item_name || '') && !inList;
                                   return (
                                     <div className="flex flex-col gap-1">
-                                      <select value={inList ? row.item_name : (isCustom ? '__custom__' : '')} onChange={(e) => { const v = e.target.value; if (v === '__custom__') { const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name); updateItem(index, 'item_name', alreadyCustom ? row.item_name : ' '); } else { handleSelectItemName(index, v); } }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
+                                      <select value={inList ? row.item_name : (isCustom ? '__custom__' : '')} onChange={(e) => { const v = e.target.value; if (v === '__custom__') { const alreadyCustom = row.item_name && !equipmentNamesForKeterangan.includes(row.item_name); setItems((prev) => prev.map((r, i) => { if (i !== index) return r; const base = { ...r, item_name: alreadyCustom ? row.item_name : ' ' } as FormItem; return clearAutoPriceForManualItem(base); })); } else { handleSelectItemName(index, v); } }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
                                         <option value="">— Pilih keterangan —</option>
                                         {equipmentNamesForKeterangan.map((name, i) => (<option key={i} value={name}>{name}</option>))}
                                         <option value="__custom__">— Lainnya (ketik manual) —</option>
@@ -2253,15 +2914,45 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               {useBbmColumns ? (
                                 <>
                                   <td className={`${itemRowPad} pr-2`}>
-                                    <div className="flex gap-1 items-center">
-                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
-                                        <option value="hari">Hari</option>
-                                        <option value="jam">Jam</option>
-                                        <option value="unit">Unit</option>
-                                        <option value="jerigen">Jerigen</option>
-                                        <option value="volume">Volume</option>
-                                      </select>
-                                      <input type="number" min={0} step="any" value={days || ''} onChange={(e) => updateItem(index, 'days', parseFloat(e.target.value.replace(',', '.')) || 0)} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex gap-1 items-center">
+                                        <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                          <option value="hari">Hari</option>
+                                          <option value="jam">Jam</option>
+                                          <option value="unit">Unit</option>
+                                          <option value="jerigen">Jerigen</option>
+                                          <option value="volume">Volume</option>
+                                        </select>
+                                        <input 
+                                          type="number" 
+                                          min={0} 
+                                          step="any" 
+                                          value={days || ''} 
+                                          onChange={(e) => {
+                                            const v = parseFloat(e.target.value.replace(',', '.')) || 0;
+                                            updateItem(index, 'days', v);
+                                            if ((row.quantity_unit ?? quantityUnit) === 'hari') updateItem(index, 'hours', v * 8);
+                                          }} 
+                                          className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" 
+                                        />
+                                      </div>
+                                      {(row.quantity_unit ?? quantityUnit) === 'hari' && (
+                                        <input 
+                                          type="number" 
+                                          min={0} 
+                                          step="any" 
+                                          value={row.hours ?? ''} 
+                                          onChange={(e) => { 
+                                            const v = parseFloat(String(e.target.value).replace(',', '.')); 
+                                            const hours = Number.isFinite(v) && v >= 0 ? v : 0;
+                                            const days = hours / 8;
+                                            updateItem(index, 'hours', hours);
+                                            updateItem(index, 'days', days);
+                                          }} 
+                                          className="w-full border border-orange-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-500 bg-orange-50" 
+                                          placeholder="Atau ketik Jam (1 hari = 8 jam)"
+                                        />
+                                      )}
                                     </div>
                                   </td>
                                   <td className={`${itemRowPad} pr-2`}>
@@ -2286,15 +2977,47 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               ) : (
                                 <>
                                   <td className={`${itemRowPad} pr-2`}>
-                                    <div className="flex gap-1 items-center">
-                                      <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
-                                        <option value="hari">Hari</option>
-                                        <option value="jam">Jam</option>
-                                        <option value="unit">Unit</option>
-                                        <option value="jerigen">Jerigen</option>
-                                        <option value="volume">Volume</option>
-                                      </select>
-                                      <input type="number" min={0} step="any" value={row.quantity} onChange={(e) => { const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; updateItem(index, 'quantity', v); updateItem(index, 'days', v); }} className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex gap-1 items-center">
+                                        <select value={row.quantity_unit ?? quantityUnit} onChange={(e) => updateItem(index, 'quantity_unit', e.target.value as 'hari' | 'jam' | 'unit' | 'jerigen' | 'volume')} className="shrink-0 w-16 border border-gray-300 rounded px-1.5 py-1.5 text-xs focus:ring-2 focus:ring-orange-500">
+                                          <option value="hari">Hari</option>
+                                          <option value="jam">Jam</option>
+                                          <option value="unit">Unit</option>
+                                          <option value="jerigen">Jerigen</option>
+                                          <option value="volume">Volume</option>
+                                        </select>
+                                        <input 
+                                          type="number" 
+                                          min={0} 
+                                          step="any" 
+                                          value={row.quantity} 
+                                          onChange={(e) => { 
+                                            const v = parseFloat(String(e.target.value).replace(',', '.')) >= 0 ? parseFloat(String(e.target.value).replace(',', '.')) : 0; 
+                                            updateItem(index, 'quantity', v); 
+                                            updateItem(index, 'days', v); 
+                                            if ((row.quantity_unit ?? quantityUnit) === 'hari') updateItem(index, 'hours', v * 8);
+                                          }} 
+                                          className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" 
+                                        />
+                                      </div>
+                                      {(row.quantity_unit ?? quantityUnit) === 'hari' && (
+                                        <input 
+                                          type="number" 
+                                          min={0} 
+                                          step="any" 
+                                          value={row.hours ?? ''} 
+                                          onChange={(e) => { 
+                                            const v = parseFloat(String(e.target.value).replace(',', '.')); 
+                                            const hours = Number.isFinite(v) && v >= 0 ? v : 0;
+                                            const days = hours / 8;
+                                            updateItem(index, 'hours', hours);
+                                            updateItem(index, 'quantity', days);
+                                            updateItem(index, 'days', days);
+                                          }} 
+                                          className="w-full border border-orange-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-500 bg-orange-50" 
+                                          placeholder="Atau ketik Jam (1 hari = 8 jam)"
+                                        />
+                                      )}
                                     </div>
                                   </td>
                                   <td className={`${itemRowPad} pr-2`}>
@@ -2327,7 +3050,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                       const n = v != null ? Number(v) : 0;
                                       footerTotals[colIdx] = (footerTotals[colIdx] ?? 0) + (Number.isFinite(n) ? n : 0);
                                     } else if (col.key === 'formula') {
-                                      const v = computed[colIdx];
+                                      const manualTotal = row.total !== undefined && row.total !== null && Number.isFinite(row.total) ? row.total : null;
+                                      const v = manualTotal !== null ? manualTotal : computed[colIdx];
                                       footerTotals[colIdx] = (footerTotals[colIdx] ?? 0) + (Number.isFinite(v) ? v : 0);
                                     }
                                   });
@@ -2533,7 +3257,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipe dokumen</label>
                 <select
                   value={templateForm.document_type}
-                  onChange={(e) => setTemplateForm((f) => ({ ...f, document_type: e.target.value }))}
+                  onChange={(e) => setTemplateForm((f) => ({
+                    ...f,
+                    document_type: e.target.value,
+                    options: {
+                      ...f.options,
+                      show_grand_total: e.target.value === 'penawaran' ? false : true,
+                    },
+                  }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
                   {DOCUMENT_TYPE_OPTIONS.map((o) => (
@@ -2608,6 +3339,15 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm">Tampilkan nomor rekening & bank</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.options.show_grand_total !== false}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, show_grand_total: e.target.checked } }))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Pakai Total Keseluruhan</span>
                   </label>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Kolom tabel (Tanggal, Jumlah/Total, dll.) mengikuti &quot;Kolom tabel item&quot; di bawah. BBM dan Harga/BBM bisa ditambah sebagai kolom Angka (rumus) (perhitungan: BBM × Harga/BBM).</p>
@@ -2910,6 +3650,27 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             />
                             Jadikan sebagai total invoice
                           </label>
+                          {col.key === 'formula' && (
+                            <label className="flex items-center gap-1.5 text-xs text-blue-700 whitespace-nowrap" title="Izinkan edit langsung di tabel (untuk kasus seperti mobilisasi PP)">
+                              <input
+                                type="checkbox"
+                                checked={col.editable ?? false}
+                                onChange={(e) =>
+                                  setTemplateForm((f) => ({
+                                    ...f,
+                                    options: {
+                                      ...f.options,
+                                      item_columns: f.options.item_columns.map((c, i) =>
+                                        i === idx ? { ...c, editable: e.target.checked } : c
+                                      ),
+                                    },
+                                  }))
+                                }
+                                className="rounded border-gray-300"
+                              />
+                              Bisa diedit langsung
+                            </label>
+                          )}
                         </>
                       )}
                       <button
@@ -3011,6 +3772,115 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   Simpan
                 </button>
               </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Modal: Opsi Copy Spreadsheet Prompt */}
+        {copySpreadsheetModalGroupKey && (() => {
+          const groupKey = copySpreadsheetModalGroupKey;
+          const settings = getSpreadsheetSettings(groupKey);
+          return (
+            <Modal onClose={() => setCopySpreadsheetModalGroupKey(null)} title="Copy for generate spreadsheet">
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Pilih kolom yang mau AI generate untuk unit <strong>{groupKey}</strong>.
+                </p>
+                <div className="space-y-2 text-sm">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={settings.generateDescription}
+                      onChange={(e) => setSpreadsheetSettingsByGroup((prev) => ({ ...prev, [groupKey]: { ...settings, generateDescription: e.target.checked } }))}
+                    />
+                    Generate keterangan
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={settings.generatePrice}
+                      onChange={(e) => setSpreadsheetSettingsByGroup((prev) => ({ ...prev, [groupKey]: { ...settings, generatePrice: e.target.checked } }))}
+                    />
+                    Generate harga/hari
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Default OFF (input sendiri). Saat import, sistem auto-detect dari header spreadsheet.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCopySpreadsheetModalGroupKey(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopySpreadsheetPrompt(groupKey)}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                  >
+                    Copy Prompt
+                  </button>
+                </div>
+              </div>
+            </Modal>
+          );
+        })()}
+
+        {/* Modal: Import Spreadsheet/Text */}
+        {importSpreadsheetModalGroupKey && (
+          <Modal onClose={() => setImportSpreadsheetModalGroupKey(null)} title="Import data item">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setImportSpreadsheetMode('csv')}
+                  className={`px-3 py-1.5 rounded border text-sm ${importSpreadsheetMode === 'csv' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300'}`}
+                >
+                  Import CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportSpreadsheetMode('text')}
+                  className={`px-3 py-1.5 rounded border text-sm ${importSpreadsheetMode === 'text' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300'}`}
+                >
+                  Import Text
+                </button>
+              </div>
+              {importSpreadsheetMode === 'csv' ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Upload file `.csv/.tsv/.txt`.</p>
+                  <button
+                    type="button"
+                    onClick={() => importSpreadsheetInputRef.current?.click()}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                  >
+                    Pilih file
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Paste text CSV langsung, contoh: `Tanggal,Hari`.</p>
+                  <textarea
+                    value={importSpreadsheetText}
+                    onChange={(e) => setImportSpreadsheetText(e.target.value)}
+                    rows={8}
+                    placeholder={'Tanggal,Hari\n2026-02-26,4\n2026-02-27,8'}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleImportSpreadsheetText}
+                      disabled={!importSpreadsheetText.trim()}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      Import text
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </Modal>
         )}
@@ -3126,7 +3996,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                   {useBbmT ? (
                                     <>
                                       <td className="border border-black px-3 py-2 text-right">{item.days ?? 0}</td>
-                                      <td className="border border-black px-3 py-2 text-right">{formatRupiah(Number(item.price ?? 0))}</td>
+                                      <td className="border border-black px-3 py-2 text-right">{Number(item.price ?? 0) === 0 ? '-' : formatRupiah(Number(item.price ?? 0))}</td>
                                       <td className="border border-black px-3 py-2 text-right">{(item.bbm_quantity ?? 0) > 0 ? item.bbm_quantity : '-'}</td>
                                       <td className="border border-black px-3 py-2 text-right">{(item.bbm_quantity ?? 0) > 0 ? formatRupiah(Number(item.bbm_unit_price ?? 0)) : '-'}</td>
                                       <td className="border border-black px-3 py-2 text-right">{formatRupiah(Number(item.total ?? 0))}</td>
@@ -3135,13 +4005,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     <>
                                       <td className="border border-black px-3 py-2">{item.item_name}</td>
                                       <td className="border border-black px-3 py-2 text-right">{item.quantity ?? item.days ?? 0}</td>
-                                      <td className="border border-black px-3 py-2 text-right">{formatRupiah(Number(item.price ?? 0))}</td>
+                                      <td className="border border-black px-3 py-2 text-right">{Number(item.price ?? 0) === 0 ? '-' : formatRupiah(Number(item.price ?? 0))}</td>
                                       <td className="border border-black px-3 py-2 text-right">{formatRupiah(Number(item.total ?? 0))}</td>
                                     </>
                                   )}
                                 </tr>
                               ))}
-                              {g && (
+                              {g && templateShowGrandTotal && (
                                 <tr className="font-semibold bg-black text-white">
                                   <td className="border border-black px-3 py-2" colSpan={2}>Total</td>
                                   {useBbmT ? (
@@ -3167,7 +4037,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                         </div>
                       );
                     })}
-                    {orderedKeys.length >= 2 && (() => {
+                    {templateShowGrandTotal && orderedKeys.length >= 2 && (() => {
                       const useBbm = previewInvoice.use_bbm_columns;
                       return (
                         <div className="mb-4">
@@ -3209,13 +4079,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 );
               })()}
               <div className="text-right space-y-1">
-                <p className="font-semibold">Total Keseluruhan: {formatRupiah(Number(previewInvoice.total ?? 0))}</p>
+                {templateShowGrandTotal && <p className="font-semibold">Total Keseluruhan: {formatRupiah(Number(previewInvoice.total ?? 0))}</p>}
                 {previewInvoice.include_bbm_note && <p className="text-gray-600">Note: Sudah termasuk BBM</p>}
-                <p className="text-gray-700">Terbilang: ({(previewInvoice.terbilang_custom || '').trim() || `${terbilangRupiah(Math.round(Number(previewInvoice.total ?? 0)))} rupiah`})</p>
+                {templateShowGrandTotal && <p className="text-gray-700">Terbilang: ({(previewInvoice.terbilang_custom || '').trim() || `${terbilangRupiah(Math.round(Number(previewInvoice.total ?? 0)))} rupiah`})</p>}
                 {previewInvoice.bank_account && <p className="text-gray-600">No Rekening: {previewInvoice.bank_account}</p>}
               </div>
               {previewInvoice.notes && <p className="mt-4 text-gray-600">{previewInvoice.notes}</p>}
-              <p className="mt-6 text-sm text-gray-700">Demikian surat tagihan ini kami sampaikan, atas kerjasamanya kami ucapkan terimakasih.</p>
+              <p className="mt-6 text-sm text-gray-700">{(previewInvoice.template?.document_type || '').toLowerCase() === 'penawaran' ? 'Demikian surat penawaran ini kami sampaikan, atas kerjasamanya kami ucapkan terimakasih.' : 'Demikian surat tagihan ini kami sampaikan, atas kerjasamanya kami ucapkan terimakasih.'}</p>
               <div className="mt-8 flex justify-between gap-12">
                 <div>
                   <p className="font-medium text-gray-800">Hormat Kami,</p>
@@ -3415,6 +4285,55 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <option value="center">Isi: Tengah</option>
                       <option value="right">Isi: Kanan</option>
                     </select>
+                    {(col.key === 'number' || col.key === 'formula') && (
+                      <>
+                        <label className="flex items-center gap-1 text-xs whitespace-nowrap" title="Tampilkan total di baris bawah">
+                          <input
+                            type="checkbox"
+                            checked={col.show_total_in_footer ?? false}
+                            onChange={(e) =>
+                              setGroupColumnsForm((prev) =>
+                                prev.map((c, i) => (i === idx ? { ...c, show_total_in_footer: e.target.checked } : c))
+                              )
+                            }
+                            className="rounded border-gray-300"
+                          />
+                          Total
+                        </label>
+                        <label className="flex items-center gap-1 text-xs text-orange-600 whitespace-nowrap" title="Jadikan total invoice">
+                          <input
+                            type="checkbox"
+                            checked={col.use_as_invoice_total ?? false}
+                            onChange={(e) =>
+                              setGroupColumnsForm((prev) =>
+                                prev.map((c, i) =>
+                                  i === idx
+                                    ? { ...c, use_as_invoice_total: e.target.checked }
+                                    : { ...c, use_as_invoice_total: e.target.checked ? false : c.use_as_invoice_total }
+                                )
+                              )
+                            }
+                            className="rounded border-gray-300"
+                          />
+                          Total Inv
+                        </label>
+                        {col.key === 'formula' && (
+                          <label className="flex items-center gap-1 text-xs text-blue-600 whitespace-nowrap" title="Bisa edit langsung">
+                            <input
+                              type="checkbox"
+                              checked={col.editable ?? false}
+                              onChange={(e) =>
+                                setGroupColumnsForm((prev) =>
+                                  prev.map((c, i) => (i === idx ? { ...c, editable: e.target.checked } : c))
+                                )
+                              }
+                              className="rounded border-gray-300"
+                            />
+                            Edit
+                          </label>
+                        )}
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => setGroupColumnsForm((prev) => prev.filter((_, i) => i !== idx))}

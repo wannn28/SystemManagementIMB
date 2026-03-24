@@ -2,7 +2,7 @@
  * Mengganti placeholder di paragraf pembuka invoice.
  * @alatberat → hanya alat berat dari daftar (bukan dump truck).
  * @dumptruck → hanya dump truck dari daftar.
- * @alatberatmanual → alat yang ditambah manual.
+ * @manual → alat yang ditambah manual.
  * @lokasi → lokasi
  * Jika equipmentNameAlatBerat / equipmentNameDumptruck tidak dikirim, fallback ke equipmentName (full).
  */
@@ -39,20 +39,20 @@ export function replaceIntroPlaceholders(
   /** Jangan tambah manual jika sudah ada di alatBerat (mis. Tes2121 di list + manual → jangan "Tes2121 Tes2121") */
   const manualTrim = manual.trim();
   const manualAlreadyInAlatBerat = manualTrim && (alatBerat === manualTrim || alatBerat.endsWith(', ' + manualTrim) || alatBerat.endsWith(' dan ' + manualTrim));
-  /** Satu blok: @alatberat [@alatberatmanual] dan Dumptruck @dumptruck → diganti sekali agar tidak duplikasi */
+  /** Satu blok: @alatberat [@manual] dan Dumptruck @dumptruck → diganti sekali agar tidak duplikasi */
   const blockValue =
     alatBerat + (manualTrim && !manualAlreadyInAlatBerat ? ' ' + manual : '') + (dumptruck ? ' dan Dumptruck ' + dumptruck : '');
   let out = text.replace(
-    /\@alatberat\s*(\@alatberatmanual\s*)?(dan\s+Dumptruck\s*)\@dumptruck/gi,
+    /\@alatberat\s*(\@manual\s*)?(dan\s+Dumptruck\s*)\@dumptruck/gi,
     () => blockValue
   );
 
-  /* Ganti @alatberatmanual dulu sebelum @alatberat, supaya substring @alatberat
-   * di dalam @alatberatmanual tidak ikut terganti (kalau tidak akan jadi "...Fillmanual"). */
+  /* Ganti @manual dulu sebelum @alatberat, supaya substring @alatberat
+   * di dalam @manual tidak ikut terganti (kalau tidak akan jadi "...Fillmanual"). */
   out = out
     .replace(/\@alatberat\s+dan\s+\@dumptruck/gi, eq)
     .replace(/\@dumptruck\s+dan\s+\@alatberat/gi, eq)
-    .replace(/\@alatberatmanual/g, manual)
+    .replace(/\@manual/g, manual)
     .replace(/\@alatberat/g, alatBerat)
     .replace(/\@dumptruck/g, dumptruck)
     .replace(/\@lokasi/g, loc);

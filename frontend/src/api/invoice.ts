@@ -129,6 +129,7 @@ export const invoiceApi = {
   async createInvoice(payload: CreateInvoiceRequest): Promise<Invoice> {
     const body = {
       template_id: payload.template_id,
+      customer_id: payload.customer_id,
       invoice_number: payload.invoice_number,
       invoice_date: payload.invoice_date,
       due_date: payload.due_date || null,
@@ -143,6 +144,7 @@ export const invoiceApi = {
           description: i.description || '',
           quantity: i.quantity ?? 1,
           price: i.price ?? 0,
+          total: i.total ?? 0,
           row_date: i.row_date || '',
           days: i.days ?? 0,
           bbm_quantity: i.bbm_quantity ?? 0,
@@ -183,6 +185,7 @@ export const invoiceApi = {
   ): Promise<Invoice> {
     const body: Record<string, unknown> = {
       template_id: payload.template_id,
+      customer_id: payload.customer_id,
       invoice_number: payload.invoice_number,
       invoice_date: payload.invoice_date,
       due_date: payload.due_date,
@@ -197,6 +200,7 @@ export const invoiceApi = {
           description: i.description || '',
           quantity: i.quantity ?? 1,
           price: i.price ?? 0,
+          total: i.total ?? 0,
           row_date: i.row_date || '',
           days: i.days ?? 0,
           bbm_quantity: i.bbm_quantity ?? 0,
