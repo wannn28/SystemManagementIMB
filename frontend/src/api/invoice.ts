@@ -59,7 +59,7 @@ export const invoiceApi = {
       document_type?: string;
       default_intro?: string;
       signature_count?: number;
-      options?: { item_columns?: { key: string; label: string }[] };
+      options?: Record<string, unknown>;
     }
   ): Promise<InvoiceTemplate> {
     const res = await axios.put<ApiRes<InvoiceTemplate>>(getUrl(`/templates/${id}`), body, { headers: getAuthHeaders() });

@@ -101,7 +101,7 @@ type TemplateDisplayOptions = {
   quantity_unit: string;
   price_unit_label: string;
   item_column_label: string;
-  item_row_height: 'compact' | 'normal' | 'relaxed';
+  item_row_height: 'very_compact' | 'compact' | 'normal' | 'relaxed';
 };
 
 function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): TemplateDisplayOptions | null {
@@ -117,7 +117,7 @@ function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): Templ
           }
         })()
       : (template.options as Partial<TemplateDisplayOptions>);
-  const rowHeight = (parsed as { item_row_height?: 'compact' | 'normal' | 'relaxed' })?.item_row_height || 'normal';
+  const rowHeight = (parsed as { item_row_height?: 'very_compact' | 'compact' | 'normal' | 'relaxed' })?.item_row_height || 'compact';
   const docType = (template.document_type || 'invoice').toLowerCase();
   const defaultShowGrandTotal = docType === 'penawaran' ? false : true;
   return {
@@ -132,7 +132,10 @@ function getTemplateDisplayOptions(template: InvoiceTemplate | undefined): Templ
     quantity_unit: parsed?.quantity_unit || 'hari',
     price_unit_label: parsed?.price_unit_label || 'Harga/Hari',
     item_column_label: parsed?.item_column_label || 'Keterangan',
-    item_row_height: rowHeight === 'compact' || rowHeight === 'relaxed' ? rowHeight : 'normal',
+    item_row_height:
+      rowHeight === 'very_compact' || rowHeight === 'compact' || rowHeight === 'relaxed'
+        ? rowHeight
+        : 'normal',
   };
 }
 
@@ -606,32 +609,74 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       } else {
         columnStyles[qtyColIndex] = { halign: 'center' };
       }
-      const itemCellPadding = templateOpts?.item_row_height === 'compact' ? 2 : templateOpts?.item_row_height === 'relaxed' ? 7 : 4;
+      const rowHeightMode = templateOpts?.item_row_height ?? 'compact';
+      // Padding vertikal dalam sel (atas-bawah)
+      const itemCellPadding =
+        rowHeightMode === 'very_compact'
+          ? { top: 0.5, right: 2, bottom: 0.5, left: 2 }
+          : rowHeightMode === 'compact'
+            ? { top: 1, right: 2, bottom: 1, left: 2 }
+            : rowHeightMode === 'relaxed'
+              ? { top: 5, right: 2, bottom: 5, left: 2 }
+              : { top: 2.5, right: 2, bottom: 2.5, left: 2 };
+      // Tinggi baris minimal (mm)
+      const itemMinCellHeight =
+        rowHeightMode === 'very_compact'
+          ? 3.5
+          : rowHeightMode === 'compact'
+            ? 5
+            : rowHeightMode === 'relaxed'
+              ? 12
+              : 8;
       autoTable(doc, {
         startY: y,
         head: tableHead as any,
         body: bodyWithTotal,
         theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0], font: 'times', fontSize: 12 },
-        bodyStyles: { font: 'times', fontSize: 11, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: itemCellPadding },
+        headStyles: {
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          lineWidth: 0.1,
+          lineColor: [0, 0, 0],
+          font: 'times',
+          fontSize: 12,
+          valign: 'middle',
+          cellPadding: itemCellPadding,
+          minCellHeight: itemMinCellHeight,
+        },
+        bodyStyles: {
+          font: 'times',
+          fontSize: 11,
+          textColor: [0, 0, 0],
+          lineColor: [0, 0, 0],
+          lineWidth: 0.1,
+          cellPadding: itemCellPadding,
+          valign: 'middle',
+          minCellHeight: itemMinCellHeight,
+        },
         columnStyles,
         margin: { left: margin, right: margin },
         tableLineColor: [0, 0, 0],
         tableLineWidth: 0.1,
         showHead: 'everyPage',
         didParseCell: (data) => {
+          // Paksa vertical middle alignment untuk semua sel
+          data.cell.styles.valign = 'middle';
+          // Paksa minCellHeight dan cellPadding per sel (override autoTable default)
+          data.cell.styles.minCellHeight = itemMinCellHeight;
+          data.cell.styles.cellPadding = itemCellPadding;
+          
           if (totalRow && data.section === 'body' && data.row.index === bodyWithTotal.length - 1) {
             data.cell.styles.fillColor = [255, 255, 255];
             data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.cellPadding = 4;
+            data.cell.styles.cellPadding = { top: 3, right: 2, bottom: 3, left: 2 };
             const colIndex = (data.column as { index?: number })?.index ?? 0;
             if (colIndex === 0) data.cell.styles.halign = 'left';
           }
           const colIndex = (data.column as { index?: number })?.index ?? 0;
           if (showNo && colIndex === 0) {
             data.cell.styles.halign = 'center';
-            data.cell.styles.valign = 'middle';
           }
           if (templateColumns?.length && data.section === 'head' && data.column) {
             const headRowIndex = tableHead.length - 1;
