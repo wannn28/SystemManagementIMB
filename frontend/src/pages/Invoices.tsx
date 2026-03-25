@@ -1962,12 +1962,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     }
   };
 
-  const marginLeft = isCollapsed ? 'ml-20' : 'ml-64';
+  const marginLeft = isCollapsed ? 'ml-20 md:ml-20' : 'ml-20 md:ml-64';
 
   return (
     <div className={`flex-1 transition-all duration-300 ${marginLeft}`}>
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="max-w-6xl mx-auto p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Invoice</h1>
             <p className="text-gray-500">Buat, kelola template, dan cetak invoice</p>
@@ -1975,7 +1975,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-200">
+        <div className="mb-6 border-b border-gray-200 overflow-x-auto">
+          <div className="flex gap-2 min-w-max">
           {[
             { id: 'list', label: 'Daftar Invoice', icon: <FiList /> },
             { id: 'create', label: 'Buat Invoice', icon: <FiPlus /> },
@@ -1986,7 +1987,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-orange-500 text-orange-600 bg-orange-50'
                   : 'border-transparent text-gray-600 hover:text-gray-800'
@@ -1996,6 +1997,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               {tab.label}
             </button>
           ))}
+          </div>
         </div>
 
         {message && (
@@ -2037,12 +2039,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 placeholder="Cari nomor / customer..."
                 value={filterSearch}
                 onChange={(e) => setFilterSearch(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-48 text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full sm:w-48 text-sm"
               />
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
               >
                 {STATUS_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -2052,7 +2054,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 type="date"
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
                 title="Tanggal mulai"
               />
               <span className="text-gray-400">–</span>
@@ -2060,7 +2062,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 type="date"
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
                 title="Tanggal akhir"
               />
               <select
@@ -2069,7 +2071,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   setFilterSortKey(e.target.value);
                   setPagination((p) => ({ ...p, page: 1 }));
                 }}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
                 title="Urutkan"
               >
                 {INVOICE_SORT_OPTIONS.map((o) => (
@@ -2253,11 +2255,11 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 <input ref={extractRowInputRef} type="file" accept="image/*" className="hidden" onChange={handleExtractRowFromImage} />
                 <input ref={extractMultiRowInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleExtractMultiRowsFromImages} />
                 <input ref={importSpreadsheetInputRef} type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" className="hidden" onChange={handleImportSpreadsheet} />
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <button type="button" onClick={handleBackToTemplates} className="text-orange-600 hover:text-orange-700 text-sm font-medium">
                     ← Ganti template
                   </button>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-gray-500 break-words">
                     Template: <strong>{selectedTemplate.name}</strong>
                     {editInvoiceId && ' (Edit)'}
                   </span>
@@ -2473,7 +2475,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               if (v && !equipmentNames.includes(v)) setEquipmentNames((prev) => [...prev, v]);
                               e.target.value = '';
                             }}
-                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 w-full sm:w-auto"
                           >
                             <option value="">+ Pilih dari daftar</option>
                             {equipmentList.filter((e) => (e.type === 'alat_berat' || e.type === 'dump_truck') && !equipmentNames.includes(e.name)).map((e) => (
@@ -2486,7 +2488,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             onChange={(e) => setNewEquipmentInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const v = newEquipmentInput.trim(); if (v && !equipmentNames.includes(v)) { setEquipmentNames((prev) => [...prev, v]); setNewEquipmentInput(''); } } }}
                             placeholder="Ketik lalu Enter atau Tambah"
-                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-56 focus:ring-2 focus:ring-orange-500"
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-56 focus:ring-2 focus:ring-orange-500"
                           />
                           <button
                             type="button"
@@ -2589,7 +2591,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2">
                     <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-gray-800">Item / Jasa</h3>
                     {!useTemplateColumns && (
@@ -2599,7 +2601,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       </>
                     )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
                       <label className="text-sm text-gray-600">Tinggi baris:</label>
                       <select
                         value={itemRowHeight}
@@ -2630,7 +2632,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               if (v) updateGroupName(groupKey, v);
                               else updateGroupName(groupKey, ' ');
                             }}
-                            className="min-w-[12rem] border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
+                            className="w-full sm:w-auto sm:min-w-[12rem] border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
                           >
                             <option value="">— Lainnya (ketik manual) —</option>
                             {equipmentNamesForKeterangan.map((name, i) => (
@@ -2646,14 +2648,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               value={displayName}
                               onChange={(e) => updateGroupName(groupKey, e.target.value)}
                               placeholder="Ketik nama unit"
-                              className="min-w-[10rem] border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50"
+                              className="w-full sm:w-auto sm:min-w-[10rem] border border-orange-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 bg-orange-50/50"
                             />
                           )}
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button type="button" onClick={() => addItemEmptyForGroup(groupKey)} className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-sm font-medium border border-gray-300 rounded px-2 py-1">
+                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            <button type="button" onClick={() => addItemEmptyForGroup(groupKey)} className="flex items-center justify-center gap-1 text-gray-600 hover:text-gray-800 text-xs sm:text-sm font-medium border border-gray-300 rounded px-2 py-1 w-full sm:w-auto">
                               <FiPlus /> Tambah baris kosong
                             </button>
-                            <button type="button" onClick={() => addItemCopyFromAboveForGroup(groupKey)} className="flex items-center gap-1 text-orange-600 hover:text-orange-700 text-sm font-medium border border-orange-300 rounded px-2 py-1">
+                            <button type="button" onClick={() => addItemCopyFromAboveForGroup(groupKey)} className="flex items-center justify-center gap-1 text-orange-600 hover:text-orange-700 text-xs sm:text-sm font-medium border border-orange-300 rounded px-2 py-1 w-full sm:w-auto">
                               <FiPlus /> Copy dari baris atas
                             </button>
                             <button
@@ -2663,7 +2665,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 extractMultiRowInputRef.current?.click();
                               }}
                               disabled={!!extractingByGroup[groupKey]}
-                              className="flex items-center gap-1 text-orange-600 hover:text-orange-700 text-sm font-medium border border-orange-300 rounded px-2 py-1 disabled:opacity-50"
+                              className="flex items-center justify-center gap-1 text-orange-600 hover:text-orange-700 text-xs sm:text-sm font-medium border border-orange-300 rounded px-2 py-1 disabled:opacity-50 w-full sm:w-auto"
                             >
                               {extractingByGroup[groupKey] ? 'Memproses...' : (
                                 <>📷 Upload banyak gambar (isi baris kosong unit ini)</>
@@ -2672,7 +2674,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             <button
                               type="button"
                               onClick={() => setCopySpreadsheetModalGroupKey(groupKey)}
-                              className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 text-sm font-medium border border-emerald-300 rounded px-2 py-1"
+                              className="flex items-center justify-center gap-1 text-emerald-700 hover:text-emerald-800 text-xs sm:text-sm font-medium border border-emerald-300 rounded px-2 py-1 w-full sm:w-auto"
                               title="Copy prompt untuk generate CSV di GPT/Gemini"
                             >
                               <FiCopy /> Copy for generate spreadsheet
@@ -2685,7 +2687,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 setImportSpreadsheetMode('csv');
                                 setImportSpreadsheetText('');
                               }}
-                              className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 text-sm font-medium border border-emerald-300 rounded px-2 py-1"
+                              className="flex items-center justify-center gap-1 text-emerald-700 hover:text-emerald-800 text-xs sm:text-sm font-medium border border-emerald-300 rounded px-2 py-1 w-full sm:w-auto"
                               title="Import CSV hasil rekap GPT/Gemini"
                             >
                               <FiPlus /> Import spreadsheet
@@ -2694,14 +2696,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               <button
                                 type="button"
                                 onClick={() => openEditColumnsForGroup(groupKey)}
-                                className="flex items-center gap-1 text-purple-600 hover:text-purple-700 text-sm font-medium border border-purple-300 rounded px-2 py-1"
+                                className="flex items-center justify-center gap-1 text-purple-600 hover:text-purple-700 text-xs sm:text-sm font-medium border border-purple-300 rounded px-2 py-1 w-full sm:w-auto"
                                 title="Edit nama kolom dan rumus untuk unit ini"
                               >
                                 <FiEdit2 /> Edit Kolom Unit Ini
                               </button>
                             )}
                             {isLastGroup && (
-                              <button type="button" onClick={addDifferentUnit} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm font-medium">
+                              <button type="button" onClick={addDifferentUnit} className="flex items-center justify-center gap-1 text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium w-full sm:w-auto">
                                 <FiPlus /> Tambah Unit Berbeda
                               </button>
                             )}
