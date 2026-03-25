@@ -130,8 +130,8 @@ export interface InvoiceTemplate {
     price_unit_label?: string;
     /** Label kolom item: Keterangan, Pekerjaan, dll */
     item_column_label?: string;
-    /** Tinggi baris tabel item: compact, normal (default), relaxed */
-    item_row_height?: 'compact' | 'normal' | 'relaxed';
+    /** Tinggi baris tabel item: very_compact (rapat), compact (normal), normal (tinggi), relaxed */
+    item_row_height?: 'very_compact' | 'compact' | 'normal' | 'relaxed';
     [k: string]: unknown;
   };
   created_at?: string;

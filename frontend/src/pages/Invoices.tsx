@@ -261,7 +261,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [useBbmColumns, setUseBbmColumns] = useState(false);
   const [quantityUnit, setQuantityUnit] = useState<'hari' | 'jam' | 'unit' | 'jerigen' | 'volume'>('hari');
   const [priceUnitLabel, setPriceUnitLabel] = useState('Harga/Hari');
-  const [itemRowHeight, setItemRowHeight] = useState<'compact' | 'normal' | 'relaxed'>('normal');
+  const [itemRowHeight, setItemRowHeight] = useState<'very_compact' | 'compact' | 'normal' | 'relaxed'>('compact');
   /** Konfigurasi kolom per group (override template). Key = groupKey, Value = array kolom */
   const [groupColumnConfigs, setGroupColumnConfigs] = useState<Record<string, TemplateItemColumn[]>>({});
   /** Modal edit kolom per group */
@@ -390,7 +390,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label?: string;
       item_column_label?: string;
       default_notes?: string;
-      item_row_height?: 'compact' | 'normal' | 'relaxed';
+      item_row_height?: 'very_compact' | 'compact' | 'normal' | 'relaxed';
     };
   };
   const [templateForm, setTemplateForm] = useState<TemplateFormState>({
@@ -414,7 +414,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label: 'Harga/Hari',
       item_column_label: 'Keterangan',
       default_notes: '',
-      item_row_height: 'normal',
+      item_row_height: 'compact',
     },
   });
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
@@ -683,7 +683,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const qu = (opts.quantity_unit as string) || 'hari';
     setQuantityUnit(qu === 'jam' ? 'jam' : qu === 'unit' ? 'unit' : qu === 'jerigen' ? 'jerigen' : qu === 'volume' ? 'volume' : 'hari');
     setPriceUnitLabel((opts.price_unit_label as string) || (qu === 'jam' ? 'Harga/Jam' : qu === 'volume' ? 'Harga/Volume' : qu === 'unit' ? 'Harga/Unit' : qu === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari'));
-    setItemRowHeight(((opts.item_row_height as 'compact' | 'normal' | 'relaxed') || 'normal'));
+    setItemRowHeight(((opts.item_row_height as 'very_compact' | 'compact' | 'normal' | 'relaxed') || 'compact'));
     setItemColumnLabel((opts.item_column_label as string) || itemCols[0]?.label || 'Keterangan');
     const docLabel =
       (template.document_type || 'invoice')
@@ -707,7 +707,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setAutoGenerateInvoiceNumber(true);
     setInvoiceNumber('');
     setCustomerId(undefined);
-    setItemRowHeight('normal');
+    setItemRowHeight('compact');
     setAttachments([]);
     setAttachmentTitle('');
     setAttachmentPhotosPerPage(1);
@@ -796,7 +796,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           : typeof rawOpt === 'string'
             ? (() => { try { return (JSON.parse(rawOpt) as Record<string, unknown>) || {}; } catch { return {}; } })()
             : (rawOpt as Record<string, unknown>);
-      setItemRowHeight(((opts.item_row_height as 'compact' | 'normal' | 'relaxed') || 'normal'));
+      setItemRowHeight(((opts.item_row_height as 'very_compact' | 'compact' | 'normal' | 'relaxed') || 'compact'));
     }
     setStep('fill-form');
     setActiveTab('create');
@@ -1551,6 +1551,38 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       attachment_photos_per_page: attachmentPhotosPerPage,
     };
     try {
+      // Simpan tinggi baris ke template aktif agar tidak kembali ke "normal" setelah reload/edit.
+      if (selectedTemplate?.id) {
+        const rawOpt = selectedTemplate.options;
+        const currentOpts =
+          rawOpt == null
+            ? {}
+            : typeof rawOpt === 'string'
+              ? (() => {
+                  try {
+                    return (JSON.parse(rawOpt) as Record<string, unknown>) || {};
+                  } catch {
+                    return {};
+                  }
+                })()
+              : (rawOpt as Record<string, unknown>);
+        const mergedOptions: Record<string, unknown> = {
+          ...currentOpts,
+          item_row_height: itemRowHeight,
+        };
+        const updatedTemplate = await invoiceApi.updateTemplate(Number(selectedTemplate.id), {
+          name: selectedTemplate.name,
+          description: selectedTemplate.description || '',
+          layout: selectedTemplate.layout || 'standard',
+          document_type: selectedTemplate.document_type || 'invoice',
+          default_intro: selectedTemplate.default_intro || '',
+          signature_count: selectedTemplate.signature_count === 2 ? 2 : 1,
+          options: mergedOptions,
+        });
+        setSelectedTemplate(updatedTemplate);
+        setTemplates((prev) => prev.map((t) => (Number(t.id) === Number(updatedTemplate.id) ? updatedTemplate : t)));
+      }
+
       if (editInvoiceId) {
         await invoiceApi.updateInvoice(editInvoiceId, payload);
         setMessage({ type: 'success', text: 'Invoice berhasil diperbarui.' });
@@ -1635,7 +1667,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label?: string;
       item_column_label?: string;
       default_notes?: string;
-      item_row_height?: 'compact' | 'normal' | 'relaxed';
+      item_row_height?: 'very_compact' | 'compact' | 'normal' | 'relaxed';
     };
     if (template) {
       setEditingTemplateId(Number(template.id));
@@ -1677,7 +1709,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           price_unit_label: opts.price_unit_label || 'Harga/Hari',
           item_column_label: opts.item_column_label || (opts.item_columns && opts.item_columns[0]?.label) || 'Keterangan',
           default_notes: (opts.default_notes as string) || '',
-          item_row_height: opts.item_row_height || 'normal',
+          item_row_height: opts.item_row_height || 'compact',
         },
       });
     } else {
@@ -1703,7 +1735,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           price_unit_label: 'Harga/Hari',
           item_column_label: 'Keterangan',
           default_notes: '',
-          item_row_height: 'normal',
+          item_row_height: 'compact',
         },
       });
     }
@@ -2462,12 +2494,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                       <label className="text-sm text-gray-600">Tinggi baris:</label>
                       <select
                         value={itemRowHeight}
-                        onChange={(e) => setItemRowHeight(e.target.value as 'compact' | 'normal' | 'relaxed')}
+                        onChange={(e) => setItemRowHeight(e.target.value as 'very_compact' | 'compact' | 'normal' | 'relaxed')}
                         className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-orange-500 bg-white"
                       >
-                        <option value="compact">Compact</option>
-                        <option value="normal">Normal</option>
-                        <option value="relaxed">Relaxed</option>
+                        <option value="very_compact">Rapat</option>
+                        <option value="compact">Normal</option>
+                        <option value="normal">Tinggi</option>
+                        <option value="relaxed">Sangat Tinggi</option>
                       </select>
                     </div>
                   </div>
@@ -2569,7 +2602,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                             const groupColumns = getColumnsForGroup(groupKey);
                             const displayGroupColumns = groupColumns.filter((c) => !(c.key === 'total' && !templateShowTotal));
                             const useGroupTemplateColumns = displayGroupColumns.length > 0;
-                            const itemRowPad = itemRowHeight === 'compact' ? 'py-1' : itemRowHeight === 'relaxed' ? 'py-3' : 'py-2';
+                            const itemRowPad =
+                              itemRowHeight === 'very_compact'
+                                ? 'py-0.5'
+                                : itemRowHeight === 'compact'
+                                  ? 'py-1'
+                                  : itemRowHeight === 'relaxed'
+                                    ? 'py-3'
+                                    : 'py-2';
                             return (
                           <table className="w-full">
                             <thead>
@@ -3573,13 +3613,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                 <div className="mt-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tinggi baris tabel item</label>
                   <select
-                    value={templateForm.options.item_row_height ?? 'normal'}
-                    onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, item_row_height: e.target.value as 'compact' | 'normal' | 'relaxed' } }))}
+                    value={templateForm.options.item_row_height ?? 'compact'}
+                    onChange={(e) => setTemplateForm((f) => ({ ...f, options: { ...f.options, item_row_height: e.target.value as 'very_compact' | 'compact' | 'normal' | 'relaxed' } }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
                   >
-                    <option value="compact">Compact (lebih rendah)</option>
-                    <option value="normal">Normal (default)</option>
-                    <option value="relaxed">Relaxed (lebih tinggi)</option>
+                    <option value="very_compact">Rapat</option>
+                    <option value="compact">Normal (default)</option>
+                    <option value="normal">Tinggi</option>
+                    <option value="relaxed">Sangat Tinggi</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-0.5">Mengatur ketinggian baris di tabel item (form & PDF). Default: Normal.</p>
                 </div>
