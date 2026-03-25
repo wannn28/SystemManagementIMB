@@ -11,7 +11,7 @@ import type {
 } from '../types/invoice';
 import type { Customer } from '../types/customer';
 import type { Equipment } from '../types/equipment';
-import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy, FiLock, FiUnlock, FiArrowUp, FiArrowDown } from 'react-icons/fi';
+import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy, FiLock, FiUnlock, FiArrowUp, FiArrowDown, FiMove } from 'react-icons/fi';
 import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
 import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
@@ -262,6 +262,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [quantityUnit, setQuantityUnit] = useState<'hari' | 'jam' | 'unit' | 'jerigen' | 'volume'>('hari');
   const [priceUnitLabel, setPriceUnitLabel] = useState('Harga/Hari');
   const [itemRowHeight, setItemRowHeight] = useState<'very_compact' | 'compact' | 'normal' | 'relaxed'>('compact');
+  type GroupDateSortDirection = 'none' | 'asc' | 'desc';
+  const [groupDateSort, setGroupDateSort] = useState<Record<string, GroupDateSortDirection>>({});
+  const [draggingItem, setDraggingItem] = useState<{ groupKey: string; position: number } | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<{ groupKey: string; position: number } | null>(null);
   /** Konfigurasi kolom per group (override template). Key = groupKey, Value = array kolom */
   const [groupColumnConfigs, setGroupColumnConfigs] = useState<Record<string, TemplateItemColumn[]>>({});
   /** Modal edit kolom per group */
@@ -660,6 +664,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const handleSelectTemplate = (template: InvoiceTemplate) => {
     setSelectedTemplate(template);
     setStep('fill-form');
+    setGroupDateSort({});
     setAttachments([]);
     setAttachmentTitle('');
     setAttachmentPhotosPerPage(1);
@@ -704,6 +709,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setItemColumnLabel('Keterangan');
     setTerbilangCustom('');
     setGroupColumnConfigs({});
+    setGroupDateSort({});
     setAutoGenerateInvoiceNumber(true);
     setInvoiceNumber('');
     setCustomerId(undefined);
@@ -716,6 +722,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const loadInvoiceForEdit = async (id: number | string) => {
     const inv = await invoiceApi.getInvoiceById(id);
     if (!inv) return;
+    setGroupDateSort({});
     setEditInvoiceId(id);
     setInvoiceNumber(inv.invoice_number);
     setAutoGenerateInvoiceNumber(false); // Matikan auto-generate saat edit
@@ -977,6 +984,108 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       const next = [...prev];
       [next[fromAbs], next[toAbs]] = [next[toAbs], next[fromAbs]];
       return next;
+    });
+  };
+
+  const moveItemToPositionInGroup = (groupKey: string, fromPosition: number, toPosition: number) => {
+    setItems((prev) => {
+      const groupRows = prev
+        .map((row, idx) => ({ row, idx }))
+        .filter(({ row }) => getGroupKey(row) === groupKey)
+        .map(({ idx }) => idx);
+      if (groupRows.length === 0) return prev;
+      if (fromPosition < 0 || toPosition < 0 || fromPosition >= groupRows.length || toPosition >= groupRows.length) return prev;
+      if (fromPosition === toPosition) return prev;
+
+      const groupValues = groupRows.map((idx) => prev[idx]);
+      const [picked] = groupValues.splice(fromPosition, 1);
+      if (!picked) return prev;
+      groupValues.splice(toPosition, 0, picked);
+
+      const next = [...prev];
+      groupRows.forEach((absIdx, i) => {
+        next[absIdx] = groupValues[i];
+      });
+      return next;
+    });
+  };
+
+  const handleRowDragStart = (groupKey: string, position: number, e: React.DragEvent) => {
+    if ((groupDateSort[groupKey] || 'none') !== 'none') return;
+    setDraggingItem({ groupKey, position });
+    setDragOverItem({ groupKey, position });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `${groupKey}:${position}`);
+  };
+
+  const handleRowDragOver = (groupKey: string, position: number, e: React.DragEvent) => {
+    if (!draggingItem || draggingItem.groupKey !== groupKey) return;
+    if ((groupDateSort[groupKey] || 'none') !== 'none') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!dragOverItem || dragOverItem.groupKey !== groupKey || dragOverItem.position !== position) {
+      setDragOverItem({ groupKey, position });
+    }
+  };
+
+  const handleRowDrop = (groupKey: string, toPosition: number, e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggingItem || draggingItem.groupKey !== groupKey) {
+      setDraggingItem(null);
+      setDragOverItem(null);
+      return;
+    }
+    if ((groupDateSort[groupKey] || 'none') !== 'none') {
+      setDraggingItem(null);
+      setDragOverItem(null);
+      return;
+    }
+    moveItemToPositionInGroup(groupKey, draggingItem.position, toPosition);
+    setDraggingItem(null);
+    setDragOverItem(null);
+  };
+
+  const handleRowDragEnd = () => {
+    setDraggingItem(null);
+    setDragOverItem(null);
+  };
+
+  const toggleGroupDateSort = (groupKey: string) => {
+    setGroupDateSort((prev) => {
+      const current = prev[groupKey] || 'none';
+      const next: GroupDateSortDirection = current === 'none' ? 'asc' : current === 'asc' ? 'desc' : 'none';
+      if (next === 'none') {
+        const { [groupKey]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [groupKey]: next };
+    });
+  };
+
+  const toDateSortValue = (raw?: string): number | null => {
+    const v = (raw || '').trim();
+    if (!v) return null;
+    const parsed = Date.parse(v);
+    if (Number.isFinite(parsed)) return parsed;
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+    return Date.UTC(y, mo - 1, d);
+  };
+
+  const sortIndicesByGroupDate = (indices: number[], direction: GroupDateSortDirection): number[] => {
+    if (direction === 'none') return [...indices];
+    return [...indices].sort((a, b) => {
+      const aDate = toDateSortValue(items[a]?.row_date);
+      const bDate = toDateSortValue(items[b]?.row_date);
+      if (aDate == null && bDate == null) return a - b;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      if (aDate === bDate) return a - b;
+      return direction === 'asc' ? aDate - bDate : bDate - aDate;
     });
   };
 
@@ -2506,7 +2615,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   </div>
                   {orderedGroupKeys.map((groupKey, groupIdx) => {
                     const indices = groupIndices[groupKey] || [];
-                    const sortedIndices = [...indices];
+                    const dateSortDirection = groupDateSort[groupKey] || 'none';
+                    const sortedIndices = sortIndicesByGroupDate(indices, dateSortDirection);
                     const isLastGroup = groupIdx === orderedGroupKeys.length - 1;
                     const displayName = groupKey === '__default__' ? (items.find((r) => getGroupKey(r) === '__default__')?.equipment_group ?? '') || 'Unit 1' : groupKey;
                     return (
@@ -2616,11 +2726,48 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               <tr className="text-left text-sm text-gray-600 border-b">
                                 {templateShowNo && <th className="pb-2 pr-2 w-10">No</th>}
                                 <th className="pb-2 pr-2 w-16">Gambar</th>
-                                {templateShowDate && !useGroupTemplateColumns && <th className="pb-2 pr-2">Tanggal</th>}
+                                {templateShowDate && !useGroupTemplateColumns && (
+                                  <th className="pb-2 pr-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleGroupDateSort(groupKey)}
+                                      className="inline-flex items-center gap-1 hover:text-orange-600"
+                                      title="Klik untuk urutkan tanggal (asc/desc/manual)"
+                                    >
+                                      Tanggal
+                                      {dateSortDirection === 'asc' ? <span className="text-[11px] text-orange-600">ASC</span> : null}
+                                      {dateSortDirection === 'desc' ? <span className="text-[11px] text-orange-600">DESC</span> : null}
+                                    </button>
+                                  </th>
+                                )}
                                 {useGroupTemplateColumns ? (
-                                  displayGroupColumns.map((col, colIdx) => (
-                                    <th key={`item-col-${colIdx}`} className={`pb-2 pr-2 ${getHeaderAlignClass(col)}`}>{formatLabelWithSubscript((col.label || '').trim() || col.key)}{col.key === 'item_name' ? ' *' : ''}</th>
-                                  ))
+                                  displayGroupColumns.map((col, colIdx) => {
+                                    const isDateColumn = col.key === 'row_date' || col.key === 'date' || col.type === 'date';
+                                    const baseLabel = (
+                                      <>
+                                        {formatLabelWithSubscript((col.label || '').trim() || col.key)}
+                                        {col.key === 'item_name' ? ' *' : ''}
+                                      </>
+                                    );
+                                    return (
+                                      <th key={`item-col-${colIdx}`} className={`pb-2 pr-2 ${getHeaderAlignClass(col)}`}>
+                                        {isDateColumn ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleGroupDateSort(groupKey)}
+                                            className="inline-flex items-center gap-1 hover:text-orange-600"
+                                            title="Klik untuk urutkan tanggal (asc/desc/manual)"
+                                          >
+                                            {baseLabel}
+                                            {dateSortDirection === 'asc' ? <span className="text-[11px] text-orange-600">ASC</span> : null}
+                                            {dateSortDirection === 'desc' ? <span className="text-[11px] text-orange-600">DESC</span> : null}
+                                          </button>
+                                        ) : (
+                                          baseLabel
+                                        )}
+                                      </th>
+                                    );
+                                  })
                                 ) : useBbmColumns ? (
                                   <>
                                     <th className="pb-2 pr-2">Keterangan</th>
@@ -2658,8 +2805,24 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               : (row.quantity || 0) * (row.price || 0);
                           const itemCols = groupColumns || [];
                           const rowComputed = useGroupTemplateColumns && itemCols.length > 0 ? getComputedFormulaValues(row, itemCols) : {};
+                          const canDragReorder = dateSortDirection === 'none';
+                          const isDraggingThisRow =
+                            canDragReorder &&
+                            draggingItem?.groupKey === groupKey &&
+                            draggingItem.position === rowNum;
+                          const isDragTargetRow =
+                            canDragReorder &&
+                            draggingItem?.groupKey === groupKey &&
+                            dragOverItem?.groupKey === groupKey &&
+                            dragOverItem.position === rowNum &&
+                            draggingItem.position !== rowNum;
                           return (
-                            <tr key={index} className="border-b border-gray-100">
+                            <tr
+                              key={index}
+                              onDragOver={(e) => handleRowDragOver(groupKey, rowNum, e)}
+                              onDrop={(e) => handleRowDrop(groupKey, rowNum, e)}
+                              className={`border-b border-gray-100 ${isDragTargetRow ? 'bg-orange-50/70' : ''} ${isDraggingThisRow ? 'opacity-60' : ''}`}
+                            >
                               {templateShowNo && <td className={`${itemRowPad} pr-2 text-center text-gray-600`}>{rowNum + 1}</td>}
                               <td className={`${itemRowPad} pr-2 align-top`}>
                                 {row.row_image ? (
@@ -3182,19 +3345,30 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
+                                    draggable={canDragReorder}
+                                    onDragStart={(e) => handleRowDragStart(groupKey, rowNum, e)}
+                                    onDragEnd={handleRowDragEnd}
+                                    disabled={!canDragReorder}
+                                    className="p-1.5 text-gray-400 hover:text-orange-600 disabled:opacity-30 cursor-grab active:cursor-grabbing"
+                                    title={canDragReorder ? 'Drag untuk pindah urutan baris' : 'Nonaktif saat sort tanggal aktif'}
+                                  >
+                                    <FiMove className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => moveItemInGroup(groupKey, rowNum, rowNum - 1)}
-                                    disabled={rowNum === 0}
+                                    disabled={dateSortDirection !== 'none' || rowNum === 0}
                                     className="p-1.5 text-gray-400 hover:text-orange-600 disabled:opacity-30"
-                                    title="Pindah ke atas"
+                                    title={dateSortDirection === 'none' ? 'Pindah ke atas' : 'Nonaktif saat sort tanggal aktif'}
                                   >
                                     <FiArrowUp className="w-4 h-4" />
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => moveItemInGroup(groupKey, rowNum, rowNum + 1)}
-                                    disabled={rowNum === sortedIndices.length - 1}
+                                    disabled={dateSortDirection !== 'none' || rowNum === sortedIndices.length - 1}
                                     className="p-1.5 text-gray-400 hover:text-orange-600 disabled:opacity-30"
-                                    title="Pindah ke bawah"
+                                    title={dateSortDirection === 'none' ? 'Pindah ke bawah' : 'Nonaktif saat sort tanggal aktif'}
                                   >
                                     <FiArrowDown className="w-4 h-4" />
                                   </button>
