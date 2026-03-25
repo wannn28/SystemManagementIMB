@@ -6,6 +6,7 @@ import type {
   CreateInvoiceRequest,
   InvoiceListParams,
   InvoiceListResponse,
+  InvoiceAttachment,
 } from '../types/invoice';
 
 const API_BASE = (import.meta as any).env.VITE_API_URL;
@@ -21,6 +22,23 @@ interface ApiRes<T = unknown> {
 }
 
 export const invoiceApi = {
+  normalizeAttachments(raw: unknown): InvoiceAttachment[] {
+    if (!Array.isArray(raw)) return [];
+    const out: InvoiceAttachment[] = [];
+    raw.forEach((it) => {
+      const one = it as Record<string, unknown>;
+      const image_url = typeof one.image_url === 'string' ? one.image_url : '';
+      if (!image_url.trim()) return;
+      const attachment: InvoiceAttachment = {
+        image_url,
+        ...(typeof one.caption === 'string' ? { caption: one.caption } : {}),
+        ...(typeof one.file_name === 'string' ? { file_name: one.file_name } : {}),
+      };
+      out.push(attachment);
+    });
+    return out;
+  },
+
   async getTemplates(): Promise<InvoiceTemplate[]> {
     const res = await axios.get<ApiRes<InvoiceTemplate[]>>(getUrl('/templates'), { headers: getAuthHeaders() });
     const data = res.data?.data ?? (res.data as unknown as InvoiceTemplate[]);
@@ -109,7 +127,9 @@ export const invoiceApi = {
   async getInvoiceById(id: number | string): Promise<Invoice | null> {
     try {
       const res = await axios.get<ApiRes<Invoice>>(getUrl(`/${id}`), { headers: getAuthHeaders() });
-      return res.data?.data ?? (res.data as unknown as Invoice) ?? null;
+      const data = (res.data?.data ?? (res.data as unknown as Invoice) ?? null) as (Invoice & { attachments?: unknown }) | null;
+      if (!data) return null;
+      return { ...data, attachments: this.normalizeAttachments(data.attachments) };
     } catch {
       return null;
     }
@@ -150,6 +170,7 @@ export const invoiceApi = {
           bbm_quantity: i.bbm_quantity ?? 0,
           bbm_unit_price: i.bbm_unit_price ?? 0,
           equipment_group: i.equipment_group ?? '',
+          sort_order: i.sort_order ?? 0,
         };
         const customFields = Object.keys(i as Record<string, unknown>)
           .filter((k) => k.startsWith('custom_num_'))
@@ -173,6 +194,9 @@ export const invoiceApi = {
       price_unit_label: payload.price_unit_label || 'Harga/Hari',
       item_column_label: payload.item_column_label,
       group_column_configs: payload.group_column_configs,
+      attachments: this.normalizeAttachments(payload.attachments),
+      attachment_title: payload.attachment_title ?? '',
+      attachment_photos_per_page: payload.attachment_photos_per_page ?? 1,
     };
 
     const res = await axios.post<ApiRes<Invoice>>(getUrl(''), body, { headers: getAuthHeaders() });
@@ -206,6 +230,7 @@ export const invoiceApi = {
           bbm_quantity: i.bbm_quantity ?? 0,
           bbm_unit_price: i.bbm_unit_price ?? 0,
           equipment_group: i.equipment_group ?? '',
+          sort_order: i.sort_order ?? 0,
         };
         const customFields = Object.keys(i as Record<string, unknown>)
           .filter((k) => k.startsWith('custom_num_'))
@@ -230,6 +255,9 @@ export const invoiceApi = {
       price_unit_label: payload.price_unit_label || 'Harga/Hari',
       item_column_label: payload.item_column_label,
       group_column_configs: payload.group_column_configs,
+      attachments: this.normalizeAttachments(payload.attachments),
+      attachment_title: payload.attachment_title ?? '',
+      attachment_photos_per_page: payload.attachment_photos_per_page ?? 1,
     };
     const res = await axios.put<ApiRes<Invoice>>(getUrl(`/${id}`), body, { headers: getAuthHeaders() });
     return res.data?.data ?? (res.data as unknown as Invoice);

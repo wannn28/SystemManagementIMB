@@ -43,6 +43,9 @@ func itemTotal(item *entity.InvoiceItem) float64 {
 }
 
 func (s *invoiceService) Create(inv *entity.Invoice) error {
+	if inv.AttachmentPhotosPerPage <= 0 {
+		inv.AttachmentPhotosPerPage = 1
+	}
 	var subtotal float64
 	for i := range inv.Items {
 		inv.Items[i].Total = itemTotal(&inv.Items[i])
@@ -58,6 +61,9 @@ func (s *invoiceService) Create(inv *entity.Invoice) error {
 }
 
 func (s *invoiceService) Update(inv *entity.Invoice) error {
+	if inv.AttachmentPhotosPerPage <= 0 {
+		inv.AttachmentPhotosPerPage = 1
+	}
 	var subtotal float64
 	for i := range inv.Items {
 		inv.Items[i].Total = itemTotal(&inv.Items[i])

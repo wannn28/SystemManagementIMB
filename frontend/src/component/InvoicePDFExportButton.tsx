@@ -296,6 +296,32 @@ function loadKopSuratImage(): Promise<{ dataUrl: string; widthPx: number; height
     });
 }
 
+function loadInlineImage(src: string): Promise<{ dataUrl: string; widthPx: number; heightPx: number } | null> {
+  if (!src || !src.trim()) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        resolve({ dataUrl, widthPx: img.naturalWidth, heightPx: img.naturalHeight });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
   invoice,
   fileName = `invoice-${invoice.invoice_number || invoice.id}.pdf`,
@@ -522,13 +548,7 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
     for (const groupKey of orderedGroupKeys) {
       ensureSpace(35);
       const groupItems = itemsList.filter((i) => getGroupKey(i) === groupKey);
-      const groupItemsSorted = [...groupItems].sort((a, b) => {
-        const da = (a.row_date || '').trim();
-        const db = (b.row_date || '').trim();
-        if (!da) return 1;
-        if (!db) return -1;
-        return da < db ? -1 : da > db ? 1 : 0;
-      });
+      const groupItemsSorted = [...groupItems];
       const g = groupByUnit[groupKey];
       const label = (g && g.label) ? g.label.toUpperCase() : (groupKey === '__default__' ? 'UNIT 1' : groupKey.toUpperCase());
       const sumT = g ? g.total : 0;
@@ -804,6 +824,83 @@ const InvoicePDFExportButton: React.FC<InvoicePDFExportButtonProps> = ({
       doc.setFont('times', 'normal');
       doc.setFontSize(12);
       doc.text('Direktur', blockCenterX, y - 45 + 6, { align: 'center' });
+    }
+
+    const attachments = (invoiceToUse.attachments || []).filter((a) => (a?.image_url || '').trim() !== '');
+    const rawPerPage = Number(invoiceToUse.attachment_photos_per_page ?? 1);
+    const photosPerPage = [1, 2, 3, 4, 6].includes(rawPerPage) ? rawPerPage : 1;
+    const attachmentTitle = (() => {
+      const custom = (invoiceToUse.attachment_title || '').trim();
+      if (custom) return custom;
+      const eq = (invoiceToUse.equipment_name || 'ALAT BERAT').trim().toUpperCase();
+      const loc = (invoiceToUse.location || '').trim().toUpperCase();
+      return `FOTO - FOTO KEGIATAN SEWA ALAT BERAT (${eq})${loc ? ` DI ${loc}` : ''}.`;
+    })();
+    const attachmentLayout = (() => {
+      if (photosPerPage === 1) return { cols: 1, rows: 1 };
+      if (photosPerPage === 2) return { cols: 1, rows: 2 };
+      if (photosPerPage === 3) return { cols: 1, rows: 3 };
+      if (photosPerPage === 4) return { cols: 2, rows: 2 };
+      return { cols: 2, rows: 3 };
+    })();
+    for (let start = 0; start < attachments.length; start += photosPerPage) {
+      const pageItems = attachments.slice(start, start + photosPerPage);
+      doc.addPage();
+      if (kopSuratForNewPage) {
+        doc.addImage(kopSuratForNewPage.dataUrl, 'PNG', 0, 0, PAGE_WIDTH_MM, kopSuratForNewPage.heightMm);
+        y = kopSuratForNewPage.heightMm + 8;
+      } else {
+        y = topMargin;
+      }
+      const boxHeight = 17;
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.2);
+      doc.rect(margin, y, pageWidth - margin * 2, boxHeight);
+      doc.setFont('times', 'bold');
+      doc.setFontSize(11);
+      const titleLines = doc.splitTextToSize(attachmentTitle, pageWidth - margin * 2 - 4);
+      doc.text(titleLines.slice(0, 2), pageWidth / 2, y + 6, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(`NO INV : ${invoiceToUse.invoice_number || '-'}`, pageWidth / 2, y + boxHeight - 4, { align: 'center' });
+      y += boxHeight + 6;
+
+      const cols = attachmentLayout.cols;
+      const rows = attachmentLayout.rows;
+      const gap = 5;
+      const gridTop = y;
+      const gridBottom = pageHeight - bottomMargin;
+      const cellWidth = (pageWidth - margin * 2 - gap * (cols - 1)) / cols;
+      const cellHeight = (gridBottom - gridTop - gap * (rows - 1)) / rows;
+      doc.setFont('times', 'normal');
+      doc.setFontSize(10);
+
+      for (let idx = 0; idx < pageItems.length; idx++) {
+        const att = pageItems[idx];
+        const img = await loadInlineImage(att.image_url);
+        const row = Math.floor(idx / cols);
+        const col = idx % cols;
+        const cellX = margin + col * (cellWidth + gap);
+        const cellY = gridTop + row * (cellHeight + gap);
+        let textY = cellY;
+        if ((att.caption || '').trim()) {
+          const captionLines = doc.splitTextToSize(String(att.caption).trim(), cellWidth);
+          const cappedLines = captionLines.slice(0, 3);
+          doc.text(cappedLines, cellX, textY);
+          textY += cappedLines.length * 4 + 1;
+        }
+        const imageTop = textY;
+        const maxW = cellWidth;
+        const maxH = cellHeight - (imageTop - cellY);
+        if (!img || maxH <= 0) {
+          doc.text('Gambar tidak tersedia', cellX, imageTop + 3);
+          continue;
+        }
+        const ratio = Math.min(maxW / img.widthPx, maxH / img.heightPx);
+        const drawW = img.widthPx * ratio;
+        const drawH = img.heightPx * ratio;
+        const imgX = cellX + (maxW - drawW) / 2;
+        doc.addImage(img.dataUrl, 'JPEG', imgX, imageTop, drawW, drawH);
+      }
     }
 
     doc.save(fileName);

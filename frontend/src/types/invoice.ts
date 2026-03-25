@@ -22,6 +22,14 @@ export interface InvoiceItem {
   bbm_unit_price?: number;
   /** Unit berbeda (dari "Tambah Unit Berbeda"), untuk grand total 2+ alat */
   equipment_group?: string;
+  /** Urutan baris saat disimpan */
+  sort_order?: number;
+}
+
+export interface InvoiceAttachment {
+  image_url: string;
+  caption?: string;
+  file_name?: string;
 }
 
 /** Kolom tabel item yang bisa dikonfigurasi per template */
@@ -175,6 +183,12 @@ export interface Invoice {
   item_column_label?: string;
   /** Konfigurasi kolom per group (JSON string: Record<groupKey, TemplateItemColumn[]>) */
   group_column_configs?: string;
+  /** Lampiran foto untuk halaman setelah invoice utama */
+  attachments?: InvoiceAttachment[];
+  /** Judul halaman lampiran (boleh custom) */
+  attachment_title?: string;
+  /** Jumlah foto lampiran per halaman PDF */
+  attachment_photos_per_page?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -202,6 +216,7 @@ export interface CreateInvoiceRequest {
     bbm_quantity?: number;
     bbm_unit_price?: number;
     equipment_group?: string;
+    sort_order?: number;
   }>;
   tax_percent?: number;
   notes?: string;
@@ -220,6 +235,9 @@ export interface CreateInvoiceRequest {
   price_unit_label?: string;
   item_column_label?: string;
   group_column_configs?: string;
+  attachments?: InvoiceAttachment[];
+  attachment_title?: string;
+  attachment_photos_per_page?: number;
 }
 
 export interface InvoiceListParams {

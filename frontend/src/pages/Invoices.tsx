@@ -7,10 +7,11 @@ import type {
   InvoiceTemplate,
   CreateInvoiceRequest,
   TemplateItemColumn,
+  InvoiceAttachment,
 } from '../types/invoice';
 import type { Customer } from '../types/customer';
 import type { Equipment } from '../types/equipment';
-import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy, FiLock, FiUnlock } from 'react-icons/fi';
+import { FiFileText, FiPlus, FiTrash2, FiEdit2, FiEye, FiList, FiFile, FiGrid, FiCalendar, FiUsers, FiImage, FiCopy, FiLock, FiUnlock, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
 import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
@@ -250,6 +251,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [items, setItems] = useState<FormItem[]>([
     { item_name: '', description: '', quantity: 1, price: 0, row_date: '', days: 0, bbm_quantity: 0, bbm_unit_price: 0 },
   ]);
+  const [attachments, setAttachments] = useState<InvoiceAttachment[]>([]);
+  const [attachmentTitle, setAttachmentTitle] = useState('');
+  const [attachmentPhotosPerPage, setAttachmentPhotosPerPage] = useState<1 | 2 | 3 | 4 | 6>(1);
   const [itemColumnLabel, setItemColumnLabel] = useState('Keterangan');
   const [taxPercent, setTaxPercent] = useState(0);
   const [notes, setNotes] = useState('');
@@ -293,6 +297,11 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   })();
 
   const getEquipmentNameForPayload = () => formatEquipmentNamesForParagraph(equipmentNamesForKeterangan);
+  const defaultAttachmentTitle = (() => {
+    const eq = (getEquipmentNameForPayload() || 'ALAT BERAT').trim().toUpperCase();
+    const loc = (location || '').trim().toUpperCase();
+    return `FOTO - FOTO KEGIATAN SEWA ALAT BERAT (${eq})${loc ? ` DI ${loc}` : ''}.`;
+  })();
   /** Hanya alat berat dari daftar (bukan dump truck), untuk @alatberat */
   const getEquipmentNameAlatBeratForPayload = () =>
     formatEquipmentNamesForParagraph(equipmentNamesForKeterangan.filter((n) => equipmentList.find((e) => e.name === n)?.type !== 'dump_truck'));
@@ -651,6 +660,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const handleSelectTemplate = (template: InvoiceTemplate) => {
     setSelectedTemplate(template);
     setStep('fill-form');
+    setAttachments([]);
+    setAttachmentTitle('');
+    setAttachmentPhotosPerPage(1);
     setGroupColumnConfigs({});
     const rawOpt = template.options;
     const opts =
@@ -696,6 +708,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setInvoiceNumber('');
     setCustomerId(undefined);
     setItemRowHeight('normal');
+    setAttachments([]);
+    setAttachmentTitle('');
+    setAttachmentPhotosPerPage(1);
   };
 
   const loadInvoiceForEdit = async (id: number | string) => {
@@ -738,6 +753,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           })
         : [{ item_name: '', description: '', quantity: 1, price: 0, row_date: '', days: 0, bbm_quantity: 0, bbm_unit_price: 0 }]
     );
+    setAttachments(Array.isArray(inv.attachments) ? inv.attachments : []);
+    setAttachmentTitle(inv.attachment_title || '');
+    setAttachmentPhotosPerPage(([1, 2, 3, 4, 6].includes(Number(inv.attachment_photos_per_page)) ? Number(inv.attachment_photos_per_page) : 1) as 1 | 2 | 3 | 4 | 6);
     setItemColumnLabel(inv.item_column_label || 'Keterangan');
     setTaxPercent(inv.tax_percent ?? 0);
     setNotes(inv.notes || '');
@@ -882,7 +900,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setItems((prev) => [...prev.slice(0, lastIdx + 1), copy, ...prev.slice(lastIdx + 1)]);
   };
   const updateGroupName = (groupKey: string, newName: string) => {
-    const val = newName.trim();
+    const val = newName.replace(/\r?\n/g, ' ');
     const indicesInGroup = groupIndices[groupKey] || [];
     const moreThanOneRow = indicesInGroup.length > 1;
     setItems((prev) =>
@@ -943,6 +961,51 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
   const updateItem = (index: number, field: string, value: string | number | undefined) => {
     setItems((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const moveItemInGroup = (groupKey: string, fromPosition: number, toPosition: number) => {
+    setItems((prev) => {
+      const groupRows = prev
+        .map((row, idx) => ({ row, idx }))
+        .filter(({ row }) => getGroupKey(row) === groupKey)
+        .map(({ idx }) => idx);
+      if (groupRows.length === 0) return prev;
+      if (fromPosition < 0 || toPosition < 0 || fromPosition >= groupRows.length || toPosition >= groupRows.length) return prev;
+      const fromAbs = groupRows[fromPosition];
+      const toAbs = groupRows[toPosition];
+      if (fromAbs === toAbs) return prev;
+      const next = [...prev];
+      [next[fromAbs], next[toAbs]] = [next[toAbs], next[fromAbs]];
+      return next;
+    });
+  };
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error(`Gagal membaca file: ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+
+  const handleUploadAttachments = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) {
+      e.target.value = '';
+      return;
+    }
+    try {
+      const mapped = await Promise.all(files.map(async (f) => ({
+        image_url: await fileToDataUrl(f),
+        caption: '',
+        file_name: f.name,
+      })));
+      setAttachments((prev) => [...prev, ...mapped]);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Gagal memproses lampiran foto.' });
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleExtractRowFromImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1419,7 +1482,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       customer_phone: customerPhone.trim() || undefined,
       customer_email: customerEmail.trim() || undefined,
       customer_address: customerAddress.trim() || undefined,
-      items: items.map((r) => {
+      items: items.map((r, sortOrder) => {
         const customFields = Object.keys(r).filter((k) => k.startsWith('custom_num_')).reduce((acc, k) => ({ ...acc, [k]: (r as Record<string, unknown>)[k] }), {});
         const groupKey = getGroupKey(r);
         const groupCols = getColumnsForGroup(groupKey);
@@ -1462,6 +1525,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           bbm_quantity: r.bbm_quantity,
           bbm_unit_price: r.bbm_unit_price,
           equipment_group: (r.equipment_group || '').trim() || undefined,
+          sort_order: sortOrder,
           ...customFields,
         };
       }),
@@ -1482,6 +1546,9 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       price_unit_label: priceUnitLabel,
       item_column_label: (itemColumnLabel || 'Keterangan').trim() || undefined,
       group_column_configs: Object.keys(groupColumnConfigs).length > 0 ? JSON.stringify(groupColumnConfigs) : undefined,
+      attachments: attachments.filter((a) => (a.image_url || '').trim()),
+      attachment_title: attachmentTitle.trim() || undefined,
+      attachment_photos_per_page: attachmentPhotosPerPage,
     };
     try {
       if (editInvoiceId) {
@@ -2406,13 +2473,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   </div>
                   {orderedGroupKeys.map((groupKey, groupIdx) => {
                     const indices = groupIndices[groupKey] || [];
-                    const sortedIndices = [...indices].sort((a, b) => {
-                      const da = (items[a].row_date || '').trim();
-                      const db = (items[b].row_date || '').trim();
-                      if (!da) return 1;
-                      if (!db) return -1;
-                      return da < db ? -1 : da > db ? 1 : 0;
-                    });
+                    const sortedIndices = [...indices];
                     const isLastGroup = groupIdx === orderedGroupKeys.length - 1;
                     const displayName = groupKey === '__default__' ? (items.find((r) => getGroupKey(r) === '__default__')?.equipment_group ?? '') || 'Unit 1' : groupKey;
                     return (
@@ -2632,7 +2693,14 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                         );
                                       }
                                       if (f === 'price' || (selfRefOrEmpty && isPriceCol)) {
-                                        return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} /></td>);
+                                        return (
+                                          <td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}>
+                                            <div className="flex flex-col gap-1">
+                                              <input type="number" min={0} step="any" value={row.price ?? ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={priceUnitLabel} />
+                                              <span className="text-xs text-gray-500 text-left">Keterangan harga: {formatRupiah(Number(row.price ?? 0))}</span>
+                                            </div>
+                                          </td>
+                                        );
                                       }
                                       if (f === 'bbm_quantity' || (selfRefOrEmpty && isBbmCol)) {
                                         return (<td key={cellKey} className={`${itemRowPad} pr-2 ${cellAlign}`}><input type="number" min={0} step="any" value={row.bbm_quantity ?? ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder="BBM" /></td>);
@@ -2992,7 +3060,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     </div>
                                   </td>
                                   <td className={`${itemRowPad} pr-2`}>
-                                    <input type="number" min={0} step="any" value={price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                    <div className="flex flex-col gap-1">
+                                      <input type="number" min={0} step="any" value={price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
+                                      <span className="text-xs text-gray-500">Keterangan harga: {formatRupiah(Number(price || 0))}</span>
+                                    </div>
                                   </td>
                                   <td className={`${itemRowPad} pr-2`}>
                                     <input type="number" min={0} step="any" value={bbmQty || ''} onChange={(e) => updateItem(index, 'bbm_quantity', parseFloat(String(e.target.value).replace(',', '.')) || 0)} placeholder="-" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" />
@@ -3057,7 +3128,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                                     </div>
                                   </td>
                                   <td className={`${itemRowPad} pr-2`}>
-                                    <input type="number" min={0} step="any" value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
+                                    <div className="flex flex-col gap-1">
+                                      <input type="number" min={0} step="any" value={row.price || ''} onChange={(e) => updateItem(index, 'price', parseFloat(String(e.target.value).replace(',', '.')) || 0)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-500" placeholder={row.quantity_unit === 'jam' || (!row.quantity_unit && quantityUnit === 'jam') ? 'Harga/Jam' : 'Harga/Hari'} />
+                                      <span className="text-xs text-gray-500">Keterangan harga: {formatRupiah(Number(row.price || 0))}</span>
+                                    </div>
                                   </td>
                                   {templateShowTotal && <td className={`${itemRowPad} pr-2 text-sm text-gray-700`}>{formatRupiah(lineTotal)}</td>}
                                 </>
@@ -3065,9 +3139,29 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                               </>
                               )}
                               <td className="py-2">
-                                <button type="button" onClick={() => removeItem(index)} className="p-1.5 text-gray-400 hover:text-red-600" title="Hapus baris">
-                                  <FiTrash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveItemInGroup(groupKey, rowNum, rowNum - 1)}
+                                    disabled={rowNum === 0}
+                                    className="p-1.5 text-gray-400 hover:text-orange-600 disabled:opacity-30"
+                                    title="Pindah ke atas"
+                                  >
+                                    <FiArrowUp className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveItemInGroup(groupKey, rowNum, rowNum + 1)}
+                                    disabled={rowNum === sortedIndices.length - 1}
+                                    className="p-1.5 text-gray-400 hover:text-orange-600 disabled:opacity-30"
+                                    title="Pindah ke bawah"
+                                  >
+                                    <FiArrowDown className="w-4 h-4" />
+                                  </button>
+                                  <button type="button" onClick={() => removeItem(index)} className="p-1.5 text-gray-400 hover:text-red-600" title="Hapus baris">
+                                    <FiTrash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -3120,6 +3214,85 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     <label className="text-sm text-gray-600">Pajak (%)</label>
                     <input type="number" min={0} max={100} step={0.01} value={taxPercent} onChange={(e) => setTaxPercent(parseFloat(e.target.value) || 0)} className="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm" />
                   </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Lampiran Foto</label>
+                      <p className="text-xs text-gray-500">Lampiran akan ditaruh di halaman setelah invoice, dengan keterangan di atas foto.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-600">Foto per lembar</label>
+                      <select
+                        value={attachmentPhotosPerPage}
+                        onChange={(e) => setAttachmentPhotosPerPage((Number(e.target.value) || 1) as 1 | 2 | 3 | 4 | 6)}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value={1}>1 foto</option>
+                        <option value={2}>2 foto</option>
+                        <option value={3}>3 foto</option>
+                        <option value={4}>4 foto</option>
+                        <option value={6}>6 foto</option>
+                      </select>
+                      <label className="inline-flex items-center gap-2 px-3 py-2 border border-orange-300 rounded-lg text-sm text-orange-700 hover:bg-orange-50 cursor-pointer">
+                        <FiImage className="w-4 h-4" />
+                        Tambah Lampiran
+                        <input type="file" accept="image/*" multiple onChange={handleUploadAttachments} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs text-gray-600">Judul Lampiran (bisa diubah manual)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={attachmentTitle}
+                        onChange={(e) => setAttachmentTitle(e.target.value)}
+                        placeholder={defaultAttachmentTitle}
+                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAttachmentTitle(defaultAttachmentTitle)}
+                        className="px-2.5 py-2 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        Pakai Default
+                      </button>
+                    </div>
+                  </div>
+                  {attachments.length === 0 ? (
+                    <p className="text-sm text-gray-400">Belum ada lampiran.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {attachments.map((att, idx) => (
+                        <div key={`attachment-${idx}`} className="flex gap-3 items-start border border-gray-200 rounded-lg p-3">
+                          <img src={att.image_url} alt={att.file_name || `Lampiran ${idx + 1}`} className="w-24 h-24 object-cover rounded border border-gray-200 bg-gray-50" />
+                          <div className="flex-1 space-y-1">
+                            <p className="text-xs text-gray-500">{att.file_name || `Lampiran ${idx + 1}`}</p>
+                            <input
+                              type="text"
+                              value={att.caption || ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setAttachments((prev) => prev.map((x, i) => (i === idx ? { ...x, caption: value } : x)));
+                              }}
+                              placeholder="Keterangan lampiran (muncul di atas foto)"
+                              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-gray-400 hover:text-red-600"
+                            title="Hapus lampiran"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -3997,13 +4170,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                   <>
                     {orderedKeys.map((groupKey) => {
                       const groupItems = list.filter((i) => getKey(i) === groupKey);
-                      const groupItemsSorted = [...groupItems].sort((a, b) => {
-                        const da = (a.row_date || '').trim();
-                        const db = (b.row_date || '').trim();
-                        if (!da) return 1;
-                        if (!db) return -1;
-                        return da < db ? -1 : da > db ? 1 : 0;
-                      });
+                      const groupItemsSorted = [...groupItems];
                       const g = groupByUnitPreview[groupKey];
                       const label = g?.label ? g.label.toUpperCase() : (groupKey === '__default__' ? 'UNIT 1' : groupKey.toUpperCase());
                       return (

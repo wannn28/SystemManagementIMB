@@ -47,6 +47,12 @@ type InvoiceHandler struct {
 	cfg     config.Config
 }
 
+type invoiceAttachmentPayload struct {
+	ImageURL string `json:"image_url"`
+	Caption  string `json:"caption,omitempty"`
+	FileName string `json:"file_name,omitempty"`
+}
+
 func NewInvoiceHandler(service service.InvoiceService, cfg config.Config) *InvoiceHandler {
 	return &InvoiceHandler{service: service, cfg: cfg}
 }
@@ -91,7 +97,41 @@ func inflateInvoiceForResponse(inv *entity.Invoice) map[string]interface{} {
 			}
 		}
 	}
+	m["attachments"] = []invoiceAttachmentPayload{}
+	if strings.TrimSpace(inv.AttachmentsJSON) != "" {
+		var attachments []invoiceAttachmentPayload
+		if json.Unmarshal([]byte(inv.AttachmentsJSON), &attachments) == nil {
+			m["attachments"] = attachments
+		}
+	}
 	return m
+}
+
+func normalizeAttachmentPayload(raw interface{}) []invoiceAttachmentPayload {
+	items, ok := raw.([]interface{})
+	if !ok || len(items) == 0 {
+		return []invoiceAttachmentPayload{}
+	}
+	out := make([]invoiceAttachmentPayload, 0, len(items))
+	for _, one := range items {
+		m, ok := one.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		imageURL, _ := m["image_url"].(string)
+		imageURL = strings.TrimSpace(imageURL)
+		if imageURL == "" {
+			continue
+		}
+		caption, _ := m["caption"].(string)
+		fileName, _ := m["file_name"].(string)
+		out = append(out, invoiceAttachmentPayload{
+			ImageURL: imageURL,
+			Caption:  strings.TrimSpace(caption),
+			FileName: strings.TrimSpace(fileName),
+		})
+	}
+	return out
 }
 
 // parseInvoiceFromRequest reads body once, binds to inv, and fills inv.Items[].CustomColumns from raw "custom_num_*" keys.
@@ -126,6 +166,13 @@ func parseInvoiceFromRequest(c echo.Context, inv *entity.Invoice) error {
 			customJSON, _ := json.Marshal(customMap)
 			inv.Items[i].CustomColumns = string(customJSON)
 		}
+	}
+	attachments := normalizeAttachmentPayload(raw["attachments"])
+	if len(attachments) > 0 {
+		b, _ := json.Marshal(attachments)
+		inv.AttachmentsJSON = string(b)
+	} else {
+		inv.AttachmentsJSON = "[]"
 	}
 	return nil
 }
@@ -188,6 +235,9 @@ func (h *InvoiceHandler) Update(c echo.Context) error {
 	existing.PriceUnitLabel = body.PriceUnitLabel
 	existing.ItemColumnLabel = body.ItemColumnLabel
 	existing.GroupColumnConfigs = body.GroupColumnConfigs
+	existing.AttachmentTitle = body.AttachmentTitle
+	existing.AttachmentPhotosPerPage = body.AttachmentPhotosPerPage
+	existing.AttachmentsJSON = body.AttachmentsJSON
 	existing.Items = body.Items
 	if err := h.service.Update(existing); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
