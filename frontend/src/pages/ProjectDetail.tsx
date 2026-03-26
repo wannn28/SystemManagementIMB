@@ -326,9 +326,27 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     const fullscreenChartRef = useRef<HTMLDivElement>(null);
     
     // Financial data
-    const [, setProjectExpenses] = useState<ProjectExpense[]>([]);
+    const [projectExpenses, setProjectExpenses] = useState<ProjectExpense[]>([]);
     const [projectIncomes, setProjectIncomes] = useState<ProjectIncome[]>([]);
     const [financialSummary, setFinancialSummary] = useState<ProjectFinancialSummary | null>(null);
+    const [showExpenseModal, setShowExpenseModal] = useState(false);
+    const [showIncomeModal, setShowIncomeModal] = useState(false);
+    const [savingExpense, setSavingExpense] = useState(false);
+    const [savingIncome, setSavingIncome] = useState(false);
+    const [expenseForm, setExpenseForm] = useState({
+        tanggal: new Date().toISOString().split('T')[0],
+        kategori: '',
+        deskripsi: '',
+        jumlah: 0,
+        status: 'Unpaid' as 'Paid' | 'Unpaid' | 'Pending'
+    });
+    const [incomeForm, setIncomeForm] = useState({
+        tanggal: new Date().toISOString().split('T')[0],
+        kategori: '',
+        deskripsi: '',
+        jumlah: 0,
+        status: 'Pending' as 'Received' | 'Pending' | 'Planned'
+    });
 
     useEffect(() => {
         if (id) {
@@ -393,6 +411,82 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
         } catch (error) {
             console.error('Failed to save reports:', error);
             alert('Failed to save reports');
+        }
+    };
+
+    const handleCreateExpense = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!id) return;
+        if (!expenseForm.kategori.trim()) {
+            alert('Kategori pengeluaran wajib diisi.');
+            return;
+        }
+        if (!(Number(expenseForm.jumlah) > 0)) {
+            alert('Jumlah pengeluaran harus lebih dari 0.');
+            return;
+        }
+        try {
+            setSavingExpense(true);
+            await projectExpensesAPI.createExpense({
+                projectId: Number(id),
+                tanggal: expenseForm.tanggal,
+                kategori: expenseForm.kategori.trim(),
+                deskripsi: expenseForm.deskripsi.trim(),
+                jumlah: Number(expenseForm.jumlah),
+                status: expenseForm.status,
+            });
+            setShowExpenseModal(false);
+            setExpenseForm({
+                tanggal: new Date().toISOString().split('T')[0],
+                kategori: '',
+                deskripsi: '',
+                jumlah: 0,
+                status: 'Unpaid',
+            });
+            await fetchFinancialData();
+        } catch (error) {
+            console.error('Failed to create expense:', error);
+            alert('Gagal menambahkan pengeluaran.');
+        } finally {
+            setSavingExpense(false);
+        }
+    };
+
+    const handleCreateIncome = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!id) return;
+        if (!incomeForm.kategori.trim()) {
+            alert('Kategori pemasukan wajib diisi.');
+            return;
+        }
+        if (!(Number(incomeForm.jumlah) > 0)) {
+            alert('Jumlah pemasukan harus lebih dari 0.');
+            return;
+        }
+        try {
+            setSavingIncome(true);
+            await projectIncomesAPI.createIncome({
+                projectId: Number(id),
+                tanggal: incomeForm.tanggal,
+                kategori: incomeForm.kategori.trim(),
+                deskripsi: incomeForm.deskripsi.trim(),
+                jumlah: Number(incomeForm.jumlah),
+                status: incomeForm.status,
+            });
+            setShowIncomeModal(false);
+            setIncomeForm({
+                tanggal: new Date().toISOString().split('T')[0],
+                kategori: '',
+                deskripsi: '',
+                jumlah: 0,
+                status: 'Pending',
+            });
+            await fetchFinancialData();
+        } catch (error) {
+            console.error('Failed to create income:', error);
+            alert('Gagal menambahkan pemasukan.');
+        } finally {
+            setSavingIncome(false);
         }
     };
 
@@ -769,15 +863,33 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
 
                     {/* Financial Summary: Total yang akan didapat, Pemasukan, Pengeluaran, Profit saat ini */}
                     <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">Financial Summary</h3>
+                                    <p className="text-sm text-gray-500">Total target, Pemasukan, Pengeluaran & Profit saat ini</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800">Financial Summary</h3>
-                                <p className="text-sm text-gray-500">Total target, Pemasukan, Pengeluaran & Profit saat ini</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowIncomeModal(true)}
+                                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md"
+                                >
+                                    + Tambah Pemasukan
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExpenseModal(true)}
+                                    className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md"
+                                >
+                                    + Tambah Pengeluaran
+                                </button>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -808,6 +920,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                 </div>
                                 <div className="text-xs text-purple-600/80 mt-1">Pemasukan − Pengeluaran</div>
                             </div>
+                        </div>
+                        <div className="mt-3 text-xs text-gray-500">
+                            Transaksi: {projectIncomes.length} pemasukan, {projectExpenses.length} pengeluaran.
                         </div>
                     </div>
 
@@ -934,6 +1049,96 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                     project={project}
                     onSave={handleSaveReports}
                 />
+            )}
+
+            {showExpenseModal && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                    <form onSubmit={handleCreateExpense} className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-200">
+                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-800">Tambah Pengeluaran</h3>
+                            <button type="button" onClick={() => setShowExpenseModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                                    <input type="date" value={expenseForm.tanggal} onChange={(e) => setExpenseForm({ ...expenseForm, tanggal: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                    <select value={expenseForm.status} onChange={(e) => setExpenseForm({ ...expenseForm, status: e.target.value as 'Paid' | 'Unpaid' | 'Pending' })} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                        <option value="Paid">Paid</option>
+                                        <option value="Unpaid">Unpaid</option>
+                                        <option value="Pending">Pending</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                                <input type="text" value={expenseForm.kategori} onChange={(e) => setExpenseForm({ ...expenseForm, kategori: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Contoh: BBM, Gaji, Sewa" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+                                <textarea value={expenseForm.deskripsi} onChange={(e) => setExpenseForm({ ...expenseForm, deskripsi: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" rows={2} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
+                                <input type="number" min={0} step="any" value={expenseForm.jumlah} onChange={(e) => setExpenseForm({ ...expenseForm, jumlah: parseFloat(e.target.value) || 0 })} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                            <button type="button" onClick={() => setShowExpenseModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Batal</button>
+                            <button type="submit" disabled={savingExpense} className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
+                                {savingExpense ? 'Menyimpan...' : 'Simpan Pengeluaran'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {showIncomeModal && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                    <form onSubmit={handleCreateIncome} className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-200">
+                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-800">Tambah Pemasukan</h3>
+                            <button type="button" onClick={() => setShowIncomeModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                                    <input type="date" value={incomeForm.tanggal} onChange={(e) => setIncomeForm({ ...incomeForm, tanggal: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                    <select value={incomeForm.status} onChange={(e) => setIncomeForm({ ...incomeForm, status: e.target.value as 'Received' | 'Pending' | 'Planned' })} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                        <option value="Received">Received</option>
+                                        <option value="Pending">Pending</option>
+                                        <option value="Planned">Planned</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                                <input type="text" value={incomeForm.kategori} onChange={(e) => setIncomeForm({ ...incomeForm, kategori: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Contoh: DP, Termin, Pelunasan" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+                                <textarea value={incomeForm.deskripsi} onChange={(e) => setIncomeForm({ ...incomeForm, deskripsi: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" rows={2} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
+                                <input type="number" min={0} step="any" value={incomeForm.jumlah} onChange={(e) => setIncomeForm({ ...incomeForm, jumlah: parseFloat(e.target.value) || 0 })} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                            <button type="button" onClick={() => setShowIncomeModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Batal</button>
+                            <button type="submit" disabled={savingIncome} className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-60">
+                                {savingIncome ? 'Menyimpan...' : 'Simpan Pemasukan'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             )}
 
             {/* Share Modal */}

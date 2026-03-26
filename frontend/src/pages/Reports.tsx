@@ -402,6 +402,50 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   const [editingExpense, setEditingExpense] = useState<ProjectExpense | null>(null);
   const [editingIncome, setEditingIncome] = useState<ProjectIncome | null>(null);
   const [categories, setCategories] = useState<Array<{id: number; name: string}>>([]);
+
+  const getResolvedFinancialSummary = (project: Project): ProjectFinancialSummary => {
+    const fromApi = financialSummaries[project.id];
+    if (fromApi) return fromApi;
+
+    const expenses = projectExpenses[project.id] || [];
+    const incomes = projectIncomes[project.id] || [];
+    const totalExpenses = expenses.reduce((sum, item) => sum + Number(item.jumlah || 0), 0);
+    const expensesPaid = expenses
+      .filter((item) => item.status === 'Paid')
+      .reduce((sum, item) => sum + Number(item.jumlah || 0), 0);
+    const expensesUnpaid = Math.max(0, totalExpenses - expensesPaid);
+    const incomesTotal = incomes.reduce((sum, item) => sum + Number(item.jumlah || 0), 0);
+    const totalRevenue = incomesTotal > 0 ? incomesTotal : Number(project.totalRevenue || 0);
+    const estimatedProfit = totalRevenue - totalExpenses;
+    const profitMargin = totalRevenue > 0 ? (estimatedProfit / totalRevenue) * 100 : 0;
+
+    const categoriesMap = new Map<string, { total: number; count: number }>();
+    expenses.forEach((item) => {
+      const key = (item.kategori || 'Lainnya').trim() || 'Lainnya';
+      const prev = categoriesMap.get(key) || { total: 0, count: 0 };
+      categoriesMap.set(key, {
+        total: prev.total + Number(item.jumlah || 0),
+        count: prev.count + 1,
+      });
+    });
+
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      totalRevenue,
+      totalExpenses,
+      expensesPaid,
+      expensesUnpaid,
+      estimatedProfit,
+      progressPercent: 0,
+      profitMargin,
+      expenseCategories: Array.from(categoriesMap.entries()).map(([kategori, val]) => ({
+        kategori,
+        total: val.total,
+        count: val.count,
+      })),
+    };
+  };
   
   const groupDataByTimeRange = (project: Project, timeRange: 'daily' | 'weekly' | 'monthly') => {
     const dailyData = project.reports.daily;
@@ -1427,7 +1471,9 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                     </div>
 
                     {/* Financial Summary Section */}
-                    {financialSummaries[project.id] && (
+                    {(() => {
+                      const summary = getResolvedFinancialSummary(project);
+                      return (
                       <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg">
                         <div className="flex items-center justify-between mb-6">
                           <div className="flex items-center gap-3">
@@ -1467,39 +1513,39 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                           <div className="bg-white rounded-xl p-4 shadow-sm">
                             <p className="text-sm font-medium text-gray-600 mb-1">Total Revenue</p>
                             <p className="text-2xl font-bold text-blue-600">
-                              Rp {financialSummaries[project.id].totalRevenue.toLocaleString('id-ID')}
+                              Rp {summary.totalRevenue.toLocaleString('id-ID')}
                             </p>
                           </div>
                           <div className="bg-white rounded-xl p-4 shadow-sm">
                             <p className="text-sm font-medium text-gray-600 mb-1">Total Pengeluaran</p>
                             <p className="text-2xl font-bold text-red-600">
-                              Rp {financialSummaries[project.id].totalExpenses.toLocaleString('id-ID')}
+                              Rp {summary.totalExpenses.toLocaleString('id-ID')}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                              Paid: Rp {financialSummaries[project.id].expensesPaid.toLocaleString('id-ID')} | 
-                              Unpaid: Rp {financialSummaries[project.id].expensesUnpaid.toLocaleString('id-ID')}
+                              Paid: Rp {summary.expensesPaid.toLocaleString('id-ID')} | 
+                              Unpaid: Rp {summary.expensesUnpaid.toLocaleString('id-ID')}
                             </p>
                           </div>
                           <div className="bg-white rounded-xl p-4 shadow-sm">
                             <p className="text-sm font-medium text-gray-600 mb-1">Estimasi Profit</p>
-                            <p className={`text-2xl font-bold ${financialSummaries[project.id].estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              Rp {financialSummaries[project.id].estimatedProfit.toLocaleString('id-ID')}
+                            <p className={`text-2xl font-bold ${summary.estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              Rp {summary.estimatedProfit.toLocaleString('id-ID')}
                             </p>
                           </div>
                           <div className="bg-white rounded-xl p-4 shadow-sm">
                             <p className="text-sm font-medium text-gray-600 mb-1">Profit Margin</p>
-                            <p className={`text-2xl font-bold ${financialSummaries[project.id].profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {financialSummaries[project.id].profitMargin.toFixed(1)}%
+                            <p className={`text-2xl font-bold ${summary.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {summary.profitMargin.toFixed(1)}%
                             </p>
                           </div>
                         </div>
 
                         {/* Expense Categories */}
-                        {financialSummaries[project.id]?.expenseCategories && financialSummaries[project.id].expenseCategories.length > 0 && (
+                        {summary.expenseCategories && summary.expenseCategories.length > 0 && (
                           <div className="bg-white rounded-xl p-5 shadow-sm">
                             <h4 className="text-lg font-bold text-gray-800 mb-4">Breakdown Pengeluaran per Kategori</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {financialSummaries[project.id].expenseCategories.map((cat, idx) => (
+                              {summary.expenseCategories.map((cat, idx) => (
                                 <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                                   <p className="text-sm font-semibold text-gray-700 mb-1">{cat.kategori}</p>
                                   <p className="text-xl font-bold text-gray-900">
@@ -1512,7 +1558,8 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
                           </div>
                         )}
                       </div>
-                    )}
+                    );
+                    })()}
 
                     {/* Expense List */}
                     {projectExpenses[project.id]?.length > 0 && (
