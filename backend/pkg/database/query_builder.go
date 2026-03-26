@@ -155,9 +155,10 @@ func (qb *QueryBuilder) BuildFinanceQuery(params response.QueryParams) *gorm.DB 
 	searchFields := []string{"keterangan", "category"}
 	allowedSortFields := []string{"id", "jumlah", "tanggal", "created_at", "updated_at"}
 	allowedFilterFields := map[string]string{
-		"type":     "type",
-		"category": "category",
-		"status":   "status",
+		"type":       "type",
+		"category":   "category",
+		"status":     "status",
+		"project_id": "project_id",
 	}
 
 	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Finance{})

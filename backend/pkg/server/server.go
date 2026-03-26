@@ -3,11 +3,13 @@ package server
 import (
 	"dashboardadminimb/config"
 	"dashboardadminimb/internal/entity"
+	internalhttp "dashboardadminimb/internal/http"
 	"dashboardadminimb/internal/repository"
 	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/database"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"dashboardadminimb/pkg/route"
-	"net/http"
+	nethttp "net/http"
 	"os"
 
 	"github.com/labstack/echo/v4"
@@ -24,7 +26,7 @@ func StartServer() {
 		AllowOrigins: []string{
 			"*",
 		},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+		AllowMethods: []string{nethttp.MethodGet, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodDelete, nethttp.MethodOptions},
 		AllowHeaders: []string{
 			echo.HeaderOrigin,
 			echo.HeaderContentType,
@@ -54,6 +56,8 @@ func StartServer() {
 	// Inisialisasi API key service
 	apiKeyRepo := repository.NewApiKeyRepository(db)
 	apiKeyService := service.NewApiKeyService(apiKeyRepo)
+	integrationTokenRepo := repository.NewIntegrationAPITokenRepository(db)
+	integrationTokenService := service.NewIntegrationAPITokenService(integrationTokenRepo)
 
 	// Inisialisasi service lainnya
 	projectRepo := repository.NewProjectRepository(db)
@@ -87,6 +91,21 @@ func StartServer() {
 	route.RegisterProjectRoutes(e, projectService, cfg, activityService)
 	route.RegisterProjectExpenseRoutes(e, projectExpenseService, activityService, financeService, projectService, cfg)
 	route.RegisterProjectIncomeRoutes(e, projectIncomeService, activityService, financeService, projectService, cfg)
+
+	// Project share links (persisted + public view/edit)
+	projectShareLinkRepo := repository.NewProjectShareLinkRepository(db)
+	projectShareLinkService := service.NewProjectShareLinkService(projectShareLinkRepo)
+	projectShareLinkHandler := internalhttp.NewProjectShareLinkHandler(projectShareLinkService, projectService)
+	// Protected: create link
+	projectsGroup := e.Group("/api/projects")
+	projectsGroup.Use(appmiddleware.AdminAuth(cfg))
+	projectsGroup.POST("/:id/share-links", projectShareLinkHandler.Create)
+	// Public: view + edit settings by token
+	publicGroup := e.Group("/api/public/projects")
+	publicGroup.GET("/shared/:token", projectShareLinkHandler.GetSharedProject)
+	publicGroup.PUT("/shared/:token", projectShareLinkHandler.UpdateSharedSettings)
+	publicGroup.PUT("/shared/:token/reports", projectShareLinkHandler.UpdateSharedReports)
+
 	route.RegisterMemberRoutes(e, memberService, salaryService, cfg, salaryDetailService, kasbonService, activityService) // Perbaiki typo
 	financeCategoryRepo := repository.NewFinanceCategoryRepository(db)
 	financeCategoryService := service.NewFinanceCategoryService(financeCategoryRepo)
@@ -127,6 +146,8 @@ func StartServer() {
 
 	route.RegisterRoutes(e, userService, cfg)
 	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
+	route.RegisterIntegrationAPITokenRoutes(e, integrationTokenService, cfg)
+	route.RegisterExternalAPIRoutes(e, integrationTokenService, projectService, financeService, memberService)
 	route.RegisterActivityRoutes(e, activityService, cfg)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))

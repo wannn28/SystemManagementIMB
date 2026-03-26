@@ -7,6 +7,24 @@ interface EditReportsProps {
     onSave: (updatedProject: Project) => void;
 }
 
+/** Kunci YYYY-MM-DD untuk mengelompokkan nota per hari (hindari salah hari karena UTC / toISOString). */
+function normalizeSmartNotaDateKey(raw: string | undefined | null, createdAtFallback?: string): string {
+    let s = (raw || '').trim();
+    if (!s && createdAtFallback) {
+        const part = createdAtFallback.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
+        s = createdAtFallback;
+    }
+    const isoPrefix = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoPrefix) return `${isoPrefix[1]}-${isoPrefix[2]}-${isoPrefix[3]}`;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const [dailyReports, setDailyReports] = useState(project.reports.daily);
     const [weeklyReports, setWeeklyReports] = useState(project.reports.weekly);
@@ -352,18 +370,14 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             setIsFetchingInvoice(true);
             setSmartNotaError(null);
             
-            // Get all invoices in the date range
-            const response = await smartNotaApi.getInvoices({
-                page: 1,
-                limit: 1000,
+            // Semua halaman — jangan potong di 1000 baris
+            let invoices = await smartNotaApi.getAllInvoicesInDateRange({
                 date_from: dateFrom,
                 date_to: dateTo,
             });
 
-            let invoices = response.data;
-
-            // Filter by template
-            invoices = invoices.filter(inv => inv.template_id === selectedTemplateId);
+            // Filter by template (API kadang kirim string)
+            invoices = invoices.filter((inv) => Number(inv.template_id) === Number(selectedTemplateId));
 
             // Apply BP filter if provided
             if (filterBP) {
@@ -384,22 +398,13 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             // Group invoices by date
             const invoicesByDate: Record<string, typeof invoices> = {};
             invoices.forEach(invoice => {
-                // Try to get date from various possible fields
-                let dateStr = '';
-                if (invoice.data?.tanggal) {
-                    dateStr = invoice.data.tanggal;
-                } else if (invoice.data?.Tanggal) {
-                    dateStr = invoice.data.Tanggal;
-                } else if (invoice.data?.date) {
-                    dateStr = invoice.data.date;
-                } else {
-                    // Fallback to created_at
-                    dateStr = invoice.created_at.split('T')[0];
-                }
-                
-                // Normalize date to YYYY-MM-DD format
-                const date = new Date(dateStr).toISOString().split('T')[0];
-                
+                const raw =
+                    invoice.data?.tanggal ??
+                    invoice.data?.Tanggal ??
+                    invoice.data?.date ??
+                    '';
+                const date = normalizeSmartNotaDateKey(raw, invoice.created_at);
+                if (!date) return;
                 if (!invoicesByDate[date]) {
                     invoicesByDate[date] = [];
                 }
@@ -428,8 +433,10 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                 
                 // Calculate volume for this date
                 let dateVolume = 0;
-                if (invoicesByDate[date]) {
-                    invoicesByDate[date].forEach(invoice => {
+                const dayInvoices = invoicesByDate[date];
+                const tripCount = dayInvoices?.length ?? 0;
+                if (dayInvoices) {
+                    dayInvoices.forEach(invoice => {
                         let volume = 0;
                         
                         // Priority 1: Use 'total' field from invoice.data (Total Nilai)
@@ -489,19 +496,32 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                     },
                     totalWorkers: 0,
                     totalEquipment: 0,
+                    ritase: tripCount,
+                    cuaca: '',
+                    catatan: '',
                     images: [],
                     createdAt: Date.now(),
                     updatedAt: Date.now()
                 };
 
                 if (existingIndex >= 0) {
-                    // Update existing report
-                    newReports[existingIndex] = {
-                        ...newReports[existingIndex],
-                        plan: planValue,
-                        aktual: dateVolume,
-                        updatedAt: Date.now()
-                    };
+                    // Jangan nol-kan aktual/ritase jika hari ini tidak ada nota yang cocok (filter/template).
+                    const prev = newReports[existingIndex];
+                    if (tripCount > 0) {
+                        newReports[existingIndex] = {
+                            ...prev,
+                            plan: planValue,
+                            aktual: dateVolume,
+                            ritase: tripCount,
+                            updatedAt: Date.now()
+                        };
+                    } else {
+                        newReports[existingIndex] = {
+                            ...prev,
+                            plan: planValue,
+                            updatedAt: Date.now()
+                        };
+                    }
                     updatedCount++;
                 } else {
                     // Create new report
@@ -577,6 +597,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                 `\n└─ Target Akumulatif: ${finalCumulativeTarget.toLocaleString()}` +
                 `\n\n📋 Invoice ditemukan: ${invoices.length}` +
                 filterInfo +
+                `\n\n💡 Hari dalam range tanpa nota yang cocok: Aktual & Ritase lama dipertahankan (tidak dinol-kan).` +
                 `\n\n💡 Rumus:` +
                 `\n• Volume = Volume kemarin + Aktual hari ini` +
                 `\n• Target = Target kemarin + Plan hari ini` +
@@ -612,18 +633,13 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             setIsFetchingInvoice(true);
             setSmartNotaError(null);
             
-            // Get all invoices in the date range
-            const response = await smartNotaApi.getInvoices({
-                page: 1,
-                limit: 1000, // Get many invoices
+            let invoices = await smartNotaApi.getAllInvoicesInDateRange({
                 date_from: startDate,
                 date_to: endDate,
             });
 
-            let invoices = response.data;
-
-            // Filter by template
-            invoices = invoices.filter(inv => inv.template_id === selectedTemplateId);
+            // Filter by template (API kadang kirim string)
+            invoices = invoices.filter((inv) => Number(inv.template_id) === Number(selectedTemplateId));
 
             if (invoices.length === 0) {
                 alert('Tidak ada invoice SmartNota untuk tanggal dan template ini');
@@ -650,9 +666,9 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                 return;
             }
 
-            // Sum up volume from all matching invoices
+            // Sum up volume from all matching invoices; ritase/trip = jumlah nota (invoice) yang cocok
             let totalVolume = 0;
-            let invoiceCount = 0;
+            const tripCount = invoices.length;
 
             invoices.forEach(invoice => {
                 let volume = 0;
@@ -682,14 +698,19 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                     volume = invoice.items.reduce((sum, item) => sum + (item.total || item.quantity), 0);
                 }
 
-                if (volume > 0) {
+                if (Number.isFinite(volume)) {
                     totalVolume += volume;
-                    invoiceCount++;
                 }
             });
 
-            // Update the aktual field with the total volume from SmartNota
-            handleDailyChange(index, 'aktual', totalVolume);
+            // Satu update state: aktual (jumlah volume) + ritase (jumlah nota SmartNota)
+            setDailyReports((prev) => {
+                const next = [...prev];
+                const r = next[index];
+                if (!r) return prev;
+                next[index] = { ...r, aktual: totalVolume, ritase: tripCount };
+                return next;
+            });
             
             const dateRangeText = dateFrom && dateTo && dateFrom !== dateTo 
                 ? `\nPeriode: ${dateFrom} - ${dateTo}`
@@ -703,8 +724,8 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             alert(
                 `✅ Berhasil mengambil data dari SmartNota!` +
                 dateRangeText +
-                `\n📦 Total Volume: ${totalVolume.toLocaleString()}` +
-                `\n📄 Jumlah Invoice: ${invoiceCount}` +
+                `\n📦 Total Volume (Aktual): ${totalVolume.toLocaleString()}` +
+                `\n🚛 Ritase / Trip (jumlah nota): ${tripCount}` +
                 filterInfo
             );
         } catch (error: any) {
@@ -746,10 +767,24 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             if (objectKey === 'workers' || objectKey === 'equipment') {
                 const updatedObject = { ...(report as any)[objectKey] };
                 updatedObject[propertyKey] = value;
-                updatedReports[index] = { ...report, [objectKey]: updatedObject };
+                const next: any = { ...report, [objectKey]: updatedObject };
+                if (objectKey === 'workers') {
+                    next.totalWorkers = Object.values(updatedObject || {}).reduce((sum: number, n: any) => sum + (Number(n) || 0), 0);
+                }
+                if (objectKey === 'equipment') {
+                    next.totalEquipment = Object.values(updatedObject || {}).reduce((sum: number, n: any) => sum + (Number(n) || 0), 0);
+                }
+                updatedReports[index] = next;
             }
         } else {
-            updatedReports[index] = { ...report, [field]: value };
+            const next: any = { ...report, [field]: value };
+            if (field === 'workers') {
+                next.totalWorkers = Object.values(value || {}).reduce((sum: number, n: any) => sum + (Number(n) || 0), 0);
+            }
+            if (field === 'equipment') {
+                next.totalEquipment = Object.values(value || {}).reduce((sum: number, n: any) => sum + (Number(n) || 0), 0);
+            }
+            updatedReports[index] = next;
         }
         
         setDailyReports(updatedReports);
@@ -795,6 +830,9 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             },
             totalWorkers: 0,
             totalEquipment: 0,
+            ritase: 0,
+            cuaca: '',
+            catatan: '',
             // New fields for images
             images: [],
             createdAt: Date.now(),
@@ -907,11 +945,28 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const calculateWeeklyAndMonthlySummaries = () => {
         // Calculate weekly summaries
         const weeklySummaries = weeklyReports.map(weeklyReport => {
-            // Find daily reports for this week
-            const weekDailyReports = dailyReports.filter(daily => {
-                // Simple week matching - you might want to improve this logic
-                return daily.date.startsWith(weeklyReport.week.substring(0, 4)); // Match year
-            });
+            // Find daily reports for this week (use date range from label: "YYYY-MM-DD s/d YYYY-MM-DD")
+            const weekDailyReports = (() => {
+                const raw = String((weeklyReport as any).week || '');
+                const parts = raw.split('s/d').map(s => s.trim());
+                if (parts.length === 2) {
+                    const start = new Date(parts[0]);
+                    const end = new Date(parts[1]);
+                    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                        const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+                        const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+                        return dailyReports.filter((daily: any) => {
+                            if (!daily?.date) return false;
+                            const d = new Date(daily.date);
+                            if (isNaN(d.getTime())) return false;
+                            const t = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                            return t >= startTime && t <= endTime;
+                        });
+                    }
+                }
+                // Fallback: match year only (old behavior)
+                return dailyReports.filter((daily: any) => String(daily?.date || '').startsWith(raw.substring(0, 4)));
+            })();
 
             if (weekDailyReports.length === 0) return weeklyReport;
 
@@ -1263,6 +1318,41 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                                 }}
                                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 placeholder="0"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">🚛 Ritase / trip (jumlah nota)</label>
+                                            <p className="text-xs text-gray-500 mb-2">Terisi otomatis = jumlah invoice SmartNota saat tombol ambil data; bisa diubah manual.</p>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                value={report.ritase ?? 0}
+                                                onChange={(e) => {
+                                                    const val = String(e.target.value).replace(',', '.');
+                                                    handleDailyChange(index, 'ritase', parseFloat(val) || 0);
+                                                }}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">⛅ Cuaca</label>
+                                            <input
+                                                type="text"
+                                                value={report.cuaca ?? ''}
+                                                onChange={(e) => handleDailyChange(index, 'cuaca', e.target.value)}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                                placeholder="Contoh: Cerah, Hujan jam 14.00"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Catatan</label>
+                                            <textarea
+                                                value={report.catatan ?? ''}
+                                                onChange={(e) => handleDailyChange(index, 'catatan', e.target.value)}
+                                                rows={2}
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                                placeholder="Contoh: Solar habis, Jalan macet"
                                             />
                                         </div>
                                     </div>
@@ -2085,6 +2175,8 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                 <ul className="text-xs text-purple-800 space-y-1">
                                     <li>• <strong>Plan</strong> = Nilai yang Anda input (sama untuk semua hari)</li>
                                     <li>• <strong>Aktual</strong> = Total Nilai dari SmartNota (atau 0)</li>
+                                    <li>• <strong>Ritase</strong> = Jumlah nota SmartNota per hari (terisi otomatis saat ambil data)</li>
+                                    <li>• <strong>Bulk fill</strong>: hari tanpa nota yang cocok tidak mengubah Aktual/Ritase yang sudah tersimpan</li>
                                     <li>• <strong>Target</strong> = Target Kemarin + Plan Hari Ini <span className="text-purple-600">(akumulatif)</span></li>
                                     <li>• <strong>Volume</strong> = Volume Kemarin + Aktual Hari Ini <span className="text-purple-600">(akumulatif)</span></li>
                                 </ul>
@@ -2126,6 +2218,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Target</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Plan</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actual</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" title="Jumlah nota SmartNota / trip">Ritase</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Workers</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Equipment</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Images</th>
@@ -2142,6 +2235,7 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                             <td className="px-4 py-3 text-sm text-gray-900">{report.targetVolume?.toLocaleString()}</td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{report.plan?.toLocaleString()}</td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{report.aktual?.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-sm text-amber-800 font-semibold tabular-nums">{Number(report.ritase ?? 0).toLocaleString()}</td>
                                             <td className="px-4 py-3 text-sm">
                                                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
                                                     {report.totalWorkers || 0}

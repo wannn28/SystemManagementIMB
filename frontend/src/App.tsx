@@ -13,6 +13,7 @@ import Finance from './pages/Finance';
 import SmartNotaInvoices from './pages/SmartNotaInvoices';
 import Invoices from './pages/Invoices';
 import EquipmentMaster from './pages/EquipmentMaster';
+import RekapitulasiCutFill from './pages/RekapitulasiCutFill';
 import Login from './pages/Login';
 import ProtectedRoute from './component/ProtectedRoute';
 
@@ -45,6 +46,7 @@ const App: React.FC = () => {
             <Route index element={<Home isCollapsed={isCollapsed} />} />
             <Route path="/projects" element={<Projects isCollapsed={isCollapsed} />} />
             <Route path="/projects/:id" element={<ProjectDetail isCollapsed={isCollapsed} />} />
+            <Route path="/projects/:id/rekapitulasi" element={<RekapitulasiCutFill isCollapsed={isCollapsed} />} />
             <Route path="/finance" element={<Finance isCollapsed={isCollapsed} />} />
             <Route path="/inventory" element={<Inventory isCollapsed={isCollapsed} />} />
             <Route path="/team" element={<Team isCollapsed={isCollapsed} />} />

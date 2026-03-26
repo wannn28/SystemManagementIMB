@@ -177,6 +177,40 @@ class SmartNotaApiService {
     return this.makeRequest<PaginatedResponse<SmartNotaInvoice>>(endpoint);
   }
 
+  /** Ambil semua invoice di rentang tanggal (semua halaman), agar tidak terpotong limit satu request. */
+  async getAllInvoicesInDateRange(params: {
+    date_from: string;
+    date_to: string;
+    limitPerPage?: number;
+  }): Promise<SmartNotaInvoice[]> {
+    const limit = params.limitPerPage ?? 500;
+    const all: SmartNotaInvoice[] = [];
+    let page = 1;
+    for (let guard = 0; guard < 200; guard++) {
+      const response = await this.getInvoices({
+        page,
+        limit,
+        date_from: params.date_from,
+        date_to: params.date_to,
+      });
+      const chunk = response.data ?? [];
+      all.push(...chunk);
+      const p = response.pagination;
+      const totalPages = p?.total_pages ?? 1;
+      const hasNext = p?.has_next_page === true;
+      if (hasNext) {
+        page += 1;
+        continue;
+      }
+      if (page < totalPages) {
+        page += 1;
+        continue;
+      }
+      break;
+    }
+    return all;
+  }
+
   // Get invoice by ID
   async getInvoice(id: string | number): Promise<SmartNotaInvoice> {
     return this.makeRequest<SmartNotaInvoice>(SMART_NOTA_ENDPOINTS.INVOICE_BY_ID(id));

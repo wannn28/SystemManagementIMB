@@ -300,9 +300,11 @@ const getProgress = (project: Project): number => {
     return (currentVolume / totalVolume) * 100;
 };
 
-const RevenueChart = ({ data, timeRange, showTargetLine }: {
+const RevenueChart = ({ data, timeRange, showTargetLine, showRevenueLine, showPaidLine }: {
     data: any[]; timeRange: string; showTotals: boolean;
     showTargetLine?: boolean; targetValue?: number;
+    showRevenueLine: boolean;
+    showPaidLine: boolean;
 }) => {
     const getXAxisConfig = () => {
         if (timeRange === 'daily') {
@@ -340,16 +342,18 @@ const RevenueChart = ({ data, timeRange, showTargetLine }: {
                 {showTargetLine && data.length > 0 && (
                     <Line type="monotone" dataKey="totalRevenue" stroke="#64748b" strokeDasharray="5 5" strokeWidth={2} name="Total Revenue" dot={false} />
                 )}
-                <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} name="Revenue" />
-                <Line type="monotone" dataKey="paid" stroke="#10b981" strokeWidth={2} name="Paid" />
+                {showRevenueLine && <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} name="Revenue" />}
+                {showPaidLine && <Line type="monotone" dataKey="paid" stroke="#10b981" strokeWidth={2} name="Paid" />}
             </LineChart>
         </ResponsiveContainer>
     );
 };
 
-const ProgressChart = ({ data, timeRange, showTargetLine }: {
+const ProgressChart = ({ data, timeRange, showTargetLine, showActualLine, showTargetVolumeLine }: {
     data: any[]; timeRange: string;
     showTargetLine?: boolean; targetValue?: number;
+    showActualLine: boolean;
+    showTargetVolumeLine: boolean;
 }) => {
     const getXAxisConfig = () => {
         if (timeRange === 'daily') {
@@ -387,8 +391,53 @@ const ProgressChart = ({ data, timeRange, showTargetLine }: {
                 {showTargetLine && data.length > 0 && (
                     <Line type="monotone" dataKey="totalVolume" stroke="#64748b" strokeDasharray="5 5" strokeWidth={2} name="Total Volume" dot={false} />
                 )}
-                <Line type="monotone" dataKey="volume" stroke="#8b5cf6" strokeWidth={2} name="Actual Volume" />
-                <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeWidth={2} name="Target" />
+                {showActualLine && <Line type="monotone" dataKey="volume" stroke="#8b5cf6" strokeWidth={2} name="Actual Volume" />}
+                {showTargetVolumeLine && <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeWidth={2} name="Target" />}
+            </LineChart>
+        </ResponsiveContainer>
+    );
+};
+
+const WorkersEquipmentChart = ({ project, timeRange, showWorkersLine, showEquipmentLine }: { project: Project; timeRange: string; showWorkersLine: boolean; showEquipmentLine: boolean }) => {
+    const daily = project.reports?.daily || [];
+    const weekly = project.reports?.weekly || [];
+    const monthly = project.reports?.monthly || [];
+
+    const data =
+        timeRange === 'weekly'
+            ? weekly.map((w: any) => ({
+                  label: w.week,
+                  workers: Number(w.avgWorkers ?? w.totalWorkers ?? 0),
+                  equipment: Number(w.avgEquipment ?? w.totalEquipment ?? 0),
+              }))
+            : timeRange === 'monthly'
+              ? monthly.map((m: any) => ({
+                    label: m.month,
+                    workers: Number(m.avgWorkers ?? m.totalWorkers ?? 0),
+                    equipment: Number(m.avgEquipment ?? m.totalEquipment ?? 0),
+                }))
+              : daily
+                    .filter((d: any) => !!d?.date)
+                    .map((d: any) => ({
+                        label: d.date,
+                        workers: Number(d.totalWorkers ?? Object.values(d.workers || {}).reduce((s: number, n: any) => s + (Number(n) || 0), 0)),
+                        equipment: Number(d.totalEquipment ?? Object.values(d.equipment || {}).reduce((s: number, n: any) => s + (Number(n) || 0), 0)),
+                    }));
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    tickFormatter={(tick: any) => (timeRange === 'daily' ? new Date(tick).toLocaleDateString() : tick)}
+                />
+                <YAxis tick={{ fontSize: 12, fill: '#666' }} />
+                <Tooltip />
+                <Legend />
+                {showWorkersLine && <Line type="monotone" dataKey="workers" stroke="#10b981" strokeWidth={2} name={timeRange === 'daily' ? 'Total Pekerja' : 'Rata-rata Pekerja'} />}
+                {showEquipmentLine && <Line type="monotone" dataKey="equipment" stroke="#f97316" strokeWidth={2} name={timeRange === 'daily' ? 'Total Alat' : 'Rata-rata Alat'} />}
             </LineChart>
         </ResponsiveContainer>
     );
@@ -401,10 +450,19 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     const [loading, setLoading] = useState(true);
     const [showEditReports, setShowEditReports] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
-    const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+    const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('daily');
     const [showTotals, setShowTotals] = useState(true);
     const [showRevenueTotal, setShowRevenueTotal] = useState(false);
     const [showVolumeTotal, setShowVolumeTotal] = useState(false);
+    const [showAllDailyRows, setShowAllDailyRows] = useState(false);
+    const [showRevenueSeries, setShowRevenueSeries] = useState({ revenue: true, paid: true });
+    const [showVolumeSeries, setShowVolumeSeries] = useState({ actual: true, target: true });
+    const [showWorkersEquipmentSeries, setShowWorkersEquipmentSeries] = useState({ workers: true, equipment: true });
+    const [dailyImagesModal, setDailyImagesModal] = useState<{
+        open: boolean;
+        dateLabel: string;
+        images: Array<{ imagePath: string; description?: string }>;
+    }>({ open: false, dateLabel: '', images: [] });
     const [expandedChart, setExpandedChart] = useState<'revenue' | 'volume' | null>(null);
     const [analisisView, setAnalisisView] = useState<'semua' | 'progress' | 'keduanya'>('progress');
     const fullscreenChartRef = useRef<HTMLDivElement>(null);
@@ -431,6 +489,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
         jumlah: 0,
         status: 'Pending' as 'Received' | 'Pending' | 'Planned'
     });
+
+    const [editIncomeModal, setEditIncomeModal] = useState<{
+        open: boolean;
+        id: number | null;
+        form: { tanggal: string; kategori: string; deskripsi: string; jumlah: number; status: 'Received' | 'Pending' | 'Planned' };
+        saving: boolean;
+    }>({ open: false, id: null, form: { tanggal: '', kategori: '', deskripsi: '', jumlah: 0, status: 'Pending' }, saving: false });
+
+    const [editExpenseModal, setEditExpenseModal] = useState<{
+        open: boolean;
+        id: number | null;
+        form: { tanggal: string; kategori: string; deskripsi: string; jumlah: number; status: 'Paid' | 'Unpaid' | 'Pending' };
+        saving: boolean;
+    }>({ open: false, id: null, form: { tanggal: '', kategori: '', deskripsi: '', jumlah: 0, status: 'Unpaid' }, saving: false });
 
     useEffect(() => {
         if (id) {
@@ -483,6 +555,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
         } catch (error) {
             console.error('Failed to fetch financial data:', error);
         }
+    };
+
+    const formatDateOnly = (v: string) => {
+        if (!v) return '';
+        const x = v.split('T')[0];
+        return x || v;
     };
 
     const handleSaveReports = async (updatedProject: Project) => {
@@ -584,6 +662,16 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
         );
     }
 
+    const resolveUploadUrl = (p: string): string => {
+        if (!p) return '';
+        if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('blob:')) return p;
+        const base = import.meta.env.VITE_API_URL;
+        if (p.startsWith('/uploads/')) return `${base}${p}`;
+        if (p.startsWith('uploads/')) return `${base}/${p}`;
+        // assume filename
+        return `${base}/uploads/${p.replace(/^\/+/, '')}`;
+    };
+
     if (!project) {
         return (
             <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${isCollapsed ? 'ml-20' : 'ml-72'} transition-all duration-300 pl-10 pr-8 py-8`}>
@@ -681,6 +769,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                 </svg>
                                 Edit Reports
                             </button>
+                            <button
+                                onClick={() => navigate(`/projects/${id}/rekapitulasi`)}
+                                className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2 border border-white/30"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                                </svg>
+                                Rekapitulasi
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -777,7 +874,19 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                         showTotals={showTotals}
                                         showTargetLine={showRevenueTotal}
                                         targetValue={project.totalRevenue}
+                                        showRevenueLine={showRevenueSeries.revenue}
+                                        showPaidLine={showRevenueSeries.paid}
                                     />
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={showRevenueSeries.revenue} onChange={(e) => setShowRevenueSeries((p) => ({ ...p, revenue: e.target.checked }))} />
+                                        <span className="text-gray-700">Revenue</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={showRevenueSeries.paid} onChange={(e) => setShowRevenueSeries((p) => ({ ...p, paid: e.target.checked }))} />
+                                        <span className="text-gray-700">Paid</span>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -836,7 +945,57 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                         timeRange={timeRange}
                                         showTargetLine={showVolumeTotal}
                                         targetValue={getEffectiveTotalVolume(project)}
+                                        showActualLine={showVolumeSeries.actual}
+                                        showTargetVolumeLine={showVolumeSeries.target}
                                     />
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={showVolumeSeries.actual} onChange={(e) => setShowVolumeSeries((p) => ({ ...p, actual: e.target.checked }))} />
+                                        <span className="text-gray-700">Actual Volume</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={showVolumeSeries.target} onChange={(e) => setShowVolumeSeries((p) => ({ ...p, target: e.target.checked }))} />
+                                        <span className="text-gray-700">Target</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Workers & Equipment Chart */}
+                        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-orange-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="relative z-10">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-800">Pekerja & Alat</h3>
+                                            <p className="text-sm text-gray-500">Total/Avg mengikuti time range</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="h-64 bg-gradient-to-br from-emerald-50/20 to-transparent rounded-xl p-2">
+                                    <WorkersEquipmentChart
+                                        project={project}
+                                        timeRange={timeRange}
+                                        showWorkersLine={showWorkersEquipmentSeries.workers}
+                                        showEquipmentLine={showWorkersEquipmentSeries.equipment}
+                                    />
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={showWorkersEquipmentSeries.workers} onChange={(e) => setShowWorkersEquipmentSeries((p) => ({ ...p, workers: e.target.checked }))} />
+                                        <span className="text-gray-700">Total Pekerja</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={showWorkersEquipmentSeries.equipment} onChange={(e) => setShowWorkersEquipmentSeries((p) => ({ ...p, equipment: e.target.checked }))} />
+                                        <span className="text-gray-700">Total Alat</span>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -1008,6 +1167,112 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                         <div className="mt-3 text-xs text-gray-500">
                             Transaksi: {projectIncomes.length} pemasukan, {projectExpenses.length} pengeluaran.
                         </div>
+
+                        {/* Quick lists (max 10) + link to Finance */}
+                        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-white rounded-xl border border-gray-200 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="font-semibold text-gray-800">Pemasukan Terakhir (max 10)</div>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/finance?type=income&project_id=${project.id}`)}
+                                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                                    >
+                                        Lihat detail
+                                    </button>
+                                </div>
+                                <div className="space-y-2">
+                                    {[...projectIncomes]
+                                        .filter((i) => i.status === 'Received')
+                                        .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))
+                                        .slice(0, 10)
+                                        .map((i) => (
+                                            <div key={i.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                                                <div className="min-w-0">
+                                                    <div className="text-xs text-gray-500">{formatDateOnly(i.tanggal)}</div>
+                                                    <div className="text-sm font-medium text-gray-800 truncate">{i.deskripsi || i.kategori || '-'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <div className="text-sm font-bold text-green-700">Rp {(i.jumlah || 0).toLocaleString()}</div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setEditIncomeModal({
+                                                                open: true,
+                                                                id: i.id,
+                                                                saving: false,
+                                                                form: {
+                                                                    tanggal: formatDateOnly(i.tanggal) || new Date().toISOString().split('T')[0],
+                                                                    kategori: i.kategori || '',
+                                                                    deskripsi: i.deskripsi || '',
+                                                                    jumlah: i.jumlah || 0,
+                                                                    status: i.status || 'Pending',
+                                                                },
+                                                            })
+                                                        }
+                                                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 text-xs font-semibold"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    {projectIncomes.filter((i) => i.status === 'Received').length === 0 && (
+                                        <div className="text-sm text-gray-500">Belum ada pemasukan (status Received).</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-gray-200 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="font-semibold text-gray-800">Pengeluaran Terakhir (max 10)</div>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/finance?type=expense&project_id=${project.id}`)}
+                                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                                    >
+                                        Lihat detail
+                                    </button>
+                                </div>
+                                <div className="space-y-2">
+                                    {[...projectExpenses]
+                                        .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))
+                                        .slice(0, 10)
+                                        .map((e) => (
+                                            <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                                                <div className="min-w-0">
+                                                    <div className="text-xs text-gray-500">{formatDateOnly(e.tanggal)}</div>
+                                                    <div className="text-sm font-medium text-gray-800 truncate">{e.deskripsi || e.kategori || '-'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <div className="text-sm font-bold text-red-700">Rp {(e.jumlah || 0).toLocaleString()}</div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setEditExpenseModal({
+                                                                open: true,
+                                                                id: e.id,
+                                                                saving: false,
+                                                                form: {
+                                                                    tanggal: formatDateOnly(e.tanggal) || new Date().toISOString().split('T')[0],
+                                                                    kategori: e.kategori || '',
+                                                                    deskripsi: e.deskripsi || '',
+                                                                    jumlah: e.jumlah || 0,
+                                                                    status: e.status || 'Unpaid',
+                                                                },
+                                                            })
+                                                        }
+                                                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 text-xs font-semibold"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    {projectExpenses.length === 0 && <div className="text-sm text-gray-500">Belum ada pengeluaran.</div>}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Reports Tables */}
@@ -1030,26 +1295,63 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Date</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Plan</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Actual</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase" title="Jumlah nota / trip (SmartNota)">Ritase</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Volume</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Total Pekerja</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Total Alat</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Foto</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
-                                        {project.reports?.daily?.slice(-10).reverse().map((report, index) => (
+                                        {(showAllDailyRows ? [...(project.reports?.daily || [])].slice().reverse() : (project.reports?.daily || []).slice(-10).reverse()).map((report, index) => (
                                             <tr key={index} className="hover:bg-blue-50 transition-colors">
                                                 <td className="px-4 py-3 text-sm font-medium text-gray-900">{report.date}</td>
                                                 <td className="px-4 py-3 text-sm text-gray-700">{report.plan?.toLocaleString()}</td>
                                                 <td className="px-4 py-3 text-sm text-gray-700">{report.aktual?.toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-amber-700 font-semibold tabular-nums">
+                                                    {Number(report.ritase ?? 0).toLocaleString()}
+                                                </td>
                                                 <td className="px-4 py-3 text-sm text-blue-600 font-semibold">{report.targetVolume?.toLocaleString()}</td>
                                                 <td className="px-4 py-3 text-sm text-purple-600 font-bold">{report.volume?.toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.totalWorkers ?? Object.values(report.workers || {}).reduce((s: number, n: any) => s + (Number(n) || 0), 0)).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.totalEquipment ?? Object.values(report.equipment || {}).reduce((s: number, n: any) => s + (Number(n) || 0), 0)).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm">
+                                                    {report.images && report.images.length > 0 ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setDailyImagesModal({
+                                                                    open: true,
+                                                                    dateLabel: report.date,
+                                                                    images: (report.images || []).map((img: any) => ({
+                                                                        imagePath: resolveUploadUrl(img.imagePath),
+                                                                        description: img.description || '',
+                                                                    })),
+                                                                })
+                                                            }
+                                                            className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold"
+                                                        >
+                                                            Lihat Foto ({report.images.length})
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                                 {project.reports?.daily && project.reports.daily.length > 10 && (
-                                    <div className="text-center py-4 text-sm text-gray-500 bg-gray-50 rounded-b-xl">
-                                        Showing last 10 of {project.reports.daily.length} records
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAllDailyRows((v) => !v)}
+                                        className="w-full text-center py-4 text-sm text-blue-600 hover:text-blue-700 bg-gray-50 rounded-b-xl"
+                                    >
+                                        {showAllDailyRows
+                                            ? `Tampilkan 10 terakhir`
+                                            : `Showing last 10 of ${project.reports.daily.length} records (klik untuk lihat semua)`}
+                                    </button>
                                 )}
                             </div>
                         </div>
@@ -1073,6 +1375,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target Plan</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target Actual</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Volume</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Total Pekerja</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Rata-rata Pekerja</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Total Alat</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Rata-rata Alat</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
@@ -1082,6 +1388,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                                 <td className="px-4 py-3 text-sm text-gray-700">{report.targetPlan?.toLocaleString()}</td>
                                                 <td className="px-4 py-3 text-sm text-gray-700">{report.targetAktual?.toLocaleString()}</td>
                                                 <td className="px-4 py-3 text-sm text-green-600 font-bold">{report.volume?.toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.totalWorkers ?? 0).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.avgWorkers ?? 0).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.totalEquipment ?? 0).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.avgEquipment ?? 0).toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1108,6 +1418,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target Plan</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target Actual</th>
                                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Volume</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Total Pekerja</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Rata-rata Pekerja</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Total Alat</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Rata-rata Alat</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
@@ -1117,6 +1431,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                                 <td className="px-4 py-3 text-sm text-gray-700">{report.targetPlan?.toLocaleString()}</td>
                                                 <td className="px-4 py-3 text-sm text-gray-700">{report.targetAktual?.toLocaleString()}</td>
                                                 <td className="px-4 py-3 text-sm text-purple-600 font-bold">{report.volume?.toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.totalWorkers ?? 0).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.avgWorkers ?? 0).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.totalEquipment ?? 0).toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-700">{(report.avgEquipment ?? 0).toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1126,6 +1444,48 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Daily Images Modal */}
+            {dailyImagesModal.open && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">Foto Daily Report</h3>
+                                <p className="text-sm text-gray-500">{dailyImagesModal.dateLabel}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setDailyImagesModal({ open: false, dateLabel: '', images: [] })}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">
+                            {dailyImagesModal.images.length === 0 ? (
+                                <div className="text-sm text-gray-500">Belum ada foto.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {dailyImagesModal.images.map((img, idx) => (
+                                        <div key={idx} className="rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                                            <div className="aspect-[4/3] bg-black/5">
+                                                <img src={img.imagePath} className="w-full h-full object-cover" alt={`Foto ${idx + 1}`} />
+                                            </div>
+                                            <div className="p-3">
+                                                <div className="text-xs font-semibold text-gray-700 mb-1">Keterangan</div>
+                                                <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                                                    {(img.description || '').trim() ? img.description : <span className="text-gray-400">—</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Edit Reports Modal */}
             {showEditReports && (
@@ -1174,6 +1534,130 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                             <button type="button" onClick={() => setShowExpenseModal(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Batal</button>
                             <button type="submit" disabled={savingExpense} className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
                                 {savingExpense ? 'Menyimpan...' : 'Simpan Pengeluaran'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {/* Edit Income Modal */}
+            {editIncomeModal.open && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                    <form
+                        onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!editIncomeModal.id) return;
+                            setEditIncomeModal((p) => ({ ...p, saving: true }));
+                            try {
+                                await projectIncomesAPI.updateIncome(editIncomeModal.id, editIncomeModal.form);
+                                await fetchFinancialData();
+                                setEditIncomeModal((p) => ({ ...p, open: false, id: null, saving: false }));
+                            } catch (err) {
+                                console.error(err);
+                                alert('Gagal update pemasukan.');
+                                setEditIncomeModal((p) => ({ ...p, saving: false }));
+                            }
+                        }}
+                        className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-200"
+                    >
+                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-800">Edit Pemasukan</h3>
+                            <button type="button" onClick={() => setEditIncomeModal((p) => ({ ...p, open: false }))} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                                    <input type="date" value={editIncomeModal.form.tanggal} onChange={(e) => setEditIncomeModal((p) => ({ ...p, form: { ...p.form, tanggal: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                    <select value={editIncomeModal.form.status} onChange={(e) => setEditIncomeModal((p) => ({ ...p, form: { ...p.form, status: e.target.value as any } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                        <option value="Received">Received</option>
+                                        <option value="Pending">Pending</option>
+                                        <option value="Planned">Planned</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                                <input type="text" value={editIncomeModal.form.kategori} onChange={(e) => setEditIncomeModal((p) => ({ ...p, form: { ...p.form, kategori: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+                                <input type="text" value={editIncomeModal.form.deskripsi} onChange={(e) => setEditIncomeModal((p) => ({ ...p, form: { ...p.form, deskripsi: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nominal</label>
+                                <input type="number" value={editIncomeModal.form.jumlah} onChange={(e) => setEditIncomeModal((p) => ({ ...p, form: { ...p.form, jumlah: Number(e.target.value) || 0 } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditIncomeModal((p) => ({ ...p, open: false }))} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Batal</button>
+                            <button type="submit" disabled={editIncomeModal.saving} className="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
+                                {editIncomeModal.saving ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {/* Edit Expense Modal */}
+            {editExpenseModal.open && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                    <form
+                        onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!editExpenseModal.id) return;
+                            setEditExpenseModal((p) => ({ ...p, saving: true }));
+                            try {
+                                await projectExpensesAPI.updateExpense(editExpenseModal.id, editExpenseModal.form);
+                                await fetchFinancialData();
+                                setEditExpenseModal((p) => ({ ...p, open: false, id: null, saving: false }));
+                            } catch (err) {
+                                console.error(err);
+                                alert('Gagal update pengeluaran.');
+                                setEditExpenseModal((p) => ({ ...p, saving: false }));
+                            }
+                        }}
+                        className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-200"
+                    >
+                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-800">Edit Pengeluaran</h3>
+                            <button type="button" onClick={() => setEditExpenseModal((p) => ({ ...p, open: false }))} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                                    <input type="date" value={editExpenseModal.form.tanggal} onChange={(e) => setEditExpenseModal((p) => ({ ...p, form: { ...p.form, tanggal: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                    <select value={editExpenseModal.form.status} onChange={(e) => setEditExpenseModal((p) => ({ ...p, form: { ...p.form, status: e.target.value as any } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                        <option value="Paid">Paid</option>
+                                        <option value="Unpaid">Unpaid</option>
+                                        <option value="Pending">Pending</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                                <input type="text" value={editExpenseModal.form.kategori} onChange={(e) => setEditExpenseModal((p) => ({ ...p, form: { ...p.form, kategori: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+                                <input type="text" value={editExpenseModal.form.deskripsi} onChange={(e) => setEditExpenseModal((p) => ({ ...p, form: { ...p.form, deskripsi: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nominal</label>
+                                <input type="number" value={editExpenseModal.form.jumlah} onChange={(e) => setEditExpenseModal((p) => ({ ...p, form: { ...p.form, jumlah: Number(e.target.value) || 0 } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditExpenseModal((p) => ({ ...p, open: false }))} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Batal</button>
+                            <button type="submit" disabled={editExpenseModal.saving} className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-50">
+                                {editExpenseModal.saving ? 'Menyimpan...' : 'Simpan'}
                             </button>
                         </div>
                     </form>
@@ -1264,6 +1748,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                 showTotals={showTotals}
                                 showTargetLine={showRevenueTotal}
                                 targetValue={project.totalRevenue}
+                                showRevenueLine={showRevenueSeries.revenue}
+                                showPaidLine={showRevenueSeries.paid}
                             />
                         )}
                         {expandedChart === 'volume' && (
@@ -1272,6 +1758,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                 timeRange={timeRange}
                                 showTargetLine={showVolumeTotal}
                                 targetValue={getEffectiveTotalVolume(project)}
+                                showActualLine={showVolumeSeries.actual}
+                                showTargetVolumeLine={showVolumeSeries.target}
                             />
                         )}
                     </div>
@@ -1282,7 +1770,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
     );
 };
 
-// ShareModal Component
+  // ShareModal Component
 const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
     const [shareSettings, setShareSettings] = useState({
         showRevenue: true,
@@ -1292,30 +1780,34 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
         showMonthly: true,
         showWorkers: true,
         showEquipment: true,
+        showRekapitulasi: true,
+        allowEdit: true,
+        showVolumeTarget: true,
+        showVolumeActual: true,
     });
     const [shareLink, setShareLink] = useState('');
+    const [shareEditLink, setShareEditLink] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const generateShareLink = () => {
+    const generateShareLink = async () => {
         setIsGenerating(true);
-        const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
-        const params = new URLSearchParams();
-        if (shareSettings.showRevenue) params.append('r', '1');
-        if (shareSettings.showFinancial) params.append('f', '1');
-        if (shareSettings.showDaily) params.append('d', '1');
-        if (shareSettings.showWeekly) params.append('w', '1');
-        if (shareSettings.showMonthly) params.append('m', '1');
-        if (shareSettings.showWorkers) params.append('wk', '1');
-        if (shareSettings.showEquipment) params.append('e', '1');
-        const queryStr = params.toString();
-        const link = `${window.location.origin}/shared/${project.id}/${token}${queryStr ? `?${queryStr}` : ''}`;
-        setShareLink(link);
-        
-        setTimeout(() => setIsGenerating(false), 500);
+        try {
+            const { projectShareLinksAPI } = await import('../api');
+            const res = await projectShareLinksAPI.create(project.id, shareSettings);
+            const viewLink = `${window.location.origin}/shared/${project.id}/${res.token}`;
+            const editLink = `${window.location.origin}/shared/${project.id}/${res.token}?edit_token=${encodeURIComponent(res.edit_token)}`;
+            setShareLink(viewLink);
+            setShareEditLink(shareSettings.allowEdit ? editLink : '');
+        } catch (e) {
+            console.error(e);
+            alert('Gagal membuat link share.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(shareLink);
+    const copyToClipboard = (v: string) => {
+        navigator.clipboard.writeText(v);
         alert('Link copied to clipboard!');
     };
 
@@ -1342,13 +1834,17 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                         <h4 className="text-lg font-bold text-gray-800 mb-4">📋 Customize What to Share</h4>
                         <div className="space-y-3">
                             {[
-                                { key: 'showRevenue', label: '💰 Revenue & Financial Data', desc: 'Total revenue, amount paid' },
-                                { key: 'showFinancial', label: '📊 Financial Analysis', desc: 'Detailed financial reports and analysis' },
-                                { key: 'showDaily', label: '📅 Daily Reports', desc: 'Daily progress and activities' },
-                                { key: 'showWeekly', label: '📈 Weekly Summary', desc: 'Weekly aggregated data' },
-                                { key: 'showMonthly', label: '📆 Monthly Summary', desc: 'Monthly performance metrics' },
-                                { key: 'showWorkers', label: '👷 Workers Data', desc: 'Worker counts and details' },
-                                { key: 'showEquipment', label: '🚜 Equipment Data', desc: 'Equipment usage and details' },
+                                { key: 'showRevenue', label: '💰 Revenue & Ringkasan', desc: 'Total revenue, progress ringkas' },
+                                { key: 'showFinancial', label: '📊 Analisis Finansial', desc: 'Laporan & analisis finansial' },
+                                { key: 'showDaily', label: '📅 Daily Reports', desc: 'Progress harian' },
+                                { key: 'showWeekly', label: '📈 Weekly Summary', desc: 'Rekap mingguan' },
+                                { key: 'showMonthly', label: '📆 Monthly Summary', desc: 'Rekap bulanan' },
+                                { key: 'showWorkers', label: '👷 Data Pekerja', desc: 'Jumlah pekerja' },
+                                { key: 'showEquipment', label: '🚜 Data Alat', desc: 'Pemakaian alat' },
+                                { key: 'showRekapitulasi', label: '📋 Rekapitulasi Cut & Fill', desc: 'Tabel rekap harian/bulanan (bisa diedit lewat link edit)' },
+                                { key: 'allowEdit', label: '✏️ Izinkan Akses Edit', desc: 'Jika nonaktif, link edit tidak dipakai' },
+                                { key: 'showVolumeTarget', label: '🎯 Target Volume', desc: 'Tampilkan target di progress/volume' },
+                                { key: 'showVolumeActual', label: '✅ Aktual Volume', desc: 'Tampilkan aktual di progress/volume' },
                             ].map((item) => (
                                 <label key={item.key} className="flex items-start p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                                     <input
@@ -1378,7 +1874,7 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                         <div className="space-y-4">
                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                 <div className="text-sm font-semibold text-green-800 mb-2">✅ Share Link Generated!</div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 mb-2">
                                     <input
                                         type="text"
                                         value={shareLink}
@@ -1386,16 +1882,31 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                                         className="flex-1 px-4 py-2 border rounded-lg bg-white text-sm"
                                     />
                                     <button
-                                        onClick={copyToClipboard}
+                                        onClick={() => copyToClipboard(shareLink)}
                                         className="bg-green-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-600 transition-all"
                                     >
                                         📋 Copy
                                     </button>
                                 </div>
+                                {shareEditLink && (
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={shareEditLink}
+                                            readOnly
+                                            className="flex-1 px-4 py-2 border rounded-lg bg-white text-sm"
+                                        />
+                                        <button
+                                            onClick={() => copyToClipboard(shareEditLink)}
+                                            className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-emerald-700 transition-all"
+                                        >
+                                            ✏️ Copy Edit Link
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <div className="text-xs text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                <strong>⚠️ Note:</strong> Anyone with this link can view the selected project data. 
-                                The link is view-only and does not allow editing.
+                                <strong>⚠️ Catatan:</strong> Link pertama hanya untuk lihat. Link edit hanya aktif jika opsi "Izinkan Akses Edit" dicentang.
                             </div>
                         </div>
                     )}

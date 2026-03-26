@@ -89,6 +89,9 @@ export interface DailyReport {
   equipment: Record<string, number>;
   totalWorkers: number;
   totalEquipment: number;
+  ritase: number;
+  cuaca: string;
+  catatan: string;
   images: DailyReportImage[];
   createdAt: number;
   updatedAt: number;
@@ -176,6 +179,7 @@ export interface FinanceEntry {
   type: 'income' | 'expense';
   status : 'Paid' | 'Unpaid';
   category: string;
+  projectId?: number;
 }
 
 // Pagination interfaces

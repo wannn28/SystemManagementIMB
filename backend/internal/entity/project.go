@@ -19,6 +19,9 @@ type ReportDaily struct {
 	Equipment      datatypes.JSON `json:"equipment"` // JSON object with equipment types and counts
 	TotalWorkers   int            `json:"totalWorkers"`
 	TotalEquipment int            `json:"totalEquipment"`
+	Ritase  float64 `json:"ritase"`
+	Cuaca   string  `gorm:"size:255" json:"cuaca"`
+	Catatan string  `gorm:"type:text" json:"catatan"`
 	// Images will be stored in separate table
 	Images    []DailyReportImage `gorm:"foreignKey:ReportDailyID" json:"images"`
 	CreatedAt int64              `json:"createdAt"`

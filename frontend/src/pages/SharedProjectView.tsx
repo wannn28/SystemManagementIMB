@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
-import { projectsAPI } from '../api';
+import { projectShareLinksAPI } from '../api';
 import { Project } from '../types/BasicTypes';
+import RekapitulasiCutFill from './RekapitulasiCutFill';
 
 // Helper functions (same as ProjectDetail)
 const getAggregatedRevenueData = (project: Project, timeRange: string) => {
@@ -156,32 +157,33 @@ const getProgressData = (project: Project, timeRange: string) => {
 };
 
 const SharedProjectView: React.FC = () => {
-    const { projectId } = useParams<{ projectId: string; token: string }>();
+    const { token } = useParams<{ projectId: string; token: string }>();
     const [project, setProject] = useState<Project | null>(null);
     const [loading, setLoading] = useState(true);
-    const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+    const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('daily');
     const [showTotals] = useState(true);
     const [expandedChart, setExpandedChart] = useState<'revenue' | 'volume' | null>(null);
     const [analisisView, setAnalisisView] = useState<'semua' | 'progress' | 'keduanya'>('progress');
     const fullscreenChartRef = useRef<HTMLDivElement>(null);
-    const [shareSettings] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return {
-            showRevenue: params.has('r'),
-            showFinancial: params.has('f'),
-            showDaily: params.has('d'),
-            showWeekly: params.has('w'),
-            showMonthly: params.has('m'),
-            showWorkers: params.has('wk'),
-            showEquipment: params.has('e'),
-        };
-    });
+    const editToken = new URLSearchParams(window.location.search).get('edit_token') || '';
+    const [shareSettings, setShareSettings] = useState(() => ({
+        showRevenue: true,
+        showFinancial: true,
+        showDaily: true,
+        showWeekly: true,
+        showMonthly: true,
+        showWorkers: true,
+        showEquipment: true,
+        showRekapitulasi: true,
+        allowEdit: true,
+        showVolumeTarget: true,
+        showVolumeActual: true,
+    }));
+    const canUseEditToken = !!editToken && shareSettings.allowEdit;
 
     useEffect(() => {
-        if (projectId) {
-            fetchProject();
-        }
-    }, [projectId]);
+        if (token) fetchProject();
+    }, [token]);
 
     useEffect(() => {
         if (!expandedChart) {
@@ -204,9 +206,10 @@ const SharedProjectView: React.FC = () => {
     const fetchProject = async () => {
         try {
             setLoading(true);
-            // TODO: Add token validation in backend
-            const project = await projectsAPI.getProjectById(Number(projectId));
-            setProject(project);
+            const data = await projectShareLinksAPI.getSharedProject(String(token));
+            setProject(data.project as Project);
+            // Merge defaults with saved settings (so older links still work)
+            setShareSettings((prev) => ({ ...prev, ...(data.settings || {}) }));
         } catch (error) {
             console.error('Failed to fetch project:', error);
         } finally {
@@ -316,8 +319,12 @@ const SharedProjectView: React.FC = () => {
                     <YAxis tick={{ fontSize: 12, fill: '#666' }} />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="volume" stroke="#8b5cf6" strokeWidth={2} name="Actual Volume" />
-                    <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeWidth={2} name="Target" />
+                    {shareSettings.showVolumeActual && (
+                        <Line type="monotone" dataKey="volume" stroke="#8b5cf6" strokeWidth={2} name="Aktual" />
+                    )}
+                    {shareSettings.showVolumeTarget && (
+                        <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeWidth={2} name="Target" />
+                    )}
                 </LineChart>
             </ResponsiveContainer>
         );
@@ -336,10 +343,61 @@ const SharedProjectView: React.FC = () => {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-800">{project.name}</h1>
-                        <p className="text-sm text-gray-600">Shared Project View (Read-Only)</p>
+                        <p className="text-sm text-gray-600">Tampilan Project yang Dishare (Read-Only)</p>
                     </div>
                 </div>
             </div>
+
+            {/* Edit panel (only if edit_token present and allowed by share setting) */}
+            {canUseEditToken && (
+                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-gray-100">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-800">Pengaturan tampilan (Edit)</h2>
+                            <p className="text-sm text-gray-500">Perubahan ini akan tersimpan di link ini.</p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                try {
+                                    await projectShareLinksAPI.updateSettings(String(token), editToken, shareSettings);
+                                    alert('Pengaturan berhasil disimpan.');
+                                } catch (e) {
+                                    console.error(e);
+                                    alert('Gagal menyimpan pengaturan.');
+                                }
+                            }}
+                            className="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700"
+                        >
+                            Simpan Pengaturan
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                        {[
+                            { key: 'showRevenue', label: 'Revenue & Ringkasan' },
+                            { key: 'showFinancial', label: 'Analisis Finansial' },
+                            { key: 'showDaily', label: 'Daily Reports' },
+                            { key: 'showWeekly', label: 'Weekly Summary' },
+                            { key: 'showMonthly', label: 'Monthly Summary' },
+                            { key: 'showWorkers', label: 'Workers Data' },
+                            { key: 'showEquipment', label: 'Equipment Data' },
+                            { key: 'showRekapitulasi', label: 'Rekapitulasi Cut & Fill' },
+                            { key: 'allowEdit', label: 'Izinkan Akses Edit' },
+                            { key: 'showVolumeTarget', label: 'Progress: tampilkan Target Volume' },
+                            { key: 'showVolumeActual', label: 'Progress: tampilkan Aktual Volume' },
+                        ].map((item) => (
+                            <label key={item.key} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={(shareSettings as any)[item.key]}
+                                    onChange={(e) => setShareSettings((prev: any) => ({ ...prev, [item.key]: e.target.checked }))}
+                                    className="mt-1 w-5 h-5"
+                                />
+                                <div className="text-sm font-medium text-gray-800">{item.label}</div>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Project Card */}
             <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 mb-6">
@@ -571,10 +629,11 @@ const SharedProjectView: React.FC = () => {
                                     <table className="min-w-full">
                                         <thead className="bg-gray-50 border-b-2 border-gray-200">
                                             <tr>
-                                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Date</th>
+                                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Tanggal</th>
                                                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Plan</th>
-                                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Actual</th>
-                                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target</th>
+                                                {shareSettings.showVolumeActual && <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Aktual</th>}
+                                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase" title="Jumlah nota / trip">Ritase</th>
+                                                {shareSettings.showVolumeTarget && <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Target</th>}
                                                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Volume</th>
                                                 {shareSettings.showWorkers && <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Workers</th>}
                                                 {shareSettings.showEquipment && <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Equipment</th>}
@@ -585,8 +644,9 @@ const SharedProjectView: React.FC = () => {
                                                 <tr key={index} className="hover:bg-blue-50 transition-colors">
                                                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{report.date}</td>
                                                     <td className="px-4 py-3 text-sm text-gray-700">{report.plan?.toLocaleString()}</td>
-                                                    <td className="px-4 py-3 text-sm text-gray-700">{report.aktual?.toLocaleString()}</td>
-                                                    <td className="px-4 py-3 text-sm text-blue-600 font-semibold">{report.targetVolume?.toLocaleString()}</td>
+                                                    {shareSettings.showVolumeActual && <td className="px-4 py-3 text-sm text-gray-700">{report.aktual?.toLocaleString()}</td>}
+                                                    <td className="px-4 py-3 text-sm text-amber-700 font-semibold tabular-nums">{Number(report.ritase ?? 0).toLocaleString()}</td>
+                                                    {shareSettings.showVolumeTarget && <td className="px-4 py-3 text-sm text-blue-600 font-semibold">{report.targetVolume?.toLocaleString()}</td>}
                                                     <td className="px-4 py-3 text-sm text-purple-600 font-bold">{report.volume?.toLocaleString()}</td>
                                                     {shareSettings.showWorkers && <td className="px-4 py-3 text-sm text-gray-700">{report.totalWorkers || 0}</td>}
                                                     {shareSettings.showEquipment && <td className="px-4 py-3 text-sm text-gray-700">{report.totalEquipment || 0}</td>}
@@ -670,6 +730,30 @@ const SharedProjectView: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {shareSettings.showRekapitulasi && (
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
+                            <div className="px-4 py-3 bg-white border-b border-gray-200 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">Rekapitulasi Cut &amp; Fill</h3>
+                                    <p className="text-xs text-gray-500">
+                                        {editToken
+                                            ? (shareSettings.allowEdit
+                                                ? 'Dengan link edit: ubah jumlah pekerja/alat per hari, tambah jenis alat, lalu simpan.'
+                                                : 'Akses edit dimatikan oleh pemilik link.')
+                                            : 'Tampilan baca saja.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <RekapitulasiCutFill
+                                embeddedProject={project}
+                                onEmbeddedProjectChange={setProject}
+                                shareToken={String(token)}
+                                editToken={canUseEditToken ? editToken : ''}
+                                allowPublicEdit={shareSettings.allowEdit}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -7,5 +7,7 @@ export * from './members';
 export * from './projects';
 export * from './projectExpenses';
 export * from './projectIncomes';
+export * from './projectShareLinks';
+export * from './integrationTokens';
 export * from './team';
 export { invoiceApi } from './invoice';

@@ -2,6 +2,7 @@ import { financeAPI, PaginationParams } from '../api/finance';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import FinancePDFExportButton from '../component/FinancePDFExportButton'
+import { useLocation } from 'react-router-dom';
 
 interface FinanceProps {
     isCollapsed: boolean;
@@ -16,6 +17,7 @@ type EditMode = {
 }
 
 const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
+    const location = useLocation();
     const [activeSection, setActiveSection] = useState<'income' | 'expense'>('income');
     const [incomeData, setIncomeData] = useState<FinanceEntry[]>([]);
     const [expenseData, setExpenseData] = useState<FinanceEntry[]>([]);
@@ -106,6 +108,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('');
+    const [selectedProjectId, setSelectedProjectId] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [minAmount, setMinAmount] = useState('');
@@ -133,11 +136,23 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         
         if (selectedCategory) filters.push(`category:${selectedCategory}`);
         if (selectedStatus) filters.push(`status:${selectedStatus}`);
+        if (selectedProjectId) filters.push(`project_id:${selectedProjectId}`);
         if (startDate && endDate) filters.push(`start_date:${startDate},end_date:${endDate}`);
         if (minAmount && maxAmount) filters.push(`min_amount:${minAmount},max_amount:${maxAmount}`);
         
         return filters.join(',');
-    }, [selectedCategory, selectedStatus, startDate, endDate, minAmount, maxAmount]);
+    }, [selectedCategory, selectedStatus, selectedProjectId, startDate, endDate, minAmount, maxAmount]);
+
+    // Read optional presets from URL (?type=expense&project_id=11)
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const t = params.get('type');
+        const pid = params.get('project_id');
+        if (t === 'income' || t === 'expense') setActiveSection(t);
+        if (pid) setSelectedProjectId(pid);
+        // reset to first page when opening with presets
+        setCurrentPage(1);
+    }, [location.search]);
 
     // Build pagination params
     const buildPaginationParams = useMemo((): PaginationParams => {

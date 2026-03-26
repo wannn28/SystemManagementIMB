@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiKeyApi } from '../api/apiKey';
 import { SMART_NOTA_BASE_URL } from '../utils/apiKey';
+import IntegrationTokenSettings from '../component/IntegrationTokenSettings';
 
 interface SettingsProps {
   isCollapsed: boolean;
@@ -238,6 +239,7 @@ const Settings: React.FC<SettingsProps> = ({ isCollapsed }) => {
             </div>
           </div>
         </div>
+        <IntegrationTokenSettings />
       </div>
     </div>
   );
