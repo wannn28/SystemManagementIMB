@@ -13,80 +13,140 @@ interface ProjectDetailProps {
 // Helper functions for chart data
 const isValidDate = (d: Date) => !isNaN(d.getTime());
 
-const getAggregatedRevenueData = (project: Project, timeRange: string) => {
+const getAggregatedRevenueData = (project: Project, timeRange: string, incomes: ProjectIncome[] = []) => {
     const dailyData = project.reports.daily || [];
+    const incomeData = (incomes || [])
+        .filter((item) => !!item?.tanggal && Number.isFinite(Number(item?.jumlah)))
+        .map((item) => ({
+            ...item,
+            parsedDate: new Date(item.tanggal),
+            amount: Number(item.jumlah || 0),
+            isReceived: item.status === 'Received',
+        }))
+        .filter((item) => isValidDate(item.parsedDate))
+        .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime());
+
+    const hasIncomeData = incomeData.length > 0;
 
     const groupIntoWeeks = () => {
         const weeksMap = new Map<string, any>();
         const projectStart = new Date(project.startDate);
         if (!isValidDate(projectStart)) return [];
 
-        dailyData.forEach((day, index) => {
-            const dayDate = new Date(day.date);
-            if (!isValidDate(dayDate)) return;
-            const diffTime = dayDate.getTime() - projectStart.getTime();
-            const weekNumber = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000)) + 1;
-            const safeWeekNum = Number.isFinite(weekNumber) && weekNumber >= 1 ? weekNumber : index + 1;
+        if (hasIncomeData) {
+            incomeData.forEach((entry, index) => {
+                const dayDate = entry.parsedDate;
+                const diffTime = dayDate.getTime() - projectStart.getTime();
+                const weekNumber = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000)) + 1;
+                const safeWeekNum = Number.isFinite(weekNumber) && weekNumber >= 1 ? weekNumber : index + 1;
 
-            const weekKey = `Week ${safeWeekNum}`;
-            if (!weeksMap.has(weekKey)) {
-                weeksMap.set(weekKey, {
-                    weekLabel: `Week ${safeWeekNum}`,
-                    weekNumber: safeWeekNum,
-                    weekStart: new Date(projectStart.getTime() + (safeWeekNum - 1) * 7 * 24 * 60 * 60 * 1000),
-                    revenue: 0,
-                    paid: 0,
-                });
-            }
+                const weekKey = `Week ${safeWeekNum}`;
+                if (!weeksMap.has(weekKey)) {
+                    weeksMap.set(weekKey, {
+                        weekLabel: `Week ${safeWeekNum}`,
+                        weekNumber: safeWeekNum,
+                        weekStart: new Date(projectStart.getTime() + (safeWeekNum - 1) * 7 * 24 * 60 * 60 * 1000),
+                        revenue: 0,
+                        paid: 0,
+                        totalRevenue: project.totalRevenue,
+                    });
+                }
 
-            const week = weeksMap.get(weekKey);
-            week.revenue += day.revenue || 0;
-            week.paid += day.paid || 0;
-            week.totalRevenue = project.totalRevenue;
-        });
+                const week = weeksMap.get(weekKey);
+                week.revenue += entry.amount;
+                week.paid += entry.isReceived ? entry.amount : 0;
+            });
+        } else {
+            dailyData.forEach((day, index) => {
+                const dayDate = new Date(day.date);
+                if (!isValidDate(dayDate)) return;
+                const diffTime = dayDate.getTime() - projectStart.getTime();
+                const weekNumber = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000)) + 1;
+                const safeWeekNum = Number.isFinite(weekNumber) && weekNumber >= 1 ? weekNumber : index + 1;
 
-        return Array.from(weeksMap.values());
+                const weekKey = `Week ${safeWeekNum}`;
+                if (!weeksMap.has(weekKey)) {
+                    weeksMap.set(weekKey, {
+                        weekLabel: `Week ${safeWeekNum}`,
+                        weekNumber: safeWeekNum,
+                        weekStart: new Date(projectStart.getTime() + (safeWeekNum - 1) * 7 * 24 * 60 * 60 * 1000),
+                        revenue: 0,
+                        paid: 0,
+                    });
+                }
+
+                const week = weeksMap.get(weekKey);
+                week.revenue += day.revenue || 0;
+                week.paid += day.paid || 0;
+                week.totalRevenue = project.totalRevenue;
+            });
+        }
+
+        return Array.from(weeksMap.values()).sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
     };
 
     const groupIntoMonths = () => {
         const monthsMap = new Map<string, any>();
 
-        dailyData.forEach(day => {
-            const dayDate = new Date(day.date);
-            if (!isValidDate(dayDate)) return;
-            const year = dayDate.getFullYear();
-            const monthIdx = dayDate.getMonth();
-            const monthKey = `${year}-${monthIdx}`;
+        if (hasIncomeData) {
+            incomeData.forEach((entry) => {
+                const dayDate = entry.parsedDate;
+                const year = dayDate.getFullYear();
+                const monthIdx = dayDate.getMonth();
+                const monthKey = `${year}-${monthIdx}`;
 
-            if (!monthsMap.has(monthKey)) {
-                const monthDate = new Date(year, monthIdx, 1);
-                const monthLabel = isValidDate(monthDate)
-                    ? monthDate.toLocaleString('default', { month: 'short', year: 'numeric' })
-                    : `${monthIdx + 1}/${year}`;
-                monthsMap.set(monthKey, {
-                    monthLabel,
-                    monthStart: monthDate,
-                    revenue: 0,
-                    paid: 0,
-                    totalRevenue: 0,
-                });
-            }
+                if (!monthsMap.has(monthKey)) {
+                    const monthDate = new Date(year, monthIdx, 1);
+                    const monthLabel = isValidDate(monthDate)
+                        ? monthDate.toLocaleString('default', { month: 'short', year: 'numeric' })
+                        : `${monthIdx + 1}/${year}`;
+                    monthsMap.set(monthKey, {
+                        monthLabel,
+                        monthStart: monthDate,
+                        revenue: 0,
+                        paid: 0,
+                        totalRevenue: project.totalRevenue,
+                    });
+                }
 
-            const month = monthsMap.get(monthKey);
-            month.revenue += day.revenue || 0;
-            month.paid += day.paid || 0;
-            month.totalRevenue = project.totalRevenue;
-        });
+                const month = monthsMap.get(monthKey);
+                month.revenue += entry.amount;
+                month.paid += entry.isReceived ? entry.amount : 0;
+            });
+        } else {
+            dailyData.forEach(day => {
+                const dayDate = new Date(day.date);
+                if (!isValidDate(dayDate)) return;
+                const year = dayDate.getFullYear();
+                const monthIdx = dayDate.getMonth();
+                const monthKey = `${year}-${monthIdx}`;
 
-        return Array.from(monthsMap.values());
+                if (!monthsMap.has(monthKey)) {
+                    const monthDate = new Date(year, monthIdx, 1);
+                    const monthLabel = isValidDate(monthDate)
+                        ? monthDate.toLocaleString('default', { month: 'short', year: 'numeric' })
+                        : `${monthIdx + 1}/${year}`;
+                    monthsMap.set(monthKey, {
+                        monthLabel,
+                        monthStart: monthDate,
+                        revenue: 0,
+                        paid: 0,
+                        totalRevenue: 0,
+                    });
+                }
+
+                const month = monthsMap.get(monthKey);
+                month.revenue += day.revenue || 0;
+                month.paid += day.paid || 0;
+                month.totalRevenue = project.totalRevenue;
+            });
+        }
+
+        return Array.from(monthsMap.values()).sort((a, b) => a.monthStart.getTime() - b.monthStart.getTime());
     };
 
-    switch (timeRange) {
-        case 'weekly':
-            return groupIntoWeeks();
-        case 'monthly':
-            return groupIntoMonths();
-        default:
+    const groupIntoDays = () => {
+        if (!hasIncomeData) {
             return dailyData
                 .filter(day => isValidDate(new Date(day.date)))
                 .map(day => ({
@@ -95,6 +155,30 @@ const getAggregatedRevenueData = (project: Project, timeRange: string) => {
                     paid: day.paid || 0,
                     totalRevenue: project.totalRevenue,
                 }));
+        }
+
+        const daysMap = new Map<string, { date: Date; revenue: number; paid: number; totalRevenue: number }>();
+        incomeData.forEach((entry) => {
+            const d = entry.parsedDate;
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (!daysMap.has(key)) {
+                daysMap.set(key, { date: new Date(d.getFullYear(), d.getMonth(), d.getDate()), revenue: 0, paid: 0, totalRevenue: project.totalRevenue });
+            }
+            const one = daysMap.get(key)!;
+            one.revenue += entry.amount;
+            one.paid += entry.isReceived ? entry.amount : 0;
+        });
+
+        return Array.from(daysMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+    };
+
+    switch (timeRange) {
+        case 'weekly':
+            return groupIntoWeeks();
+        case 'monthly':
+            return groupIntoMonths();
+        default:
+            return groupIntoDays();
     }
 };
 
@@ -682,13 +766,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                                     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
                                         <div className="flex flex-wrap gap-4">
                                             <span><strong>Total Revenue:</strong> Rp {((project.totalRevenue || 0) / 1e6).toFixed(1)}M</span>
-                                            <span><strong>Progress:</strong> {(project.totalRevenue ? (getAggregatedRevenueData(project, timeRange).reduce((s, d) => s + (d.paid || 0), 0) / project.totalRevenue * 100) : 0).toFixed(1)}%</span>
+                                            <span><strong>Progress:</strong> {(project.totalRevenue ? (getAggregatedRevenueData(project, timeRange, projectIncomes).reduce((s, d) => s + (d.paid || 0), 0) / project.totalRevenue * 100) : 0).toFixed(1)}%</span>
                                         </div>
                                     </div>
                                 )}
                                 <div className="h-64 bg-gradient-to-br from-blue-50/30 to-transparent rounded-xl p-2">
                                     <RevenueChart
-                                        data={getAggregatedRevenueData(project, timeRange)}
+                                        data={getAggregatedRevenueData(project, timeRange, projectIncomes)}
                                         timeRange={timeRange}
                                         showTotals={showTotals}
                                         showTargetLine={showRevenueTotal}
@@ -1175,7 +1259,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
                     <div className="flex-1 w-full min-h-0 p-4" style={{ height: 'calc(100vh - 56px)' }}>
                         {expandedChart === 'revenue' && (
                             <RevenueChart
-                                data={getAggregatedRevenueData(project, timeRange)}
+                                data={getAggregatedRevenueData(project, timeRange, projectIncomes)}
                                 timeRange={timeRange}
                                 showTotals={showTotals}
                                 showTargetLine={showRevenueTotal}
