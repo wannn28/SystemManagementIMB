@@ -18,5 +18,6 @@ func RegisterIntegrationAPITokenRoutes(e *echo.Echo, tokenService service.Integr
 	g.POST("", h.Create)
 	g.PUT("/:id", h.Update)
 	g.DELETE("/:id", h.Delete)
+	g.POST("/:id/regenerate", h.Regenerate)
 }
 

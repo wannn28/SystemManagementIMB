@@ -41,5 +41,9 @@ export const integrationTokensApi = {
     const res: any = await axios.delete(`${API_BASE_URL}/user/integration-tokens/${id}`);
     return res.data?.data;
   },
+  regenerate: async (id: number): Promise<{ id: number; name: string; token: string; token_prefix: string }> => {
+    const res: any = await axios.post(`${API_BASE_URL}/user/integration-tokens/${id}/regenerate`);
+    return res.data?.data;
+  },
 };
 

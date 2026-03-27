@@ -46,6 +46,16 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     const [planValue, setPlanValue] = useState<number>(0);
     const [weekStartDay, setWeekStartDay] = useState<number>(1); // 0=Minggu, 1=Senin, dst
 
+    // Cut Fill sync states
+    const [cutFillDestination, setCutFillDestination] = useState<string>('');
+    const [isSyncingCutFill, setIsSyncingCutFill] = useState(false);
+    const [cutFillSyncMessage, setCutFillSyncMessage] = useState<string | null>(null);
+    const [cutFillProjects, setCutFillProjects] = useState<{ project_name: string; destination_address: string; first_date: string; last_date: string; entry_count: number }[]>([]);
+    const [isFetchingProjects, setIsFetchingProjects] = useState(false);
+    const [cutFillProjectSelected, setCutFillProjectSelected] = useState(false);
+    const [syncPlanPerDay, setSyncPlanPerDay] = useState<number>(0);
+    const [syncReplaceAll, setSyncReplaceAll] = useState(false);
+
     // Load SmartNota templates from invoices on component mount
     useEffect(() => {
         loadSmartNotaTemplates();
@@ -353,6 +363,188 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             `\n📆 Periode minggu dimulai setiap hari ${getDayName(weekStartDay)}` +
             `\n💾 Jangan lupa klik "Save All Changes" untuk menyimpan!`
         );
+    };
+
+    const loadCutFillProjects = async () => {
+        setIsFetchingProjects(true);
+        try {
+            const projects = await smartNotaApi.getCutFillFieldProjects();
+            setCutFillProjects(projects);
+            if (projects.length > 0) {
+                setCutFillDestination(projects[0].destination_address);
+                setCutFillProjectSelected(true);
+            }
+        } catch {
+            setCutFillSyncMessage('❌ Gagal memuat daftar project dari SmartNota. Pastikan API Key sudah diatur.');
+        } finally {
+            setIsFetchingProjects(false);
+        }
+    };
+
+    const syncCutFillFromSmartNota = async () => {
+        if (!dateFrom || !dateTo) {
+            setCutFillSyncMessage('⚠️ Pilih range tanggal terlebih dahulu.');
+            return;
+        }
+        if (!cutFillProjectSelected) {
+            setCutFillSyncMessage('⚠️ Pilih project SmartNota terlebih dahulu.');
+            return;
+        }
+        setIsSyncingCutFill(true);
+        setCutFillSyncMessage('⏳ Mengambil data dari SmartNota...');
+        try {
+            const result = await smartNotaApi.getCutFillFieldReports({
+                start_date: dateFrom,
+                end_date: dateTo,
+                destination_address: cutFillDestination.trim(),
+            });
+
+            if (!result.entries || result.entries.length === 0) {
+                setCutFillSyncMessage(`⚠️ Tidak ada data di SmartNota untuk project ini pada rentang ${dateFrom} s/d ${dateTo}.`);
+                return;
+            }
+
+            const mapWorkers = (workers: { type: string; count: number }[]) => {
+                const obj: Record<string, number> = {};
+                for (const w of workers ?? []) {
+                    if (w.type) obj[w.type] = (obj[w.type] ?? 0) + w.count;
+                }
+                return obj;
+            };
+            const mapEquipment = (equipment: { name: string; quantity: number }[]) => {
+                const obj: Record<string, number> = {};
+                for (const eq of equipment ?? []) {
+                    if (eq.name) obj[eq.name] = (obj[eq.name] ?? 0) + eq.quantity;
+                }
+                return obj;
+            };
+
+            const entryMap = new Map(result.entries.map(e => [e.date.slice(0, 10), e]));
+            let updated = 0;
+            let created = 0;
+            let kept = 0;
+            let removed = 0;
+
+            // When syncReplaceAll, drop rows that fall within the sync date range
+            // (they'll be recreated from SmartNota data). Rows outside the range are always kept.
+            const baseDaily = syncReplaceAll
+                ? dailyReports.filter(r => {
+                    const d = r.date.slice(0, 10);
+                    if (d >= dateFrom && d <= dateTo) { removed++; return false; }
+                    kept++;
+                    return true;
+                })
+                : [...dailyReports];
+
+            const newDaily = [...baseDaily];
+
+            // Update rows that already exist
+            for (let i = 0; i < newDaily.length; i++) {
+                const hit = entryMap.get(newDaily[i].date.slice(0, 10));
+                if (!hit) continue;
+                const workerObj = mapWorkers(hit.workers ?? []);
+                const equipObj = mapEquipment(hit.equipment ?? []);
+                const newImages = (hit.photo_urls ?? []).map((url, idx) => ({
+                    id: -(idx + 1),
+                    reportDailyId: newDaily[i].id,
+                    imagePath: url,
+                    description: 'From SmartNota',
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                }));
+                const cuacaValue = hit.weather
+                    ? (hit.rain_start_time || hit.rain_end_time)
+                        ? `${hit.weather}|${hit.rain_start_time || ''}|${hit.rain_end_time || ''}`
+                        : hit.weather
+                    : newDaily[i].cuaca;
+                newDaily[i] = {
+                    ...newDaily[i],
+                    ritase: hit.ritase ?? newDaily[i].ritase,
+                    aktual: hit.volume_fill ?? newDaily[i].aktual,
+                    cuaca: cuacaValue,
+                    catatan: hit.notes || newDaily[i].catatan,
+                    workers: workerObj as any,
+                    equipment: equipObj as any,
+                    totalWorkers: Object.values(workerObj).reduce((s, v) => s + v, 0),
+                    totalEquipment: Object.values(equipObj).reduce((s, v) => s + v, 0),
+                    images: newImages.length > 0 ? newImages : newDaily[i].images,
+                };
+                entryMap.delete(newDaily[i].date.slice(0, 10));
+                updated++;
+            }
+
+            // Create new rows for every date returned (regardless of zero values —
+            // pengawas might have only filled workers/cuaca without invoices yet)
+            for (const [date, hit] of entryMap) {
+                const workerObj = mapWorkers(hit.workers ?? []);
+                const equipObj = mapEquipment(hit.equipment ?? []);
+                const newRowCuaca = (hit.rain_start_time || hit.rain_end_time)
+                    ? `${hit.weather || ''}|${hit.rain_start_time || ''}|${hit.rain_end_time || ''}`
+                    : (hit.weather || '');
+                newDaily.push({
+                    id: 0,
+                    projectId: project.id,
+                    date,
+                    revenue: 0,
+                    paid: 0,
+                    volume: 0,
+                    targetVolume: 0,
+                    plan: syncPlanPerDay,
+                    aktual: hit.volume_fill,
+                    ritase: hit.ritase,
+                    cuaca: newRowCuaca,
+                    catatan: hit.notes || '',
+                    workers: workerObj as any,
+                    equipment: equipObj as any,
+                    totalWorkers: Object.values(workerObj).reduce((s, v) => s + v, 0),
+                    totalEquipment: Object.values(equipObj).reduce((s, v) => s + v, 0),
+                    images: (hit.photo_urls ?? []).map((url, idx) => ({
+                        id: -(idx + 1),
+                        reportDailyId: 0,
+                        imagePath: url,
+                        description: 'From SmartNota',
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                    })),
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                });
+                created++;
+            }
+
+            // Apply plan per day to existing updated rows too (if syncPlanPerDay > 0)
+            if (syncPlanPerDay > 0) {
+                for (let i = 0; i < newDaily.length; i++) {
+                    const hit = result.entries.find(e => e.date.slice(0, 10) === newDaily[i].date.slice(0, 10));
+                    if (hit) {
+                        newDaily[i] = { ...newDaily[i], plan: syncPlanPerDay };
+                    }
+                }
+            }
+
+            newDaily.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+            // Recalculate cumulative target (sum of plan) and volume (sum of aktual)
+            let cumTarget = 0;
+            let cumVolume = 0;
+            for (let i = 0; i < newDaily.length; i++) {
+                cumTarget += newDaily[i].plan ?? 0;
+                cumVolume += newDaily[i].aktual ?? 0;
+                newDaily[i] = { ...newDaily[i], targetVolume: cumTarget, volume: cumVolume };
+            }
+
+            setDailyReports(newDaily);
+            const planNote = syncPlanPerDay > 0 ? ` Plan ${syncPlanPerDay} m³/hari diterapkan, target & volume akumulatif dihitung ulang.` : '';
+            const replaceNote = syncReplaceAll && removed > 0 ? ` ${removed} baris lama dalam rentang dihapus.` : '';
+            setCutFillSyncMessage(
+                `✅ Sinkron berhasil! ${updated} baris diperbarui, ${created} baris baru dari ${result.entries.length} data SmartNota.${replaceNote}${planNote} Jangan lupa klik Save All Changes.`
+            );
+        } catch (err) {
+            console.error('syncCutFillFromSmartNota error:', err);
+            setCutFillSyncMessage(`❌ Gagal: ${err instanceof Error ? err.message : 'Error tidak diketahui'}. Pastikan Smart Nota API Key sudah diatur di Settings.`);
+        } finally {
+            setIsSyncingCutFill(false);
+        }
     };
 
     const bulkFillFromSmartNota = async () => {
@@ -1659,6 +1851,11 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
     };
     const renderWeeklyForm = (index: number) => {
         const report = weeklyReports[index];
+        const rawWeek = String((report as any).week || '');
+        const weekParts = rawWeek.split('s/d').map((s) => s.trim());
+        const isValidDateInput = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+        const weekStartValue = isValidDateInput(weekParts[0] || '') ? weekParts[0] : '';
+        const weekEndValue = isValidDateInput(weekParts[1] || '') ? weekParts[1] : '';
         return (
             <div className="fixed inset-0 bg-gray-800 bg-opacity-30 flex items-center justify-center">
                 <div className="bg-white p-6 rounded-lg shadow-lg w-1/2">
@@ -1669,13 +1866,29 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                             <div>
                                 <h4 className="font-semibold mb-3 text-gray-700">Data Dasar</h4>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Week</label>
-                                    <input
-                                        type="text"
-                                        value={report.week}
-                                        onChange={(e) => handleWeeklyChange(index, 'week', e.target.value)}
-                                        className="border rounded w-full p-2"
-                                    />
+                                    <label className="block text-sm font-medium text-gray-700">Periode Minggu</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <input
+                                            type="date"
+                                            value={weekStartValue}
+                                            onChange={(e) => {
+                                                const start = e.target.value;
+                                                const end = weekEndValue || start;
+                                                handleWeeklyChange(index, 'week', start && end ? `${start} s/d ${end}` : start || '');
+                                            }}
+                                            className="border rounded w-full p-2"
+                                        />
+                                        <input
+                                            type="date"
+                                            value={weekEndValue}
+                                            onChange={(e) => {
+                                                const end = e.target.value;
+                                                const start = weekStartValue || end;
+                                                handleWeeklyChange(index, 'week', start && end ? `${start} s/d ${end}` : end || '');
+                                            }}
+                                            className="border rounded w-full p-2"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Target Plan</label>
@@ -2185,6 +2398,231 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
                                 ⚠️ Jangan lupa <strong>Save All Changes</strong> setelah auto-fill!
                             </p>
                         </div>
+                    </div>
+
+                    {/* Cut Fill Sync from SmartNota */}
+                    <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-6 border-2 border-teal-300">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center">
+                                <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center mr-3">
+                                    <span className="text-white font-bold text-xl">📊</span>
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-bold text-gray-800">Sinkron Laporan Cut &amp; Fill dari SmartNota</h4>
+                                    <p className="text-sm text-gray-600">Ambil data harian dari laporan pengawas di SmartNota berdasarkan project &amp; rentang tanggal</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Step 1 — Pilih Project */}
+                        <div className="mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-500 text-white text-xs font-bold">1</span>
+                                    <label className="text-sm font-semibold text-gray-700">Pilih Project SmartNota</label>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => void loadCutFillProjects()}
+                                    disabled={isFetchingProjects}
+                                    className="px-3 py-1.5 bg-white hover:bg-teal-50 text-teal-700 border border-teal-300 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors flex items-center gap-1"
+                                >
+                                    {isFetchingProjects ? (
+                                        <><span className="animate-spin">⟳</span> Memuat...</>
+                                    ) : (
+                                        <><span>⟳</span> {cutFillProjects.length > 0 ? 'Refresh' : 'Muat Project'}</>
+                                    )}
+                                </button>
+                            </div>
+
+                            {cutFillProjects.length === 0 ? (
+                                <div className="border-2 border-dashed border-teal-200 rounded-lg p-4 text-center text-sm text-gray-500">
+                                    Klik <strong className="text-teal-600">Muat Project</strong> untuk melihat daftar project dari SmartNota
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {cutFillProjects.map((p, i) => {
+                                        const isSelected = cutFillDestination === p.destination_address;
+                                        const firstDate = p.first_date ? p.first_date.slice(0, 10) : '';
+                                        const lastDate = p.last_date ? p.last_date.slice(0, 10) : '';
+                                        return (
+                                            <div
+                                                key={i}
+                                                className={`rounded-lg border-2 transition-all overflow-hidden ${
+                                                    isSelected
+                                                        ? 'border-teal-500 bg-teal-50'
+                                                        : 'border-gray-200 bg-white hover:border-teal-300'
+                                                }`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setCutFillDestination(p.destination_address); setCutFillProjectSelected(true); }}
+                                                    className="w-full text-left px-4 py-3"
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            {isSelected && (
+                                                                <span className="w-4 h-4 rounded-full bg-teal-500 flex-shrink-0 flex items-center justify-center">
+                                                                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12">
+                                                                        <path d="M10 3L5 8.5 2 5.5l-1 1L5 10.5l6-7-1-0.5z"/>
+                                                                    </svg>
+                                                                </span>
+                                                            )}
+                                                            <div>
+                                                                <p className="font-semibold text-sm text-gray-800">
+                                                                    {p.project_name || p.destination_address}
+                                                                </p>
+                                                                {p.project_name && (
+                                                                    <p className="text-xs text-gray-500">{p.destination_address}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right flex-shrink-0 ml-3">
+                                                            <p className="text-xs text-gray-500">
+                                                                <span className="font-medium text-gray-700">{p.entry_count}</span> hari data
+                                                            </p>
+                                                            <p className="text-xs text-gray-500 font-medium">
+                                                                {firstDate} <span className="text-gray-400">s/d</span> {lastDate || '—'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                {/* Quick fill button — only for selected project */}
+                                                {isSelected && firstDate && lastDate && (
+                                                    <div className="px-4 pb-3 border-t border-teal-200 pt-2 flex items-center gap-2">
+                                                        <span className="text-xs text-teal-700">Isi rentang tanggal otomatis:</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setDateFrom(firstDate); setDateTo(lastDate); }}
+                                                            className="text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-md px-3 py-1 font-medium transition-colors"
+                                                        >
+                                                            📅 Awal s/d Akhir ({firstDate} → {lastDate})
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Step 2 — Pilih Rentang Tanggal */}
+                        <div className="mb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-500 text-white text-xs font-bold">2</span>
+                                <label className="text-sm font-semibold text-gray-700">Rentang Tanggal</label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Dari Tanggal</label>
+                                    <input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={e => setDateFrom(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-400"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Sampai Tanggal</label>
+                                    <input
+                                        type="date"
+                                        value={dateTo}
+                                        min={dateFrom}
+                                        onChange={e => setDateTo(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-400"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Step 3 — Plan per Hari */}
+                        <div className="mb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-500 text-white text-xs font-bold">3</span>
+                                <label className="text-sm font-semibold text-gray-700">Plan per Hari <span className="text-gray-400 font-normal">(opsional)</span></label>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={syncPlanPerDay || ''}
+                                    onChange={e => setSyncPlanPerDay(Number(e.target.value))}
+                                    placeholder="Masukkan target volume per hari (m³)"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-400"
+                                />
+                                <span className="text-sm text-gray-500 whitespace-nowrap">m³/hari</span>
+                            </div>
+                            {syncPlanPerDay > 0 && (
+                                <p className="text-xs text-teal-600 mt-1">
+                                    ✓ Setiap baris akan diset plan={syncPlanPerDay} m³, lalu target &amp; volume akumulatif dihitung ulang.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Mode sinkron */}
+                        <div className="mb-4 flex items-start gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                            <div className="flex gap-4 flex-wrap">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="syncMode"
+                                        checked={!syncReplaceAll}
+                                        onChange={() => setSyncReplaceAll(false)}
+                                        className="accent-teal-600"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Gabung (Merge)</span>
+                                    <span className="text-xs text-gray-400">— Baris di luar rentang <strong>tetap</strong>, hanya update/tambah yang ada di rentang</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="syncMode"
+                                        checked={syncReplaceAll}
+                                        onChange={() => setSyncReplaceAll(true)}
+                                        className="accent-red-500"
+                                    />
+                                    <span className="text-sm font-medium text-red-600">Ganti Semua</span>
+                                    <span className="text-xs text-gray-400">— Baris dalam rentang <strong>diganti</strong> dari SmartNota, baris di luar tetap</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                                onClick={() => void syncCutFillFromSmartNota()}
+                                disabled={isSyncingCutFill || !dateFrom || !dateTo || !cutFillProjectSelected}
+                                className={`${syncReplaceAll ? 'bg-red-600 hover:bg-red-700' : 'bg-teal-600 hover:bg-teal-700'} disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2`}
+                            >
+                                {isSyncingCutFill
+                                    ? <><span className="animate-spin inline-block">⟳</span> Mengambil data...</>
+                                    : syncReplaceAll ? '♻️ Ganti dari SmartNota' : '🔄 Sinkron dari SmartNota'
+                                }
+                            </button>
+                            {!cutFillProjectSelected && (
+                                <span className="text-xs text-red-500">← Pilih project dulu</span>
+                            )}
+                            {cutFillProjectSelected && (!dateFrom || !dateTo) && (
+                                <span className="text-xs text-red-500">← Isi rentang tanggal dulu</span>
+                            )}
+                        </div>
+
+                        {cutFillSyncMessage && (
+                            <div className={`mt-3 p-3 rounded-lg text-sm font-medium border ${
+                                cutFillSyncMessage.startsWith('✅')
+                                    ? 'bg-green-50 text-green-800 border-green-200'
+                                    : cutFillSyncMessage.startsWith('❌')
+                                    ? 'bg-red-50 text-red-800 border-red-200'
+                                    : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                            }`}>
+                                {cutFillSyncMessage}
+                            </div>
+                        )}
+
+                        <p className="text-xs text-gray-400 mt-2">
+                            Data ritase, aktual, cuaca, pekerja, alat berat, dan lampiran akan disinkron dari SmartNota.
+                        </p>
                     </div>
 
                     {/* Daily Reports Section */}

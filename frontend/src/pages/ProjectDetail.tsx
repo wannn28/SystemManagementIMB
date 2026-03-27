@@ -1772,18 +1772,27 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
 
   // ShareModal Component
 const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
-    const [shareSettings, setShareSettings] = useState({
-        showRevenue: true,
-        showFinancial: true,
-        showDaily: true,
-        showWeekly: true,
-        showMonthly: true,
-        showWorkers: true,
-        showEquipment: true,
-        showRekapitulasi: true,
-        allowEdit: true,
-        showVolumeTarget: true,
-        showVolumeActual: true,
+    const [shareSettings, setShareSettings] = useState(() => {
+        // Pre-fill Smart Nota connection from localStorage if available
+        const storedApiKey = localStorage.getItem('smartNotaApiKey') || '';
+        const storedBaseUrl = import.meta.env.VITE_API_SMART_NOTA_URL || '';
+        return {
+            showRevenue: true,
+            showFinancial: true,
+            showDaily: true,
+            showWeekly: true,
+            showMonthly: true,
+            showWorkers: true,
+            showEquipment: true,
+            showRekapitulasi: true,
+            allowEdit: true,
+            showVolumeTarget: true,
+            showVolumeActual: true,
+            syncToSmartNota: true,
+            smartNotaApiKey: storedApiKey,
+            smartNotaBaseUrl: storedBaseUrl,
+            smartNotaDestination: '',
+        };
     });
     const [shareLink, setShareLink] = useState('');
     const [shareEditLink, setShareEditLink] = useState('');
@@ -1861,6 +1870,72 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                             ))}
                         </div>
                     </div>
+
+                    {/* Smart Nota Reverse-Sync Settings */}
+                    {shareSettings.showRekapitulasi && shareSettings.allowEdit && (
+                        <div className="mb-6 border border-blue-200 rounded-xl overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100">
+                                <div>
+                                    <span className="font-semibold text-blue-800 text-sm">🔄 Sinkron balik ke Smart Nota</span>
+                                    <p className="text-xs text-blue-600 mt-0.5">
+                                        Jika aktif, setiap kali orang mengedit via link ini, data otomatis tersimpan ke Smart Nota juga.
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer ml-4 flex-shrink-0">
+                                    <input
+                                        type="checkbox"
+                                        checked={shareSettings.syncToSmartNota}
+                                        onChange={(e) => setShareSettings({ ...shareSettings, syncToSmartNota: e.target.checked })}
+                                        className="w-5 h-5 text-blue-600 rounded"
+                                    />
+                                    <span className="text-sm font-medium text-blue-700">Aktif</span>
+                                </label>
+                            </div>
+                            {shareSettings.syncToSmartNota && (
+                                <div className="p-4 bg-white space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                            Smart Nota API Key
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={shareSettings.smartNotaApiKey}
+                                            onChange={(e) => setShareSettings({ ...shareSettings, smartNotaApiKey: e.target.value })}
+                                            placeholder="Integration API key dari Smart Nota"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                            Smart Nota Base URL
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={shareSettings.smartNotaBaseUrl}
+                                            onChange={(e) => setShareSettings({ ...shareSettings, smartNotaBaseUrl: e.target.value })}
+                                            placeholder="contoh: http://localhost:8083"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                            Alamat Tujuan Project di Smart Nota <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={shareSettings.smartNotaDestination}
+                                            onChange={(e) => setShareSettings({ ...shareSettings, smartNotaDestination: e.target.value })}
+                                            placeholder="contoh: Jl. Gajah Mada No. 1"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                                        />
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Harus sama persis dengan Alamat Tujuan di Smart Nota.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {!shareLink ? (
                         <button

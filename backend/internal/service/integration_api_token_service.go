@@ -18,6 +18,7 @@ type IntegrationAPITokenService interface {
 	UpdateToken(userID uint, id uint, name string, scopes map[string]bool, isActive bool) (*entity.IntegrationAPIToken, error)
 	DeleteToken(userID uint, id uint) error
 	ValidateToken(rawToken string, requiredScope string) (*entity.IntegrationAPIToken, map[string]bool, error)
+	RegenerateToken(userID uint, id uint) (*entity.IntegrationAPIToken, string, error)
 }
 
 type integrationAPITokenService struct {
@@ -108,6 +109,23 @@ func (s *integrationAPITokenService) UpdateToken(userID uint, id uint, name stri
 
 func (s *integrationAPITokenService) DeleteToken(userID uint, id uint) error {
 	return s.repo.DeleteByIDAndUserID(id, userID)
+}
+
+func (s *integrationAPITokenService) RegenerateToken(userID uint, id uint) (*entity.IntegrationAPIToken, string, error) {
+	row, err := s.repo.FindByIDAndUserID(id, userID)
+	if err != nil {
+		return nil, "", errors.New("token not found")
+	}
+	raw, err := generateRawToken()
+	if err != nil {
+		return nil, "", err
+	}
+	row.TokenHash = hashToken(raw)
+	row.TokenPrefix = raw[:12]
+	if err := s.repo.Update(row); err != nil {
+		return nil, "", err
+	}
+	return row, raw, nil
 }
 
 func (s *integrationAPITokenService) ValidateToken(rawToken string, requiredScope string) (*entity.IntegrationAPIToken, map[string]bool, error) {

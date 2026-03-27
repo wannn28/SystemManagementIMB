@@ -32,6 +32,7 @@ func StartServer() {
 			echo.HeaderContentType,
 			echo.HeaderAccept,
 			echo.HeaderAuthorization,
+			"X-Integration-Token",
 			"X-Requested-With",
 		},
 		AllowCredentials: true,

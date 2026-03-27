@@ -33,6 +33,7 @@ const IntegrationTokenSettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [createdToken, setCreatedToken] = useState('');
+  const [createdTokenName, setCreatedTokenName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editScopes, setEditScopes] = useState<IntegrationScopes>({ ...defaultScopes });
@@ -62,6 +63,7 @@ const IntegrationTokenSettings: React.FC = () => {
     try {
       const out = await integrationTokensApi.create(name.trim(), scopes);
       setCreatedToken(out.token);
+      setCreatedTokenName(name.trim());
       setName('');
       setScopes({ ...defaultScopes });
       setMessage('Integration token berhasil dibuat.');
@@ -89,6 +91,20 @@ const IntegrationTokenSettings: React.FC = () => {
       await loadRows();
     } catch (error: any) {
       const msg = error?.response?.data?.message || 'Gagal hapus token.';
+      setMessage(String(msg));
+    }
+  };
+
+  const regenerateToken = async (row: IntegrationTokenRow) => {
+    if (!window.confirm(`Reset token "${row.name}"?\nToken lama akan langsung tidak berlaku.`)) return;
+    try {
+      const out = await integrationTokensApi.regenerate(row.id);
+      setCreatedToken(out.token);
+      setCreatedTokenName(out.name);
+      setMessage('Token berhasil di-reset. Simpan token baru sekarang!');
+      await loadRows();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Gagal reset token.';
       setMessage(String(msg));
     }
   };
@@ -151,12 +167,17 @@ const IntegrationTokenSettings: React.FC = () => {
 
       {createdToken && (
         <div className="p-3 mb-4 rounded-lg border border-amber-200 bg-amber-50">
-          <div className="text-sm font-semibold text-amber-800 mb-1">Simpan token ini sekarang (hanya tampil sekali):</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-sm font-semibold text-amber-800">
+              Token "{createdTokenName}" — simpan sekarang, hanya tampil sekali!
+            </div>
+            <button onClick={() => { setCreatedToken(''); setCreatedTokenName(''); }} className="text-amber-500 hover:text-amber-700 text-lg font-bold leading-none">×</button>
+          </div>
           <div className="flex gap-2">
-            <input className="flex-1 px-3 py-2 border rounded bg-white text-sm" readOnly value={createdToken} />
+            <input className="flex-1 px-3 py-2 border rounded bg-white text-sm font-mono" readOnly value={createdToken} />
             <button
-              onClick={() => navigator.clipboard.writeText(createdToken)}
-              className="px-3 py-2 bg-amber-600 text-white rounded"
+              onClick={() => { void navigator.clipboard.writeText(createdToken); setMessage('Token disalin!'); }}
+              className="px-3 py-2 bg-amber-600 text-white rounded text-sm"
             >
               Copy
             </button>
@@ -182,10 +203,17 @@ const IntegrationTokenSettings: React.FC = () => {
                     <button onClick={() => startEdit(row)} className="px-3 py-1.5 text-xs rounded bg-amber-600 text-white">
                       Edit Access
                     </button>
+                    <button
+                      onClick={() => void regenerateToken(row)}
+                      className="px-3 py-1.5 text-xs rounded bg-violet-600 hover:bg-violet-700 text-white"
+                      title="Generate ulang token baru — token lama hangus"
+                    >
+                      Reset Token
+                    </button>
                     <button onClick={() => toggleActive(row)} className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white">
                       {row.is_active ? 'Nonaktifkan' : 'Aktifkan'}
                     </button>
-                    <button onClick={() => removeToken(row)} className="px-3 py-1.5 text-xs rounded bg-red-600 text-white">
+                    <button onClick={() => void removeToken(row)} className="px-3 py-1.5 text-xs rounded bg-red-600 text-white">
                       Hapus
                     </button>
                   </div>
@@ -237,15 +265,44 @@ const IntegrationTokenSettings: React.FC = () => {
 
       <div className="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
         <h3 className="text-sm font-semibold text-gray-800 mb-2">Dokumentasi Akses Token</h3>
-        <div className="text-xs text-gray-700 space-y-1">
-          <div><strong>Header:</strong> <code>X-Integration-Token: &lt;token&gt;</code> atau <code>Authorization: Bearer &lt;token&gt;</code></div>
-          <div><strong>Scope projects:</strong> akses <code>GET /api/external/projects</code></div>
-          <div><strong>Scope finance:</strong> akses <code>GET /api/external/finance</code></div>
-          <div><strong>Scope reports:</strong> akses <code>GET /api/external/reports</code></div>
-          <div><strong>Scope team:</strong> akses <code>GET /api/external/team</code></div>
-          <div><strong>Scope inventory:</strong> disiapkan untuk endpoint inventory external berikutnya</div>
-          <div className="pt-1"><strong>Response format:</strong> <code>{`{ status, data }`}</code>, error <code>{`{ status, message }`}</code></div>
-        </div>
+        {(() => {
+          const apiUrl = import.meta.env.VITE_API_URL as string || '';
+          const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+          return (
+            <div className="text-xs text-gray-700 space-y-1">
+              <div className="mb-2 pb-2 border-b border-gray-200">
+                <strong>Base URL:</strong>{' '}
+                <code className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded select-all">{baseUrl}</code>
+              </div>
+              <div>
+                <strong>Header:</strong>{' '}
+                <code>X-Integration-Token: &lt;token&gt;</code> atau <code>Authorization: Bearer &lt;token&gt;</code>
+              </div>
+              <div>
+                <strong>Scope projects:</strong> akses{' '}
+                <code className="bg-white border border-gray-200 px-1 rounded">GET {baseUrl}/api/external/projects</code>
+              </div>
+              <div>
+                <strong>Scope finance:</strong> akses{' '}
+                <code className="bg-white border border-gray-200 px-1 rounded">GET {baseUrl}/api/external/finance</code>
+              </div>
+              <div>
+                <strong>Scope reports:</strong> akses{' '}
+                <code className="bg-white border border-gray-200 px-1 rounded">GET {baseUrl}/api/external/reports</code>
+              </div>
+              <div>
+                <strong>Scope team:</strong> akses{' '}
+                <code className="bg-white border border-gray-200 px-1 rounded">GET {baseUrl}/api/external/team</code>
+              </div>
+              <div>
+                <strong>Scope inventory:</strong> disiapkan untuk endpoint inventory external berikutnya
+              </div>
+              <div className="pt-1">
+                <strong>Response format:</strong> <code>{`{ status, data }`}</code>, error <code>{`{ status, message }`}</code>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {message && <div className="mt-3 text-sm text-gray-700">{message}</div>}

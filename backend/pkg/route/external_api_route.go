@@ -16,5 +16,7 @@ func RegisterExternalAPIRoutes(e *echo.Echo, tokenService service.IntegrationAPI
 	g.GET("/finance", h.GetFinance, middleware.IntegrationTokenAuth(tokenService, "finance"))
 	g.GET("/reports", h.GetReports, middleware.IntegrationTokenAuth(tokenService, "reports"))
 	g.GET("/team", h.GetTeam, middleware.IntegrationTokenAuth(tokenService, "team"))
+	g.GET("/daily-reports/:project_id", h.GetDailyReportsByProject, middleware.IntegrationTokenAuth(tokenService, "reports"))
+	g.POST("/daily-reports", h.PushCutFillReports, middleware.IntegrationTokenAuth(tokenService, "reports"))
 }
 

@@ -113,3 +113,26 @@ func (h *IntegrationAPITokenHandler) Delete(c echo.Context) error {
 	return response.Success(c, http.StatusOK, map[string]string{"message": "token deleted"})
 }
 
+func (h *IntegrationAPITokenHandler) Regenerate(c echo.Context) error {
+	userID, err := currentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	id64, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	row, raw, err := h.service.RegenerateToken(userID, uint(id64))
+	if err != nil {
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "not found") {
+			return response.Error(c, http.StatusNotFound, err)
+		}
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusOK, map[string]interface{}{
+		"id":           row.ID,
+		"name":         row.Name,
+		"token":        raw,
+		"token_prefix": row.TokenPrefix,
+		"is_active":    row.IsActive,
+	})
+}
+

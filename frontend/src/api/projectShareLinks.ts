@@ -16,6 +16,12 @@ export type ShareProjectSettings = {
   // Progress/Volume granular toggles
   showVolumeTarget: boolean;
   showVolumeActual: boolean;
+  // Smart Nota reverse-sync: when someone edits via this share link,
+  // the changes are also pushed back to Smart Nota automatically.
+  syncToSmartNota: boolean;          // default true
+  smartNotaApiKey: string;           // Smart Nota integration API key
+  smartNotaBaseUrl: string;          // Smart Nota server base URL
+  smartNotaDestination: string;      // destination_address in Smart Nota (identifies the project)
 };
 
 export const projectShareLinksAPI = {

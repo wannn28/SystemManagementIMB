@@ -239,6 +239,76 @@ class SmartNotaApiService {
     });
   }
 
+  /**
+   * Ambil ringkasan cut & fill (ritase + volume per hari) dari Smart Nota.
+   * Gunakan start_date+end_date ATAU month (YYYY-MM).
+   */
+  async getCutFillReport(params: {
+    destination_address?: string;
+    start_date?: string;
+    end_date?: string;
+    month?: string;
+  }): Promise<{
+    start_date?: string;
+    end_date?: string;
+    month?: string;
+    destination_address: string;
+    entries: { date: string; ritase: number; volume_fill: number; invoice_count: number }[];
+  }> {
+    const q = new URLSearchParams();
+    if (params.start_date) q.append('start_date', params.start_date);
+    if (params.end_date) q.append('end_date', params.end_date);
+    if (params.month) q.append('month', params.month);
+    if (params.destination_address) q.append('destination_address', params.destination_address);
+    return this.makeRequest(`${SMART_NOTA_ENDPOINTS.CUT_FILL_REPORT}?${q.toString()}`);
+  }
+
+  /** Ambil daftar project (nama + alamat tujuan + terakhir update) yang tersedia di Smart Nota cut-fill field reports. */
+  async getCutFillFieldProjects(): Promise<{ project_name: string; destination_address: string; first_date: string; last_date: string; entry_count: number }[]> {
+    const result = await this.makeRequest<{
+      total: number;
+      projects: { project_name: string; destination_address: string; first_date: string; last_date: string; entry_count: number }[];
+    }>(SMART_NOTA_ENDPOINTS.CUT_FILL_FIELD_PROJECTS);
+    return result.projects ?? [];
+  }
+
+  /**
+   * Ambil laporan harian cut & fill yang diisi pengawas di Smart Nota (ritase, volume, cuaca, pekerja, alat berat).
+   */
+  async getCutFillFieldReports(params: {
+    destination_address?: string;
+    start_date?: string;
+    end_date?: string;
+    month?: string;
+  }): Promise<{
+    total: number;
+    entries: Array<{
+      id: number;
+      destination_address: string;
+      project_name: string;
+      date: string;
+      ritase: number;
+      volume_fill: number;
+      weather: string;
+      disruption_hours: number;
+      notes: string;
+      workers: Array<{ id: string; type: string; count: number }>;
+      equipment: Array<{ id: string; kind: string; name: string; quantity: number; cost: number }>;
+      photo_urls: string[];
+      rain_start_time: string;
+      rain_end_time: string;
+      created_at: string;
+      updated_at: string;
+    }>;
+  }> {
+    const q = new URLSearchParams();
+    if (params.start_date) q.append('start_date', params.start_date);
+    if (params.end_date) q.append('end_date', params.end_date);
+    if (params.month) q.append('month', params.month);
+    if (params.destination_address) q.append('destination_address', params.destination_address);
+    return this.makeRequest(`${SMART_NOTA_ENDPOINTS.CUT_FILL_FIELD_REPORT}?${q.toString()}`);
+  }
+
   // Get invoices by template and date
   async getInvoicesByTemplateAndDate(params: {
     template_id: number;

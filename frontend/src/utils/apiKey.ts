@@ -38,4 +38,7 @@ export const SMART_NOTA_BASE_URL = import.meta.env.VITE_API_SMART_NOTA_URL;
 export const SMART_NOTA_ENDPOINTS = {
   INVOICES: '/api/api-key/invoices',
   INVOICE_BY_ID: (id: string | number) => `/api/api-key/invoices/${id}`,
+  CUT_FILL_REPORT: '/api/api-key/reports/cut-fill',
+  CUT_FILL_FIELD_REPORT: '/api/api-key/reports/cut-fill-field',
+  CUT_FILL_FIELD_PROJECTS: '/api/api-key/reports/cut-fill-field/projects',
 } as const; 
