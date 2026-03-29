@@ -10,6 +10,7 @@ import { PDFGeneratorButton } from '../component/PDFGeneratorButton';
 import { IDCardGeneratorButton } from '../component/IDCardGeneratorButton';
 import { PaginatedTable } from '../component/PaginatedTable';
 import DeactivateMemberModal from '../component/DeactivateMemberModal';
+import { confirmDialog } from '../utils/confirmDialog';
 interface TeamProps {
   isCollapsed: boolean;
 }
@@ -515,7 +516,11 @@ const Team: React.FC<TeamProps> = ({ isCollapsed }) => {
   };
 
   const handleActivateMember = async (member: Member) => {
-    const confirmed = window.confirm(`Aktifkan kembali ${member.fullName}?`);
+    const confirmed = await confirmDialog({
+      title: `Aktifkan kembali ${member.fullName}?`,
+      confirmText: 'Aktifkan',
+      cancelText: 'Batal',
+    });
     if (!confirmed) return;
     
     try {

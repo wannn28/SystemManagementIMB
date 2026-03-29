@@ -5,6 +5,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, Responsi
 import { Project } from '../types/BasicTypes';
 import EditReports from './EditReportForm';
 import { projectsAPI, projectExpensesAPI, projectIncomesAPI, ProjectExpense, ProjectIncome, ProjectFinancialSummary, financeAPI } from '../api';
+import { confirmDialog } from '../utils/confirmDialog';
 interface ReportsProps {
   isCollapsed: boolean;
 }
@@ -705,7 +706,13 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   };
 
   const handleDeleteExpense = async (expenseId: number, projectId: number) => {
-    if (!confirm('Yakin ingin menghapus pengeluaran ini?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Yakin ingin menghapus pengeluaran ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     
     try {
       await projectExpensesAPI.deleteExpense(expenseId);
@@ -798,7 +805,13 @@ const Reports: React.FC<ReportsProps> = ({ isCollapsed }) => {
   };
 
   const handleDeleteIncome = async (incomeId: number, projectId: number) => {
-    if (!confirm('Yakin ingin menghapus pemasukan ini?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Yakin ingin menghapus pemasukan ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     
     try {
       await projectIncomesAPI.deleteIncome(incomeId);

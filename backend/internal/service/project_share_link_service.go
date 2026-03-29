@@ -13,6 +13,8 @@ import (
 type ProjectShareLinkService interface {
 	Create(projectID uint, settings json.RawMessage) (*entity.ProjectShareLink, error)
 	GetByToken(token string) (*entity.ProjectShareLink, error)
+	ListByProjectID(projectID uint) ([]entity.ProjectShareLink, error)
+	Delete(projectID uint, linkID uint) error
 	UpdateSettings(token string, editToken string, settings json.RawMessage) (*entity.ProjectShareLink, error)
 }
 
@@ -65,6 +67,30 @@ func (s *projectShareLinkService) GetByToken(token string) (*entity.ProjectShare
 		return nil, errors.New("token is required")
 	}
 	return s.repo.FindByToken(token)
+}
+
+func (s *projectShareLinkService) ListByProjectID(projectID uint) ([]entity.ProjectShareLink, error) {
+	if projectID == 0 {
+		return nil, errors.New("project_id is required")
+	}
+	return s.repo.FindByProjectID(projectID)
+}
+
+func (s *projectShareLinkService) Delete(projectID uint, linkID uint) error {
+	if projectID == 0 {
+		return errors.New("project_id is required")
+	}
+	if linkID == 0 {
+		return errors.New("link_id is required")
+	}
+	link, err := s.repo.FindByID(linkID)
+	if err != nil {
+		return err
+	}
+	if link.ProjectID != projectID {
+		return errors.New("link does not belong to this project")
+	}
+	return s.repo.Delete(linkID)
 }
 
 func (s *projectShareLinkService) UpdateSettings(token string, editToken string, settings json.RawMessage) (*entity.ProjectShareLink, error) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { integrationTokensApi, type IntegrationScopes, type IntegrationTokenRow } from '../api/integrationTokens';
+import { confirmDialog } from '../utils/confirmDialog';
 
 const defaultScopes: IntegrationScopes = {
   projects: true,
@@ -96,7 +97,14 @@ const IntegrationTokenSettings: React.FC = () => {
   };
 
   const regenerateToken = async (row: IntegrationTokenRow) => {
-    if (!window.confirm(`Reset token "${row.name}"?\nToken lama akan langsung tidak berlaku.`)) return;
+    const confirmed = await confirmDialog({
+      title: `Reset token "${row.name}"?`,
+      description: 'Token lama akan langsung tidak berlaku.',
+      confirmText: 'Reset',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       const out = await integrationTokensApi.regenerate(row.id);
       setCreatedToken(out.token);

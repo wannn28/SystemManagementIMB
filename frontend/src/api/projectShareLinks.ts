@@ -18,16 +18,40 @@ export type ShareProjectSettings = {
   showVolumeActual: boolean;
   // Smart Nota reverse-sync: when someone edits via this share link,
   // the changes are also pushed back to Smart Nota automatically.
-  syncToSmartNota: boolean;          // default true
-  smartNotaApiKey: string;           // Smart Nota integration API key
-  smartNotaBaseUrl: string;          // Smart Nota server base URL
-  smartNotaDestination: string;      // destination_address in Smart Nota (identifies the project)
+  // destination_address and baseUrl are read from project.reports._smartNota
+  // (saved automatically when admin syncs from Smart Nota).
+  syncToSmartNota: boolean;   // default true
+  smartNotaApiKey: string;    // Smart Nota integration API key
 };
 
 export const projectShareLinksAPI = {
+  listByProject: async (projectId: number) => {
+    const res: any = await axios.get(`${API_BASE}/projects/${projectId}/share-links`);
+    return (res.data?.data ?? []) as Array<{
+      id: number;
+      project_id: number;
+      token: string;
+      edit_token: string;
+      settings: string | Record<string, unknown>;
+      created_at?: string;
+      updated_at?: string;
+    }>;
+  },
   create: async (projectId: number, settings: Partial<ShareProjectSettings>) => {
     const res: any = await axios.post(`${API_BASE}/projects/${projectId}/share-links`, { settings });
-    return res.data?.data as { token: string; edit_token: string; settings: any; project_id: number };
+    return res.data?.data as {
+      id?: number;
+      token: string;
+      edit_token: string;
+      settings: any;
+      project_id: number;
+      created_at?: string;
+      updated_at?: string;
+    };
+  },
+  deleteByProject: async (projectId: number, linkId: number) => {
+    const res: any = await axios.delete(`${API_BASE}/projects/${projectId}/share-links/${linkId}`);
+    return res.data?.data as { deleted: boolean };
   },
   getSharedProject: async (token: string) => {
     const res: any = await axios.get(`${API_BASE}/public/projects/shared/${token}`);

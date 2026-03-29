@@ -5,6 +5,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, Responsi
 import { projectsAPI, projectExpensesAPI, projectIncomesAPI, ProjectExpense, ProjectIncome, ProjectFinancialSummary } from '../api';
 import { Project } from '../types/BasicTypes';
 import EditReportForm from './EditReportForm';
+import { confirmDialog } from '../utils/confirmDialog';
 
 interface ProjectDetailProps {
     isCollapsed: boolean;
@@ -1772,10 +1773,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ isCollapsed }) => {
 
   // ShareModal Component
 const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
+    type ShareToggleKey =
+        | 'showRevenue'
+        | 'showFinancial'
+        | 'showDaily'
+        | 'showWeekly'
+        | 'showMonthly'
+        | 'showWorkers'
+        | 'showEquipment'
+        | 'showRekapitulasi'
+        | 'allowEdit'
+        | 'showVolumeTarget'
+        | 'showVolumeActual';
     const [shareSettings, setShareSettings] = useState(() => {
-        // Pre-fill Smart Nota connection from localStorage if available
         const storedApiKey = localStorage.getItem('smartNotaApiKey') || '';
-        const storedBaseUrl = import.meta.env.VITE_API_SMART_NOTA_URL || '';
         return {
             showRevenue: true,
             showFinancial: true,
@@ -1790,13 +1801,36 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
             showVolumeActual: true,
             syncToSmartNota: true,
             smartNotaApiKey: storedApiKey,
-            smartNotaBaseUrl: storedBaseUrl,
-            smartNotaDestination: '',
         };
     });
     const [shareLink, setShareLink] = useState('');
     const [shareEditLink, setShareEditLink] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [existingLinks, setExistingLinks] = useState<Array<{
+        id?: number;
+        token: string;
+        edit_token: string;
+        created_at?: string;
+        updated_at?: string;
+    }>>([]);
+    const [isLoadingLinks, setIsLoadingLinks] = useState(false);
+
+    const loadExistingLinks = async () => {
+        setIsLoadingLinks(true);
+        try {
+            const { projectShareLinksAPI } = await import('../api');
+            const rows = await projectShareLinksAPI.listByProject(project.id);
+            setExistingLinks(rows);
+        } catch (e) {
+            console.error('Failed to load existing share links:', e);
+        } finally {
+            setIsLoadingLinks(false);
+        }
+    };
+
+    useEffect(() => {
+        void loadExistingLinks();
+    }, [project.id]);
 
     const generateShareLink = async () => {
         setIsGenerating(true);
@@ -1807,6 +1841,8 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
             const editLink = `${window.location.origin}/shared/${project.id}/${res.token}?edit_token=${encodeURIComponent(res.edit_token)}`;
             setShareLink(viewLink);
             setShareEditLink(shareSettings.allowEdit ? editLink : '');
+            // Refresh list so generated link is persisted in modal list.
+            void loadExistingLinks();
         } catch (e) {
             console.error(e);
             alert('Gagal membuat link share.');
@@ -1818,6 +1854,30 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
     const copyToClipboard = (v: string) => {
         navigator.clipboard.writeText(v);
         alert('Link copied to clipboard!');
+    };
+
+    const handleDeleteLink = async (linkId?: number) => {
+        if (!linkId) {
+            alert('Link lama ini tidak punya ID, tidak bisa dihapus otomatis.');
+            return;
+        }
+        const confirmed = await confirmDialog({
+            title: 'Hapus link share ini?',
+            description: 'Setelah dihapus, link tidak bisa dipakai lagi.',
+            confirmText: 'Hapus',
+            cancelText: 'Batal',
+            variant: 'danger',
+        });
+        if (!confirmed) return;
+        try {
+            const { projectShareLinksAPI } = await import('../api');
+            await projectShareLinksAPI.deleteByProject(project.id, linkId);
+            await loadExistingLinks();
+            alert('Link berhasil dihapus.');
+        } catch (e) {
+            console.error('Failed to delete share link:', e);
+            alert('Gagal menghapus link.');
+        }
     };
 
     return (
@@ -1842,7 +1902,7 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                     <div className="mb-6">
                         <h4 className="text-lg font-bold text-gray-800 mb-4">📋 Customize What to Share</h4>
                         <div className="space-y-3">
-                            {[
+                            {([
                                 { key: 'showRevenue', label: '💰 Revenue & Ringkasan', desc: 'Total revenue, progress ringkas' },
                                 { key: 'showFinancial', label: '📊 Analisis Finansial', desc: 'Laporan & analisis finansial' },
                                 { key: 'showDaily', label: '📅 Daily Reports', desc: 'Progress harian' },
@@ -1854,11 +1914,11 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                                 { key: 'allowEdit', label: '✏️ Izinkan Akses Edit', desc: 'Jika nonaktif, link edit tidak dipakai' },
                                 { key: 'showVolumeTarget', label: '🎯 Target Volume', desc: 'Tampilkan target di progress/volume' },
                                 { key: 'showVolumeActual', label: '✅ Aktual Volume', desc: 'Tampilkan aktual di progress/volume' },
-                            ].map((item) => (
+                            ] as { key: ShareToggleKey; label: string; desc: string }[]).map((item) => (
                                 <label key={item.key} className="flex items-start p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                                     <input
                                         type="checkbox"
-                                        checked={shareSettings[item.key as keyof typeof shareSettings]}
+                                        checked={shareSettings[item.key]}
                                         onChange={(e) => setShareSettings({ ...shareSettings, [item.key]: e.target.checked })}
                                         className="mt-1 mr-3 w-5 h-5 text-green-500 rounded focus:ring-green-500"
                                     />
@@ -1878,7 +1938,7 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                                 <div>
                                     <span className="font-semibold text-blue-800 text-sm">🔄 Sinkron balik ke Smart Nota</span>
                                     <p className="text-xs text-blue-600 mt-0.5">
-                                        Jika aktif, setiap kali orang mengedit via link ini, data otomatis tersimpan ke Smart Nota juga.
+                                        Jika aktif, setiap edit via link ini juga tersimpan otomatis ke Smart Nota.
                                     </p>
                                 </div>
                                 <label className="flex items-center gap-2 cursor-pointer ml-4 flex-shrink-0">
@@ -1893,6 +1953,23 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                             </div>
                             {shareSettings.syncToSmartNota && (
                                 <div className="p-4 bg-white space-y-3">
+                                    {/* Show which Smart Nota project will be synced to */}
+                                    {project.reports?._smartNota?.destination ? (
+                                        <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                            <span className="text-green-600 text-sm">✅</span>
+                                            <div>
+                                                <p className="text-xs font-semibold text-green-700">Project Smart Nota terdeteksi</p>
+                                                <p className="text-xs text-green-600 font-mono">{project.reports._smartNota.destination}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                            <span className="text-amber-500 text-sm">⚠️</span>
+                                            <p className="text-xs text-amber-700">
+                                                Project Smart Nota belum dikonfigurasi. Lakukan sekali sinkron dari Smart Nota di halaman Edit Project terlebih dahulu.
+                                            </p>
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1">
                                             Smart Nota API Key
@@ -1904,33 +1981,7 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                                             placeholder="Integration API key dari Smart Nota"
                                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
                                         />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                            Smart Nota Base URL
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={shareSettings.smartNotaBaseUrl}
-                                            onChange={(e) => setShareSettings({ ...shareSettings, smartNotaBaseUrl: e.target.value })}
-                                            placeholder="contoh: http://localhost:8083"
-                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                            Alamat Tujuan Project di Smart Nota <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={shareSettings.smartNotaDestination}
-                                            onChange={(e) => setShareSettings({ ...shareSettings, smartNotaDestination: e.target.value })}
-                                            placeholder="contoh: Jl. Gajah Mada No. 1"
-                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
-                                        />
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            Harus sama persis dengan Alamat Tujuan di Smart Nota.
-                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">Diambil otomatis dari Settings jika tersimpan.</p>
                                     </div>
                                 </div>
                             )}
@@ -1985,6 +2036,66 @@ const ShareModal: React.FC<{ project: Project; onClose: () => void }> = ({ proje
                             </div>
                         </div>
                     )}
+
+                    <div className="mt-6 pt-5 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                            <h5 className="text-sm font-bold text-gray-700">📚 Link Share Tersimpan</h5>
+                            <button
+                                type="button"
+                                onClick={() => void loadExistingLinks()}
+                                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                ↻ Refresh
+                            </button>
+                        </div>
+                        {isLoadingLinks ? (
+                            <div className="text-xs text-gray-500">Memuat daftar link…</div>
+                        ) : existingLinks.length === 0 ? (
+                            <div className="text-xs text-gray-400">Belum ada link tersimpan untuk project ini.</div>
+                        ) : (
+                            <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                                {existingLinks.map((row, idx) => {
+                                    const viewUrl = `${window.location.origin}/shared/${project.id}/${row.token}`;
+                                    const editUrl = `${window.location.origin}/shared/${project.id}/${row.token}?edit_token=${encodeURIComponent(row.edit_token)}`;
+                                    return (
+                                        <div key={`${row.token}-${idx}`} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                            <div className="text-[11px] text-gray-500 mb-2">
+                                                Dibuat: {row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '-'}
+                                            </div>
+                                            <div className="flex gap-2 mb-2">
+                                                <input value={viewUrl} readOnly className="flex-1 px-2 py-1.5 text-xs border rounded bg-white" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard(viewUrl)}
+                                                    className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700"
+                                                >
+                                                    Copy View
+                                                </button>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input value={editUrl} readOnly className="flex-1 px-2 py-1.5 text-xs border rounded bg-white" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard(editUrl)}
+                                                    className="px-3 py-1.5 text-xs rounded bg-emerald-700 text-white hover:bg-emerald-800"
+                                                >
+                                                    Copy Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleDeleteLink(row.id)}
+                                                    className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+                                                    title="Hapus link ini"
+                                                >
+                                                    Hapus
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

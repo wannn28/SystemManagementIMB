@@ -152,6 +152,11 @@ export interface Project {
     daily: DailyReport[];
     weekly: WeeklyReport[];
     monthly: MonthlyReport[];
+    /** Smart Nota connection metadata saved automatically when syncing from Smart Nota. */
+    _smartNota?: {
+      destination: string;   // destination_address in Smart Nota
+      baseUrl: string;       // Smart Nota server base URL
+    };
   };
 }
 
@@ -177,9 +182,27 @@ export interface FinanceEntry {
   hargaPerUnit: number;
   keterangan: string;
   type: 'income' | 'expense';
-  status : 'Paid' | 'Unpaid';
+  status: 'Paid' | 'Partial' | 'Unpaid';
+  taxPaid?: boolean;
   category: string;
   projectId?: number;
+  // Detail fields
+  noBukti?: string;
+  vendorName?: string;
+  paymentMethod?: string;
+  kategoriUtama?: string;
+  jenisPajak?: string;
+  dpp?: number;
+  ppn?: number;
+  pph?: number;
+  npwp?: string;
+  divisi?: string;
+  penanggungJawab?: string;
+  tanggalBayar?: string;
+  jatuhTempo?: string;
+  isDeductible?: boolean;
+  catatan?: string;
+  lampiranUrls?: string;
 }
 
 // Pagination interfaces

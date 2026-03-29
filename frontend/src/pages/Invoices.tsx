@@ -16,6 +16,7 @@ import InvoicePDFExportButton from '../component/InvoicePDFExportButton';
 import { Modal } from '../component/Modal';
 import { replaceIntroPlaceholders } from '../utils/introPlaceholders';
 import { evaluateFormula, formulaToDisplayFormula, getComputedFormulaValues } from '../utils/invoiceFormula';
+import { confirmDialog } from '../utils/confirmDialog';
 
 interface InvoicesProps {
   isCollapsed: boolean;
@@ -1712,7 +1713,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   };
 
   const handleDeleteInvoice = async (id: number | string) => {
-    if (!confirm('Hapus invoice ini?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Hapus invoice ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDeletingInvoiceId(id);
     try {
       await invoiceApi.deleteInvoice(id);
@@ -1728,7 +1735,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const handleBulkDeleteInvoices = async () => {
     const ids = Array.from(selectedInvoiceIds);
     if (ids.length === 0) return;
-    if (!confirm(`Hapus ${ids.length} invoice terpilih?`)) return;
+    const confirmed = await confirmDialog({
+      title: `Hapus ${ids.length} invoice terpilih?`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setBulkDeleting(true);
     try {
       await Promise.all(ids.map((id) => invoiceApi.deleteInvoice(id)));
@@ -1876,7 +1889,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   };
 
   const handleDeleteTemplate = async (id: number) => {
-    if (!confirm('Hapus template ini?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Hapus template ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDeletingTemplateId(id);
     try {
       await invoiceApi.deleteTemplate(id);
@@ -1952,7 +1971,13 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   };
 
   const handleDeleteCustomer = async (id: number) => {
-    if (!confirm('Hapus data pelanggan ini?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Hapus data pelanggan ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDeletingCustomerId(id);
     try {
       await customerApi.delete(id);

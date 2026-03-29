@@ -152,13 +152,22 @@ func (qb *QueryBuilder) BuildMemberQuery(params response.QueryParams) *gorm.DB {
 
 // BuildFinanceQuery builds a query specifically for finances
 func (qb *QueryBuilder) BuildFinanceQuery(params response.QueryParams) *gorm.DB {
-	searchFields := []string{"keterangan", "category"}
-	allowedSortFields := []string{"id", "jumlah", "tanggal", "created_at", "updated_at"}
+	searchFields := []string{"keterangan", "category", "vendor_name", "no_bukti"}
+	allowedSortFields := []string{
+		"id", "jumlah", "tanggal", "status", "tax_paid",
+		"payment_method", "kategori_utama", "vendor_name",
+		"tanggal_bayar", "jatuh_tempo", "is_deductible",
+		"created_at", "updated_at",
+	}
 	allowedFilterFields := map[string]string{
-		"type":       "type",
-		"category":   "category",
-		"status":     "status",
-		"project_id": "project_id",
+		"type":            "type",
+		"category":        "category",
+		"status":          "status",
+		"tax_paid":        "tax_paid",
+		"project_id":      "project_id",
+		"payment_method":  "payment_method",
+		"kategori_utama":  "kategori_utama",
+		"is_deductible":   "is_deductible",
 	}
 
 	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Finance{})

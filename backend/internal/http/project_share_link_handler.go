@@ -39,6 +39,28 @@ func (h *ProjectShareLinkHandler) Create(c echo.Context) error {
 	return response.Success(c, http.StatusCreated, link)
 }
 
+// List share links for one project (admin/auth required)
+// GET /api/projects/:id/share-links
+func (h *ProjectShareLinkHandler) ListByProject(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	links, err := h.shareService.ListByProjectID(uint(id))
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+	return response.Success(c, http.StatusOK, links)
+}
+
+// Delete share link for one project (admin/auth required)
+// DELETE /api/projects/:id/share-links/:linkId
+func (h *ProjectShareLinkHandler) DeleteByProject(c echo.Context) error {
+	projectID, _ := strconv.Atoi(c.Param("id"))
+	linkID, _ := strconv.Atoi(c.Param("linkId"))
+	if err := h.shareService.Delete(uint(projectID), uint(linkID)); err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
+	return response.Success(c, http.StatusOK, map[string]bool{"deleted": true})
+}
+
 // Get shared project + settings (public)
 // GET /api/public/projects/shared/:token
 func (h *ProjectShareLinkHandler) GetSharedProject(c echo.Context) error {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Project } from '../types/BasicTypes';
 import { smartNotaApi } from '../api/smartNota';
+import { SMART_NOTA_BASE_URL } from '../utils/apiKey';
 
 interface EditReportsProps {
     project: Project;
@@ -534,6 +535,19 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
             }
 
             setDailyReports(newDaily);
+
+            // Auto-persist Smart Nota connection info into the project so share links
+            // can use it for reverse-sync without the user having to type it.
+            // We mutate project.reports._smartNota directly in the parent project state.
+            if (cutFillDestination.trim()) {
+                const baseUrl = (SMART_NOTA_BASE_URL || '').replace(/\/$/, '');
+                // Patch the project so that handleSave will include _smartNota.
+                project.reports = {
+                    ...(project.reports as Record<string, unknown>),
+                    _smartNota: { destination: cutFillDestination.trim(), baseUrl },
+                } as typeof project.reports;
+            }
+
             const planNote = syncPlanPerDay > 0 ? ` Plan ${syncPlanPerDay} m³/hari diterapkan, target & volume akumulatif dihitung ulang.` : '';
             const replaceNote = syncReplaceAll && removed > 0 ? ` ${removed} baris lama dalam rentang dihapus.` : '';
             setCutFillSyncMessage(
@@ -1254,6 +1268,8 @@ const EditReports: React.FC<EditReportsProps> = ({ project, onSave }) => {
         const updatedProject = {
             ...project,
             reports: {
+                // Preserve any extra metadata keys (e.g. _smartNota) from the current reports.
+                ...(project.reports as Record<string, unknown>),
                 daily: dailyReports,
                 weekly: weeklySummaries,
                 monthly: monthlySummaries,

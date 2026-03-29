@@ -100,6 +100,8 @@ func StartServer() {
 	// Protected: create link
 	projectsGroup := e.Group("/api/projects")
 	projectsGroup.Use(appmiddleware.AdminAuth(cfg))
+	projectsGroup.GET("/:id/share-links", projectShareLinkHandler.ListByProject)
+	projectsGroup.DELETE("/:id/share-links/:linkId", projectShareLinkHandler.DeleteByProject)
 	projectsGroup.POST("/:id/share-links", projectShareLinkHandler.Create)
 	// Public: view + edit settings by token
 	publicGroup := e.Group("/api/public/projects")
@@ -150,6 +152,12 @@ func StartServer() {
 	route.RegisterIntegrationAPITokenRoutes(e, integrationTokenService, cfg)
 	route.RegisterExternalAPIRoutes(e, integrationTokenService, projectService, financeService, memberService)
 	route.RegisterActivityRoutes(e, activityService, cfg)
+
+	// Generic file upload endpoint (finance attachments, etc.)
+	uploadHandler := internalhttp.NewUploadHandler(cfg.UploadDir, cfg.BaseURL)
+	uploadGroup := e.Group("/api/uploads")
+	uploadGroup.Use(appmiddleware.AdminAuth(cfg))
+	uploadGroup.POST("/file", uploadHandler.UploadFile)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

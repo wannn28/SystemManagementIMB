@@ -164,6 +164,26 @@ func (r *financeRepository) applyCustomFinanceFilters(query *gorm.DB, params res
 		if status, exists := filters["status"]; exists {
 			query = query.Where("status = ?", status)
 		}
+
+		// Apply tax_paid filter (true/false)
+		if taxPaid, exists := filters["tax_paid"]; exists {
+			query = query.Where("tax_paid = ?", taxPaid)
+		}
+
+		// Apply payment_method filter
+		if pm, exists := filters["payment_method"]; exists {
+			query = query.Where("payment_method = ?", pm)
+		}
+
+		// Apply kategori_utama filter
+		if ku, exists := filters["kategori_utama"]; exists {
+			query = query.Where("kategori_utama = ?", ku)
+		}
+
+		// Apply is_deductible filter
+		if isd, exists := filters["is_deductible"]; exists {
+			query = query.Where("is_deductible = ?", isd)
+		}
 	}
 
 	return query

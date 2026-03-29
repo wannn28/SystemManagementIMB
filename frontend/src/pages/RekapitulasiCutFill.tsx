@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { projectsAPI } from '../api';
 import { projectShareLinksAPI } from '../api/projectShareLinks';
 import { Project, DailyReport } from '../types/BasicTypes';
-import { SMART_NOTA_BASE_URL } from '../utils/apiKey';
+import { SMART_NOTA_BASE_URL, getSmartNotaApiKey } from '../utils/apiKey';
 
 /** Parse cuaca stored as "Hujan Ringan|08:00|10:00" or plain "Cerah". */
 function parseCuaca(raw: string): { weather: string; rainStart: string; rainEnd: string } {
@@ -27,12 +27,12 @@ function resolveImageUrl(path: string): string {
   return `${base}${path}`;
 }
 
-/** Smart Nota sync settings embedded in a share link. */
+/** Smart Nota sync settings embedded in a share link.
+ *  destination_address and baseUrl are read from project.reports._smartNota automatically.
+ */
 export interface LinkSyncSettings {
   syncToSmartNota?: boolean;
   smartNotaApiKey?: string;
-  smartNotaBaseUrl?: string;
-  smartNotaDestination?: string;
 }
 
 interface Props {
@@ -130,7 +130,7 @@ const RekapitulasiCutFill: React.FC<Props> = ({
   const [savingShared, setSavingShared] = useState(false);
   const [savingLocal, setSavingLocal] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<{ path: string; desc: string }[] | null>(null);
-  const [openTimePicker, setOpenTimePicker] = useState<number | null>(null);
+  const [, setOpenTimePicker] = useState<number | null>(null);
 
   // Cuaca edit modal
   const [cuacaModal, setCuacaModal] = useState<{ date: string; day: number } | null>(null);
@@ -268,14 +268,22 @@ const RekapitulasiCutFill: React.FC<Props> = ({
     setNewEquipName('');
   }, [newEquipName, project, selectedYear, selectedMonth, patchProject]);
 
-  /** Push all non-empty daily reports back to Smart Nota via API key. */
-  const syncDailyToSmartNota = async (p: Project) => {
-    if (!linkSettings?.syncToSmartNota) return;
-    const { smartNotaApiKey, smartNotaBaseUrl, smartNotaDestination } = linkSettings;
-    if (!smartNotaApiKey || !smartNotaDestination) return;
+  /** Push all non-empty daily reports back to Smart Nota via API key.
+   *  apiKey can be passed explicitly; falls back to linkSettings then localStorage.
+   *  destination prefers project.reports._smartNota.destination, then project name.
+   */
+  const syncDailyToSmartNota = async (p: Project, apiKey?: string) => {
+    const key = apiKey || linkSettings?.smartNotaApiKey || getSmartNotaApiKey() || '';
+    if (!key) return;
 
-    const base = (smartNotaBaseUrl || SMART_NOTA_BASE_URL || '').replace(/\/$/, '');
+    // Destination and base URL come from the project metadata set when the
+    // admin first synced from Smart Nota — no manual input required.
+    const destination = p.reports?._smartNota?.destination || p.name || '';
+    if (!destination) return;
+    const base = (p.reports?._smartNota?.baseUrl || SMART_NOTA_BASE_URL || '').replace(/\/$/, '');
     if (!base) return;
+
+    const smartNotaApiKey = key;
 
     const entries = (p.reports?.daily || [])
       .filter((r) => r.date && (r.ritase > 0 || r.aktual > 0 || r.catatan || r.cuaca))
@@ -288,7 +296,7 @@ const RekapitulasiCutFill: React.FC<Props> = ({
           id: String(i + 1), kind: '', name, quantity: Number(qty), cost: 0,
         }));
         return {
-          destination_address: smartNotaDestination,
+          destination_address: destination,
           project_name: p.name,
           date: r.date,
           ritase: r.ritase || 0,
@@ -306,28 +314,36 @@ const RekapitulasiCutFill: React.FC<Props> = ({
 
     if (entries.length === 0) return;
 
-    await fetch(`${base}/api/api-key/reports/cut-fill-field`, {
+    const response = await fetch(`${base}/api/api-key/reports/cut-fill-field`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-Key': smartNotaApiKey },
       body: JSON.stringify({ entries }),
     });
+    if (!response.ok) {
+      const txt = await response.text().catch(() => '');
+      throw new Error(`Smart Nota sync failed (${response.status})${txt ? `: ${txt}` : ''}`);
+    }
   };
 
-  const handleSaveSharedReports = async () => {
+  const handleSaveSharedReports = async (withSync = false) => {
     if (!canEditReports || !shareToken || !project) return;
     setSavingShared(true);
     try {
       const updated = await projectShareLinksAPI.updateSharedReports(shareToken, editToken || undefined, project.reports);
       onEmbeddedProjectChange!(updated);
 
-      // Reverse-sync: push changes back to Smart Nota if enabled
-      if (linkSettings?.syncToSmartNota && linkSettings.smartNotaApiKey && linkSettings.smartNotaDestination) {
-        try {
-          await syncDailyToSmartNota(updated);
-          alert('Laporan tersimpan. Data juga telah disinkron ke Smart Nota.');
-        } catch (syncErr) {
-          console.error('Sync to Smart Nota failed:', syncErr);
-          alert('Laporan tersimpan ke IMB, tetapi gagal sinkron ke Smart Nota. Cek koneksi/API key.');
+      if (withSync) {
+        const apiKey = linkSettings?.smartNotaApiKey || getSmartNotaApiKey() || '';
+        if (apiKey) {
+          try {
+            await syncDailyToSmartNota(updated, apiKey);
+            alert('Laporan tersimpan dan tersinkron ke Smart Nota.');
+          } catch (syncErr) {
+            console.error('Sync to Smart Nota failed:', syncErr);
+            alert('Laporan tersimpan ke IMB, tetapi gagal sinkron ke Smart Nota. Cek koneksi/API key.');
+          }
+        } else {
+          alert('Laporan tersimpan. (Smart Nota tidak tersinkron — API key belum ditemukan.)');
         }
       } else {
         alert('Laporan tersimpan ke proyek (link share).');
@@ -340,12 +356,28 @@ const RekapitulasiCutFill: React.FC<Props> = ({
     }
   };
 
-  const handleSaveLocalReports = async () => {
+  const handleSaveLocalReports = async (withSync = false) => {
     if (isEmbedded || !project) return;
     setSavingLocal(true);
     try {
       await projectsAPI.updateProject(project.id, project);
-      alert('Laporan tersimpan.');
+
+      if (withSync) {
+        const apiKey = getSmartNotaApiKey() || '';
+        if (apiKey) {
+          try {
+            await syncDailyToSmartNota(project, apiKey);
+            alert('Laporan tersimpan dan tersinkron ke Smart Nota.');
+          } catch (syncErr) {
+            console.error('Sync to Smart Nota failed:', syncErr);
+            alert('Laporan tersimpan ke IMB, tetapi gagal sinkron ke Smart Nota. Cek koneksi/API key.');
+          }
+        } else {
+          alert('Laporan tersimpan. (Smart Nota tidak tersinkron — API key belum ditemukan.)');
+        }
+      } else {
+        alert('Laporan tersimpan.');
+      }
     } catch (e) {
       console.error(e);
       alert('Gagal menyimpan laporan.');
@@ -483,14 +515,27 @@ const RekapitulasiCutFill: React.FC<Props> = ({
                 </div>
               )}
               {isEditMode && (
-                <button
-                  type="button"
-                  disabled={isEmbedded ? savingShared : savingLocal}
-                  onClick={isEmbedded ? handleSaveSharedReports : handleSaveLocalReports}
-                  className="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold text-sm hover:bg-green-700 disabled:opacity-50"
-                >
-                  {isEmbedded ? (savingShared ? 'Menyimpan…' : '💾 Simpan') : (savingLocal ? 'Menyimpan…' : '💾 Simpan')}
-                </button>
+                <div className="flex gap-2">
+                  {/* Save IMB only */}
+                  <button
+                    type="button"
+                    disabled={isEmbedded ? savingShared : savingLocal}
+                    onClick={() => isEmbedded ? handleSaveSharedReports(false) : handleSaveLocalReports(false)}
+                    className="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold text-sm hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {(isEmbedded ? savingShared : savingLocal) ? 'Menyimpan…' : '💾 Simpan'}
+                  </button>
+                  {/* Save IMB + sync to Smart Nota */}
+                  <button
+                    type="button"
+                    disabled={isEmbedded ? savingShared : savingLocal}
+                    onClick={() => isEmbedded ? handleSaveSharedReports(true) : handleSaveLocalReports(true)}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50"
+                    title="Simpan ke IMB dan sinkron ke Smart Nota"
+                  >
+                    {(isEmbedded ? savingShared : savingLocal) ? 'Menyimpan…' : '💾 Simpan & Sinkron'}
+                  </button>
+                </div>
               )}
               <button
                 type="button"
@@ -826,10 +871,6 @@ const RekapitulasiCutFill: React.FC<Props> = ({
                     const r = dayMap.get(day);
                     const parsed = parseCuaca(r?.cuaca || '');
                     const isRain = parsed.weather.toLowerCase().includes('hujan');
-                    const timeLabel = isRain && (parsed.rainStart || parsed.rainEnd)
-                      ? `\n${[parsed.rainStart, parsed.rainEnd].filter(Boolean).join('-')}`
-                      : '';
-
                     if (canEditMatrix && r) {
                       return (
                         <td

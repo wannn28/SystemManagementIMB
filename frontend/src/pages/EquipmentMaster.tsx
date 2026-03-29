@@ -3,6 +3,7 @@ import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { equipmentApi } from '../api/equipment';
 import type { Equipment, CreateEquipmentRequest } from '../types/equipment';
 import { Modal } from '../component/Modal';
+import { confirmDialog } from '../utils/confirmDialog';
 
 interface EquipmentMasterProps {
   isCollapsed: boolean;
@@ -62,7 +63,13 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Hapus data ini?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Hapus data ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDeletingId(id);
     try {
       await equipmentApi.delete(id);

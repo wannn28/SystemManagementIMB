@@ -1,19 +1,13 @@
 import { financeAPI, PaginationParams } from '../api/finance';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
-import FinancePDFExportButton from '../component/FinancePDFExportButton'
+import FinancePDFExportButton from '../component/FinancePDFExportButton';
+import FinanceEntryModal, { FinanceFormData } from '../component/FinanceEntryModal';
 import { useLocation } from 'react-router-dom';
+import { confirmDialog } from '../utils/confirmDialog';
 
 interface FinanceProps {
     isCollapsed: boolean;
-}
-
-
-
-type EditMode = {
-    id: number | null;
-    type: 'income' | 'expense' | null;
-    data: Partial<FinanceEntry>;
 }
 
 const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
@@ -108,15 +102,18 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('');
+    const [selectedTaxStatus, setSelectedTaxStatus] = useState('');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+    const [selectedKategoriUtama, setSelectedKategoriUtama] = useState('');
     const [selectedProjectId, setSelectedProjectId] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [minAmount, setMinAmount] = useState('');
     const [maxAmount, setMaxAmount] = useState('');
     
-    // Sorting state
-    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status'>('id');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    // Sorting state — default: tanggal terbaru dulu
+    const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status' | 'tax_paid'>('tanggal');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     
     // Loading state
     const [isLoading, setIsLoading] = useState(false);
@@ -137,11 +134,14 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         if (selectedCategory) filters.push(`category:${selectedCategory}`);
         if (selectedStatus) filters.push(`status:${selectedStatus}`);
         if (selectedProjectId) filters.push(`project_id:${selectedProjectId}`);
+        if (selectedTaxStatus) filters.push(`tax_paid:${selectedTaxStatus === 'paid' ? 'true' : 'false'}`);
+        if (selectedPaymentMethod) filters.push(`payment_method:${selectedPaymentMethod}`);
+        if (selectedKategoriUtama) filters.push(`kategori_utama:${selectedKategoriUtama}`);
         if (startDate && endDate) filters.push(`start_date:${startDate},end_date:${endDate}`);
         if (minAmount && maxAmount) filters.push(`min_amount:${minAmount},max_amount:${maxAmount}`);
         
         return filters.join(',');
-    }, [selectedCategory, selectedStatus, selectedProjectId, startDate, endDate, minAmount, maxAmount]);
+    }, [selectedCategory, selectedStatus, selectedProjectId, selectedTaxStatus, selectedPaymentMethod, selectedKategoriUtama, startDate, endDate, minAmount, maxAmount]);
 
     // Read optional presets from URL (?type=expense&project_id=11)
     useEffect(() => {
@@ -243,7 +243,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     useEffect(() => {
         setCurrentPage(1); // Reset to first page when filters change
         fetchData(true);
-    }, [debouncedSearchTerm, selectedCategory, selectedMonth, selectedYear, selectedStatus, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
+    }, [debouncedSearchTerm, selectedCategory, selectedMonth, selectedYear, selectedStatus, selectedTaxStatus, selectedPaymentMethod, selectedKategoriUtama, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
 
     // Fetch data when active section changes
     useEffect(() => {
@@ -278,7 +278,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     };
 
     // Handle sorting
-    const handleSort = (column: 'id' | 'tanggal' | 'jumlah' | 'status') => {
+    const handleSort = (column: 'id' | 'tanggal' | 'jumlah' | 'status' | 'tax_paid') => {
         if (sortBy === column) {
             setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
         } else {
@@ -305,6 +305,9 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         setSelectedMonth('');
         setSelectedYear('');
         setSelectedStatus('');
+        setSelectedTaxStatus('');
+        setSelectedPaymentMethod('');
+        setSelectedKategoriUtama('');
         setStartDate('');
         setEndDate('');
         setMinAmount('');
@@ -314,20 +317,9 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         setCurrentPage(1);
     };
 
-    const [newEntry, setNewEntry] = useState({
-        tanggal: '',
-        unit: '',
-        hargaPerUnit: '',
-        keterangan: '',
-        category: '' as string,
-        status: 'Paid' as 'Unpaid' | 'Paid'
-    });
-
-    const [editMode, setEditMode] = useState<EditMode>({
-        id: null,
-        type: null,
-        data: {}
-    });
+    const [showEntryModal, setShowEntryModal] = useState(false);
+    const [editingEntry, setEditingEntry] = useState<Partial<FinanceEntry> | null>(null);
+    const [savingEntry, setSavingEntry] = useState(false);
 
     // Totals calculation
     const totalPemasukan = useMemo(() => {
@@ -338,51 +330,52 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         return expenseData.reduce((sum, item) => sum + (item.unit * item.hargaPerUnit), 0);
     }, [expenseData]);
 
-    // Edit handlers
-    const handleEdit = async (id: number, type: 'income' | 'expense') => {
-        try {
-            const financeEntry = await financeAPI.getFinanceById(id);
-            const rawDate = financeEntry.tanggal;
-            const formattedDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+    // Modal handlers
+    const handleOpenAdd = () => {
+        setEditingEntry(null);
+        setShowEntryModal(true);
+    };
 
-            setEditMode({
-                id,
-                type,
-                data: {
-                    ...financeEntry,
-                    tanggal: formattedDate,
-                }
-            });
+    const handleOpenEdit = async (id: number) => {
+        try {
+            const entry = await financeAPI.getFinanceById(id);
+            const rawDate = entry.tanggal;
+            const formattedDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+            setEditingEntry({ ...entry, tanggal: formattedDate });
+            setShowEntryModal(true);
         } catch (error) {
             console.error('Error fetching data for edit:', error);
         }
     };
 
-    const handleSaveEdit = async () => {
-        if (editMode.id && editMode.type) {
-            try {
-                const catName = (editMode.data.category as string) || '';
-                if (catName) {
-                    const exists = categories.some(c => c.name === catName);
-                    if (!exists) {
-                        try {
-                            await financeAPI.categories.create(catName);
-                            const list = await financeAPI.categories.list();
-                            setCategories(list);
-                        } catch (e) {
-                            console.error('Error creating category on edit:', e);
-                        }
+    const handleSaveEntry = async (data: FinanceFormData) => {
+        setSavingEntry(true);
+        try {
+            const catName = data.category || '';
+            if (catName) {
+                const exists = categories.some(c => c.name === catName);
+                if (!exists) {
+                    try {
+                        await financeAPI.categories.create(catName);
+                        const list = await financeAPI.categories.list();
+                        setCategories(list);
+                    } catch (e) {
+                        console.error('Error creating category:', e);
                     }
                 }
-                await financeAPI.updateFinance(editMode.id, {
-                    ...editMode.data,
-                    type: editMode.type,
-                });
-                fetchData();
-                setEditMode({ id: null, type: null, data: {} });
-            } catch (error) {
-                console.error('Error saving edit:', error);
             }
+            if (editingEntry?.id) {
+                await financeAPI.updateFinance(editingEntry.id, { ...data, type: activeSection });
+            } else {
+                await financeAPI.createFinance({ ...data, type: activeSection });
+            }
+            setShowEntryModal(false);
+            setEditingEntry(null);
+            fetchData();
+        } catch (error) {
+            console.error('Error saving entry:', error);
+        } finally {
+            setSavingEntry(false);
         }
     };
 
@@ -400,210 +393,68 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
             await financeAPI.categories.delete(id);
             const list = await financeAPI.categories.list();
             setCategories(list);
-            // If current filters or inputs use deleted category, keep user-friendly behavior
             const deleted = categories.find(c => c.id === id)?.name;
-            if (deleted) {
-                if (selectedCategory === deleted) setSelectedCategory('');
-                if (newEntry.category === deleted) setNewEntry({ ...newEntry, category: '' as string });
-                if ((editMode.data.category as string) === deleted) setEditMode(prev => ({ ...prev, data: { ...prev.data, category: '' } }));
-            }
+            if (deleted && selectedCategory === deleted) setSelectedCategory('');
         } catch (e) {
             console.error('Error deleting category:', e);
         }
     };
 
-    // Add new entry
-    const handleAddEntry = async (e: React.FormEvent, type: 'income' | 'expense') => {
-        e.preventDefault();
-        try {
-            const catName = newEntry.category;
-            if (catName) {
-                const exists = categories.some(c => c.name === catName);
-                if (!exists) {
-                    try {
-                        await financeAPI.categories.create(catName);
-                        const list = await financeAPI.categories.list();
-                        setCategories(list);
-                    } catch (e) {
-                        console.error('Error creating category:', e);
-                    }
-                }
-            }
-            const newEntryData: Partial<FinanceEntry> = {
-                tanggal: newEntry.tanggal,
-                unit: Number(newEntry.unit),
-                hargaPerUnit: Number(newEntry.hargaPerUnit),
-                keterangan: newEntry.keterangan,
-                category: newEntry.category,
-                status: newEntry.status,
-                type: type
-            };
-
-            await financeAPI.createFinance(newEntryData);
-            setNewEntry({ 
-                tanggal: '', 
-                unit: '', 
-                hargaPerUnit: '', 
-                keterangan: '', 
-                category: 'Other', 
-                status: 'Paid' as 'Unpaid' | 'Paid' 
-            });
-            fetchData();
-        } catch (error) {
-            console.error(`Error adding ${type}:`, error);
-        }
+    const statusClass = (status: string) => {
+        if (status === 'Paid') return 'bg-green-100 text-green-700 border border-green-200';
+        if (status === 'Partial') return 'bg-yellow-100 text-yellow-700 border border-yellow-200';
+        return 'bg-red-100 text-red-700 border border-red-200';
     };
 
-    // Editable row component
-    const EditableRow = ({ item, index, type }: { item: FinanceEntry, index: number, type: 'income' | 'expense' }) => {
-        const isEditing = editMode.id === item.id && editMode.type === type;
-
-        return (
-            <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
-                <td className="border border-gray-200 px-4 py-3 text-center font-medium text-gray-700">{index + 1}</td>
-                <td className="border border-gray-200 px-4 py-3">
-                    {isEditing ? (
-                        <input
-                            type="date"
-                            value={editMode.data.tanggal || item.tanggal.split('T')[0]}
-                            onChange={(e) => setEditMode(prev => ({
-                                ...prev,
-                                data: { ...prev.data, tanggal: e.target.value }
-                            }))}
-                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                    ) : (
-                        <span className="text-gray-700">{item.tanggal.split('T')[0]}</span>
-                    )}
-                </td>
-                <td className="border border-gray-200 px-4 py-3 text-right">
-                    {isEditing ? (
-                        <input
-                            type="number"
-                            value={editMode.data.unit ?? item.unit}
-                            onChange={(e) => setEditMode(prev => ({
-                                ...prev,
-                                data: { ...prev.data, unit: Number(e.target.value) }
-                            }))}
-                            className="border border-gray-300 p-2 rounded-lg w-24 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                    ) : (
-                        <span className="text-gray-700 font-medium">{item.unit}</span>
-                    )}
-                </td>
-                <td className="border border-gray-200 px-4 py-3 text-right">
-                    {isEditing ? (
-                        <input
-                            type="number"
-                            value={editMode.data.hargaPerUnit ?? item.hargaPerUnit}
-                            onChange={(e) => setEditMode(prev => ({
-                                ...prev,
-                                data: { ...prev.data, hargaPerUnit: Number(e.target.value) }
-                            }))}
-                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                    ) : (
-                        <span className="text-gray-700 font-medium">Rp {item.hargaPerUnit.toLocaleString()}</span>
-                    )}
-                </td>
-                <td className="border border-gray-200 px-4 py-3 text-right">
-                    <span className="text-gray-800 font-bold">Rp {(item.unit * item.hargaPerUnit).toLocaleString()}</span>
-                </td>
-                <td className="border border-gray-200 px-4 py-3">
-                    {isEditing ? (
-                        <input
-                            type="text"
-                            value={editMode.data.keterangan ?? item.keterangan}
-                            onChange={(e) => setEditMode(prev => ({
-                                ...prev,
-                                data: { ...prev.data, keterangan: e.target.value }
-                            }))}
-                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                    ) : (
-                        <span className="text-gray-700">{item.keterangan}</span>
-                    )}
-                </td>
-                <td className="border border-gray-200 px-4 py-3">
-                    {isEditing ? (
-                        <div className="w-full">
-                            <CategoryAutocomplete
-                                value={(editMode.data.category as string) || item.category}
-                                onChange={(v) => setEditMode(prev => ({ ...prev, data: { ...prev.data, category: v } }))}
-                                placeholder="Kategori"
-                                inputClassName="p-2"
-                                debounceMs={1000}
-                            />
-                        </div>
-                    ) : (
-                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">{item.category}</span>
-                    )}
-                </td>
-                {/* Di dalam EditableRow */}
-                <td className="border border-gray-200 px-4 py-3 text-center">
-                    {isEditing ? (
-                        <select
-                            value={editMode.data.status || item.status}
-                            onChange={(e) => setEditMode(prev => ({
-                                ...prev,
-                                data: { ...prev.data, status: e.target.value as 'Paid' | 'Unpaid' }
-                            }))}
-                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                            <option value="Paid">Paid</option>
-                            <option value="Unpaid">Unpaid</option>
-                        </select>
-                    ) : (
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${item.status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'
-                            }`}>
-                            {item.status}
-                        </span>
-                    )}
-                </td>
-                <td className="border border-gray-200 px-4 py-2">
-                    {isEditing ? (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleSaveEdit}
-                                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1.5 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            </button>
-                            <button
-                                onClick={() => setEditMode({ id: null, type: null, data: {} })}
-                                className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-3 py-1.5 rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => handleEdit(item.id, type)}
-                                className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                            </button>
-                            <button
-                                onClick={() => handleDelete(item.id)}
-                                className="bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-1.5 rounded-lg hover:from-red-600 hover:to-rose-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-1"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
-                        </div>
-                    )}
-                </td>
-            </tr>
-        );
-    };
+    // Table row component (view-only, edit via modal)
+    const TableRow = ({ item, index }: { item: FinanceEntry, index: number }) => (
+        <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
+            <td className="border border-gray-200 px-3 py-2.5 text-center font-medium text-gray-700 text-sm">{index + 1}</td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm whitespace-nowrap">{item.tanggal.split('T')[0]}</td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm text-gray-500">{item.noBukti || <span className="text-gray-300">—</span>}</td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm">{item.vendorName || <span className="text-gray-300">—</span>}</td>
+            <td className="border border-gray-200 px-3 py-2.5 text-right font-bold text-sm whitespace-nowrap">
+                Rp {(item.unit * item.hargaPerUnit).toLocaleString('id-ID')}
+            </td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm max-w-xs truncate">{item.keterangan}</td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm">
+                <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">{item.category}</span>
+            </td>
+            <td className="border border-gray-200 px-3 py-2.5 text-center">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statusClass(item.status)}`}>{item.status}</span>
+            </td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm text-center whitespace-nowrap">{item.paymentMethod || <span className="text-gray-300">—</span>}</td>
+            <td className="border border-gray-200 px-3 py-2.5 text-center">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${(item.taxPaid ?? false)
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
+                    {(item.taxPaid ?? false) ? 'Sudah' : 'Belum'}
+                </span>
+            </td>
+            <td className="border border-gray-200 px-3 py-2.5">
+                <div className="flex gap-1.5">
+                    <button
+                        onClick={() => handleOpenEdit(item.id)}
+                        className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white p-1.5 rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 shadow-sm"
+                        title="Edit"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => handleDelete(item.id)}
+                        className="bg-gradient-to-r from-red-500 to-rose-600 text-white p-1.5 rounded-lg hover:from-red-600 hover:to-rose-700 transition-all duration-200 shadow-sm"
+                        title="Hapus"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    );
 
     return (
         <div className={`flex-1 transition-all duration-300 ${isCollapsed ? 'ml-20' : 'ml-72'} bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50 min-h-screen`}>
@@ -635,7 +486,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     </div>
                     
                     {/* Basic Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-9 gap-3 mb-6">
                         <div className="relative">
                             <input
                                 type="text"
@@ -688,7 +539,42 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         >
                             <option value="">Semua Status</option>
                             <option value="Paid">Paid</option>
+                            <option value="Partial">Partial</option>
                             <option value="Unpaid">Unpaid</option>
+                        </select>
+                        <select
+                            value={selectedTaxStatus}
+                            onChange={(e) => setSelectedTaxStatus(e.target.value)}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedTaxStatus ? 'border-blue-500 bg-blue-50' : ''}`}
+                        >
+                            <option value="">Semua Pajak</option>
+                            <option value="paid">Sudah Pajak</option>
+                            <option value="unpaid">Belum Pajak</option>
+                        </select>
+                        <select
+                            value={selectedPaymentMethod}
+                            onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedPaymentMethod ? 'border-blue-500 bg-blue-50' : ''}`}
+                        >
+                            <option value="">Semua Metode</option>
+                            <option value="Tunai">Tunai</option>
+                            <option value="Transfer Bank">Transfer Bank</option>
+                            <option value="QRIS">QRIS</option>
+                            <option value="Debit">Debit</option>
+                            <option value="Cek">Cek</option>
+                            <option value="Giro">Giro</option>
+                        </select>
+                        <select
+                            value={selectedKategoriUtama}
+                            onChange={(e) => setSelectedKategoriUtama(e.target.value)}
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 ${selectedKategoriUtama ? 'border-blue-500 bg-blue-50' : ''}`}
+                        >
+                            <option value="">Semua Kat. Utama</option>
+                            <option value="Operasional">Operasional</option>
+                            <option value="Pembelian">Pembelian</option>
+                            <option value="Aset">Aset</option>
+                            <option value="Pajak">Pajak</option>
+                            <option value="Owner/Pribadi">Owner/Pribadi</option>
                         </select>
                         <div className="flex gap-2">
                             <button
@@ -742,8 +628,14 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                             <span className="font-medium text-gray-700">{c.name}</span>
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    if (confirm(`Hapus kategori "${c.name}"?`)) handleDeleteCategory(c.id);
+                                                onClick={async () => {
+                                                    const confirmed = await confirmDialog({
+                                                        title: `Hapus kategori "${c.name}"?`,
+                                                        confirmText: 'Hapus',
+                                                        cancelText: 'Batal',
+                                                        variant: 'danger',
+                                                    });
+                                                    if (confirmed) handleDeleteCategory(c.id);
                                                 }}
                                                 className="text-gray-400 hover:text-red-600 transition-colors duration-200 opacity-0 group-hover:opacity-100"
                                                 aria-label={`Hapus ${c.name}`}
@@ -841,7 +733,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     </div>
 
                     {/* Active Filters Display */}
-                    {(searchTerm || selectedCategory || selectedMonth || selectedYear || selectedStatus || startDate || endDate || minAmount || maxAmount) && (
+                    {(searchTerm || selectedCategory || selectedMonth || selectedYear || selectedStatus || selectedTaxStatus || selectedPaymentMethod || selectedKategoriUtama || startDate || endDate || minAmount || maxAmount) && (
                         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                             <h4 className="text-sm font-medium text-blue-800 mb-2">Filter Aktif:</h4>
                             <div className="flex flex-wrap gap-2">
@@ -898,6 +790,24 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                         >
                                             ✕
                                         </button>
+                                    </span>
+                                )}
+                                {selectedTaxStatus && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Pajak: {selectedTaxStatus === 'paid' ? 'Sudah Pajak' : 'Belum Pajak'}
+                                        <button onClick={() => setSelectedTaxStatus('')} className="ml-1 text-blue-600 hover:text-blue-800">✕</button>
+                                    </span>
+                                )}
+                                {selectedPaymentMethod && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Metode: {selectedPaymentMethod}
+                                        <button onClick={() => setSelectedPaymentMethod('')} className="ml-1 text-blue-600 hover:text-blue-800">✕</button>
+                                    </span>
+                                )}
+                                {selectedKategoriUtama && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Kategori: {selectedKategoriUtama}
+                                        <button onClick={() => setSelectedKategoriUtama('')} className="ml-1 text-blue-600 hover:text-blue-800">✕</button>
                                     </span>
                                 )}
                                 {(startDate || endDate) && (
@@ -1045,78 +955,23 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
                 {/* Active Section Content */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
-                    {/* Add New Form */}
-                    <div className="p-6 border-b border-gray-200">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className={`w-10 h-10 ${activeSection === 'income' ? 'bg-green-100' : 'bg-red-100'} rounded-lg flex items-center justify-center`}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${activeSection === 'income' ? 'text-green-600' : 'text-red-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                            </div>
-                            <h2 className="text-lg font-semibold text-gray-800">
-                                Tambah {activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}
-                            </h2>
-                        </div>
-
-                        <form
-                            onSubmit={(e) => handleAddEntry(e, activeSection)}
-                            className="grid grid-cols-1 md:grid-cols-6 gap-4"
+                    {/* Header + Add Button */}
+                    <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                        <h2 className="text-base font-semibold text-gray-800">
+                            Data {activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}
+                        </h2>
+                        <button
+                            onClick={handleOpenAdd}
+                            className={`${activeSection === 'income'
+                                ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
+                                : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700'
+                            } text-white px-4 py-2 rounded-xl transition-all duration-200 font-semibold shadow-md flex items-center gap-2 text-sm`}
                         >
-                            <input
-                                type="date"
-                                value={newEntry.tanggal}
-                                onChange={(e) => setNewEntry({ ...newEntry, tanggal: e.target.value })}
-                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                required
-                            />
-                            <input
-                                type="number"
-                                placeholder="Jumlah Unit"
-                                value={newEntry.unit}
-                                onChange={(e) => setNewEntry({ ...newEntry, unit: e.target.value })}
-                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                required
-                            />
-                            <input
-                                type="number"
-                                placeholder="Harga per Unit"
-                                value={newEntry.hargaPerUnit}
-                                onChange={(e) => setNewEntry({ ...newEntry, hargaPerUnit: e.target.value })}
-                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                required
-                            />
-                            <input
-                                type="text"
-                                placeholder="Keterangan"
-                                value={newEntry.keterangan}
-                                onChange={(e) => setNewEntry({ ...newEntry, keterangan: e.target.value })}
-                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                            <CategoryAutocomplete
-                                value={newEntry.category}
-                                onChange={(v) => setNewEntry({ ...newEntry, category: v })}
-                                placeholder="Kategori (contoh: Minyak)"
-                                debounceMs={5000}
-                            />
-                            <select
-                                value={newEntry.status}
-                                onChange={(e) => setNewEntry({ ...newEntry, status: e.target.value as 'Paid' | 'Unpaid' })}
-                                className="border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                required
-                            >
-                                <option value="Unpaid">Unpaid</option>
-                                <option value="Paid">Paid</option>
-                            </select>
-                            <button
-                                type="submit"
-                                className={`${activeSection === 'income' ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700' : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700'} text-white px-4 py-2 rounded-xl transition-all duration-200 font-semibold shadow-md hover:shadow-lg flex items-center gap-2`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                Tambah
-                            </button>
-                        </form>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Tambah {activeSection === 'income' ? 'Pemasukan' : 'Pengeluaran'}
+                        </button>
                     </div>
 
                     {/* Data Table */}
@@ -1148,64 +1003,36 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             </div>
                         </div>
                         
-                        <table className="w-full">
-                            <thead className={`${activeSection === 'income' ? 'bg-gradient-to-r from-green-100 to-emerald-100' : 'bg-gradient-to-r from-red-100 to-rose-100'}`}>
+                        <table className="w-full min-w-max">
+                            <thead className={`${activeSection === 'income' ? 'bg-gradient-to-r from-green-100 to-emerald-100' : 'bg-gradient-to-r from-red-100 to-rose-100'} text-xs`}>
                                 <tr>
-                                    <th
-                                        className="border border-gray-200 px-4 py-3 w-12 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
-                                        onClick={() => handleSort('id')}
-                                    >
-                                        <div className="flex items-center justify-center gap-1">
-                                            No
-                                            {sortBy === 'id' && (
-                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                                            )}
-                                        </div>
+                                    <th className="border border-gray-200 px-3 py-2.5 w-10 cursor-pointer hover:bg-white/50 font-semibold text-gray-800" onClick={() => handleSort('id')}>
+                                        <div className="flex items-center justify-center gap-1">No {sortBy === 'id' && <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
                                     </th>
-                                    <th
-                                        className="border border-gray-200 px-4 py-3 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
-                                        onClick={() => handleSort('tanggal')}
-                                    >
-                                        <div className="flex items-center justify-center gap-1">
-                                            Tanggal
-                                            {sortBy === 'tanggal' && (
-                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                                            )}
-                                        </div>
+                                    <th className="border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-white/50 font-semibold text-gray-800" onClick={() => handleSort('tanggal')}>
+                                        <div className="flex items-center justify-center gap-1">Tanggal {sortBy === 'tanggal' && <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
                                     </th>
-                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Unit</th>
-                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Harga/Unit</th>
-                                    <th
-                                        className="border border-gray-200 px-4 py-3 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
-                                        onClick={() => handleSort('jumlah')}
-                                    >
-                                        <div className="flex items-center justify-center gap-1">
-                                            Jumlah
-                                            {sortBy === 'jumlah' && (
-                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                                            )}
-                                        </div>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">No Bukti</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Vendor</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-white/50 font-semibold text-gray-800" onClick={() => handleSort('jumlah')}>
+                                        <div className="flex items-center justify-center gap-1">Jumlah {sortBy === 'jumlah' && <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
                                     </th>
-                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Keterangan</th>
-                                    <th className="border border-gray-200 px-4 py-3 font-semibold text-gray-800">Kategori</th>
-                                    <th
-                                        className="border border-gray-200 px-4 py-3 cursor-pointer hover:bg-white/50 transition-all duration-200 font-semibold text-gray-800"
-                                        onClick={() => handleSort('status')}
-                                    >
-                                        <div className="flex items-center justify-center gap-1">
-                                            Status
-                                            {sortBy === 'status' && (
-                                                <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                                            )}
-                                        </div>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Keterangan</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Kategori</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-white/50 font-semibold text-gray-800" onClick={() => handleSort('status')}>
+                                        <div className="flex items-center justify-center gap-1">Status {sortBy === 'status' && <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
                                     </th>
-                                    <th className="border border-gray-200 px-4 py-3 w-32 font-semibold text-gray-800">Aksi</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Metode</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-white/50 font-semibold text-gray-800" onClick={() => handleSort('tax_paid')}>
+                                        <div className="flex items-center justify-center gap-1">Pajak {sortBy === 'tax_paid' && <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
+                                    </th>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {isLoading ? (
                                     <tr>
-                                        <td colSpan={9} className="text-center py-12">
+                                        <td colSpan={11} className="text-center py-12">
                                             <div className="flex items-center justify-center">
                                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                                                 <span className="ml-3 text-gray-600 font-medium">Memuat data...</span>
@@ -1214,7 +1041,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     </tr>
                                 ) : (activeSection === 'income' ? incomeData : expenseData).length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="text-center py-12 text-gray-500">
+                                        <td colSpan={11} className="text-center py-12 text-gray-500">
                                             <div className="flex flex-col items-center">
                                                 <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1226,11 +1053,10 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     </tr>
                                 ) : (
                                     (activeSection === 'income' ? incomeData : expenseData).map((item, index) => (
-                                        <EditableRow
+                                        <TableRow
                                             key={item.id}
                                             item={item}
                                             index={((currentPage - 1) * pageSize) + index}
-                                            type={activeSection}
                                         />
                                     ))
                                 )}
@@ -1307,6 +1133,18 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
 
                 </div>
             </div>
+
+            {/* Entry Modal */}
+            {showEntryModal && (
+                <FinanceEntryModal
+                    entry={editingEntry}
+                    type={activeSection}
+                    categories={categories}
+                    onSave={handleSaveEntry}
+                    onClose={() => { setShowEntryModal(false); setEditingEntry(null); }}
+                    saving={savingEntry}
+                />
+            )}
         </div>
     );
 };

@@ -180,8 +180,6 @@ const SharedProjectView: React.FC = () => {
         showVolumeActual: true,
         syncToSmartNota: true,
         smartNotaApiKey: '',
-        smartNotaBaseUrl: '',
-        smartNotaDestination: '',
     }));
     const canUseEditToken = !!editToken && shareSettings.allowEdit;
 
@@ -758,8 +756,6 @@ const SharedProjectView: React.FC = () => {
                                 linkSettings={{
                                     syncToSmartNota: shareSettings.syncToSmartNota,
                                     smartNotaApiKey: shareSettings.smartNotaApiKey,
-                                    smartNotaBaseUrl: shareSettings.smartNotaBaseUrl,
-                                    smartNotaDestination: shareSettings.smartNotaDestination,
                                 }}
                             />
                         </div>
