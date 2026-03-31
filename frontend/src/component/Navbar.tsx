@@ -18,7 +18,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
     { name: 'Reports', icon: <FiFlag />, path: '/reports' },
     { name: 'Finance', icon: <FiCreditCard />, path: '/finance' },
     { name: 'Smart Nota', icon: <FiFileText />, path: '/smart-nota' },
-    { name: 'Invoice', icon: <FiFile />, path: '/invoices' },
+    { name: 'Dokumen', icon: <FiFile />, path: '/invoices' },
     { name: 'Alat Berat', icon: <FiTruck />, path: '/equipment' },
     { name: 'Settings', icon: <FiSettings />, path: '/settings' },
   ];

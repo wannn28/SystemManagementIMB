@@ -10,6 +10,7 @@ type InvoiceTemplateRepository interface {
 	Create(t *entity.InvoiceTemplate) error
 	Update(t *entity.InvoiceTemplate) error
 	Delete(id uint) error
+	CountInvoicesUsingTemplate(id uint) (int64, error)
 	FindAll() ([]entity.InvoiceTemplate, error)
 	FindByID(id uint) (*entity.InvoiceTemplate, error)
 }
@@ -41,6 +42,12 @@ func normalizeTemplateOptions(t *entity.InvoiceTemplate) {
 
 func (r *invoiceTemplateRepository) Delete(id uint) error {
 	return r.db.Delete(&entity.InvoiceTemplate{}, id).Error
+}
+
+func (r *invoiceTemplateRepository) CountInvoicesUsingTemplate(id uint) (int64, error) {
+	var n int64
+	err := r.db.Model(&entity.Invoice{}).Where("template_id = ?", id).Count(&n).Error
+	return n, err
 }
 
 func (r *invoiceTemplateRepository) FindAll() ([]entity.InvoiceTemplate, error) {

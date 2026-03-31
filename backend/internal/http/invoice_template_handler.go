@@ -2,13 +2,15 @@ package http
 
 import (
 	"encoding/json"
-	"dashboardadminimb/internal/entity"
-	"dashboardadminimb/internal/service"
+	"errors"
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"dashboardadminimb/internal/entity"
+	"dashboardadminimb/internal/service"
 	"dashboardadminimb/pkg/response"
+
+	"github.com/labstack/echo/v4"
 )
 
 // templateRequest dipakai untuk Create/Update agar options bisa diterima sebagai object JSON.
@@ -118,6 +120,9 @@ func (h *InvoiceTemplateHandler) Delete(c echo.Context) error {
 		return response.Error(c, http.StatusNotFound, err)
 	}
 	if err := h.service.Delete(uint(id)); err != nil {
+		if errors.Is(err, service.ErrTemplateInUseByInvoices) {
+			return response.Error(c, http.StatusConflict, err)
+		}
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusNoContent, nil)

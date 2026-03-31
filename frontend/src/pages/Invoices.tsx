@@ -112,10 +112,10 @@ const STATUS_OPTIONS = [
 ];
 
 const DOCUMENT_TYPE_OPTIONS = [
-  { value: 'invoice', label: 'Invoice' },
+  { value: 'invoice', label: 'Tagihan (invoice)' },
   { value: 'penawaran', label: 'Penawaran' },
-  { value: 'pre_order', label: 'Pre Order' },
-  { value: 'surat_jalan', label: 'Surat Jalan' },
+  { value: 'pre_order', label: 'Purchase order (PO)' },
+  { value: 'surat_jalan', label: 'Surat jalan' },
   { value: 'lainnya', label: 'Lainnya' },
 ];
 
@@ -137,8 +137,8 @@ const DEFAULT_ITEM_COLUMNS: TemplateItemColumn[] = [
 const INVOICE_SORT_OPTIONS: { value: string; label: string }[] = [
   { value: 'created_at_desc', label: 'Terbaru dibuat' },
   { value: 'created_at_asc', label: 'Terlama dibuat' },
-  { value: 'invoice_date_desc', label: 'Tanggal invoice terbaru' },
-  { value: 'invoice_date_asc', label: 'Tanggal invoice terlama' },
+  { value: 'invoice_date_desc', label: 'Tanggal dokumen terbaru' },
+  { value: 'invoice_date_asc', label: 'Tanggal dokumen terlama' },
   { value: 'customer_name_asc', label: 'Customer A–Z' },
   { value: 'customer_name_desc', label: 'Customer Z–A' },
 ];
@@ -273,7 +273,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const [editingColumnsForGroup, setEditingColumnsForGroup] = useState<string | null>(null);
   const [groupColumnsForm, setGroupColumnsForm] = useState<TemplateItemColumn[]>([]);
   const [location, setLocation] = useState('Batam');
-  const [subject, setSubject] = useState('Invoice');
+  const [subject, setSubject] = useState('');
   const [equipmentNames, setEquipmentNames] = useState<string[]>([]);
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [newEquipmentInput, setNewEquipmentInput] = useState('');
@@ -718,6 +718,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setAttachments([]);
     setAttachmentTitle('');
     setAttachmentPhotosPerPage(1);
+    setSubject('');
   };
 
   const loadInvoiceForEdit = async (id: number | string) => {
@@ -770,7 +771,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setIncludeBbmNote(inv.include_bbm_note ?? false);
     setUseBbmColumns(inv.use_bbm_columns ?? false);
     setLocation(inv.location || 'Batam');
-    setSubject(inv.subject || 'Invoice');
+    setSubject(inv.subject || '');
     const eqName = (inv.equipment_name || '').replace(/^Alat berat berupa\s+/i, '').trim();
     if (eqName) {
       const arr = eqName.split(/\s+dan\s+|,/).map((s) => s.trim()).filter(Boolean);
@@ -860,7 +861,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
   const documentNumberCode = getDocumentNumberCode(selectedTemplate?.document_type);
   const documentTypeLabel = selectedTemplate?.document_type
     ? selectedTemplate.document_type.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase())
-    : 'Invoice';
+    : 'Dokumen';
   const emptyFormItem = (defaultItemName?: string): FormItem => ({
     item_name: defaultItemName ?? '',
     description: '',
@@ -1644,7 +1645,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       include_bbm_note: includeBbmNote,
       use_bbm_columns: useBbmColumns,
       location: location.trim() || undefined,
-      subject: subject.trim() || 'Invoice',
+      subject: subject.trim() || 'Dokumen',
       equipment_name: getEquipmentNameForPayload().trim() || undefined,
       equipment_name_alat_berat: getEquipmentNameAlatBeratForPayload().trim() || undefined,
       equipment_name_dumptruck: getEquipmentNameDumptruckForPayload().trim() || undefined,
@@ -1695,16 +1696,16 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
       if (editInvoiceId) {
         await invoiceApi.updateInvoice(editInvoiceId, payload);
-        setMessage({ type: 'success', text: 'Invoice berhasil diperbarui.' });
+        setMessage({ type: 'success', text: 'Dokumen berhasil diperbarui.' });
       } else {
         await invoiceApi.createInvoice(payload);
-        setMessage({ type: 'success', text: 'Invoice berhasil dibuat.' });
+        setMessage({ type: 'success', text: 'Dokumen berhasil dibuat.' });
       }
       setEditInvoiceId(null);
       setActiveTab('list');
       fetchInvoices();
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || err?.message || 'Gagal menyimpan invoice.';
+      const errorMsg = err?.response?.data?.message || err?.message || 'Gagal menyimpan dokumen.';
       console.error('Error saving invoice:', err?.response?.data || err);
       setMessage({ type: 'error', text: errorMsg });
     } finally {
@@ -1714,7 +1715,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
 
   const handleDeleteInvoice = async (id: number | string) => {
     const confirmed = await confirmDialog({
-      title: 'Hapus invoice ini?',
+      title: 'Hapus dokumen ini?',
       confirmText: 'Hapus',
       cancelText: 'Batal',
       variant: 'danger',
@@ -1736,7 +1737,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     const ids = Array.from(selectedInvoiceIds);
     if (ids.length === 0) return;
     const confirmed = await confirmDialog({
-      title: `Hapus ${ids.length} invoice terpilih?`,
+      title: `Hapus ${ids.length} dokumen terpilih?`,
       confirmText: 'Hapus',
       cancelText: 'Batal',
       variant: 'danger',
@@ -1747,10 +1748,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       await Promise.all(ids.map((id) => invoiceApi.deleteInvoice(id)));
       setSelectedInvoiceIds(new Set());
       setPreviewInvoice(null);
-      setMessage({ type: 'success', text: `${ids.length} invoice berhasil dihapus.` });
+      setMessage({ type: 'success', text: `${ids.length} dokumen berhasil dihapus.` });
       fetchInvoices();
     } catch (e: unknown) {
-      setMessage({ type: 'error', text: (e as Error)?.message || 'Gagal menghapus sebagian invoice.' });
+      setMessage({ type: 'error', text: (e as Error)?.message || 'Gagal menghapus sebagian dokumen.' });
       fetchInvoices();
     } finally {
       setBulkDeleting(false);
@@ -1899,7 +1900,12 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
     setDeletingTemplateId(id);
     try {
       await invoiceApi.deleteTemplate(id);
+      setMessage({ type: 'success', text: 'Template berhasil dihapus.' });
       invoiceApi.getTemplates().then(setTemplates);
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { message?: string } } };
+      const msg = ax?.response?.data?.message || (e as Error)?.message || 'Gagal menghapus template.';
+      setMessage({ type: 'error', text: msg });
     } finally {
       setDeletingTemplateId(null);
     }
@@ -1994,8 +2000,10 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
       <div className="max-w-6xl mx-auto p-3 sm:p-6">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Invoice</h1>
-            <p className="text-gray-500">Buat, kelola template, dan cetak invoice</p>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Dokumen bisnis</h1>
+            <p className="text-gray-500">
+              Kelola template, buat penawaran, tagihan, purchase order, dan dokumen lain — lalu cetak PDF
+            </p>
           </div>
         </div>
 
@@ -2003,8 +2011,8 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
         <div className="mb-6 border-b border-gray-200 overflow-x-auto">
           <div className="flex gap-2 min-w-max">
           {[
-            { id: 'list', label: 'Daftar Invoice', icon: <FiList /> },
-            { id: 'create', label: 'Buat Invoice', icon: <FiPlus /> },
+            { id: 'list', label: 'Daftar dokumen', icon: <FiList /> },
+            { id: 'create', label: 'Buat dokumen', icon: <FiPlus /> },
             { id: 'templates', label: 'Kelola Template', icon: <FiGrid /> },
             { id: 'customers', label: 'Data Pelanggan', icon: <FiUsers /> },
           ].map((tab) => (
@@ -2055,7 +2063,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           </div>
         )}
 
-        {/* Tab: Daftar Invoice */}
+        {/* Tab: Daftar dokumen */}
         {activeTab === 'list' && (
           <>
             <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex flex-wrap gap-3 items-end">
@@ -2244,7 +2252,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           </>
         )}
 
-        {/* Tab: Buat Invoice */}
+        {/* Tab: Buat dokumen */}
         {activeTab === 'create' && (
           <>
             {step === 'pick-template' && (
@@ -2539,7 +2547,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Perihal</label>
-                      <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invoice" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
+                      <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Penawaran, Tagihan, PO, …" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
                     </div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">No Rekening & Bank</label>
                       <input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="1090021332523 (PT INDIRA MAJU BERSAMA) Bank Mandiri" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500" />
@@ -3546,7 +3554,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     Batal
                   </button>
                   <button type="submit" disabled={saving} className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 font-medium">
-                    {saving ? 'Menyimpan...' : editInvoiceId ? 'Simpan Perubahan' : 'Simpan Invoice'}
+                    {saving ? 'Menyimpan...' : editInvoiceId ? 'Simpan Perubahan' : 'Simpan dokumen'}
                   </button>
                 </div>
               </form>
@@ -3724,7 +3732,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Digunakan untuk Invoice, Penawaran, Pre Order, dll.</p>
+                <p className="text-xs text-gray-500 mt-1">Digunakan untuk penawaran, tagihan, purchase order, dan dokumen lain.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kalimat pembuka default</label>
@@ -4346,7 +4354,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
           </Modal>
         )}
 
-        {/* Modal: Preview Invoice */}
+        {/* Modal: Preview dokumen */}
         {previewInvoice && (() => {
           const qtyLabel = previewInvoice.quantity_unit === 'jam' ? 'Jam' : previewInvoice.quantity_unit === 'unit' ? 'Unit' : previewInvoice.quantity_unit === 'jerigen' ? 'Jerigen' : 'Hari';
           const priceLabel = previewInvoice.price_unit_label || (previewInvoice.quantity_unit === 'jam' ? 'Harga/Jam' : previewInvoice.quantity_unit === 'unit' ? 'Harga/Unit' : previewInvoice.quantity_unit === 'jerigen' ? 'Harga/Jerigen' : 'Harga/Hari');
@@ -4357,7 +4365,7 @@ const Invoices: React.FC<InvoicesProps> = ({ isCollapsed }) => {
               <div className="mb-4 flex justify-between">
                 <div>
                   <p><strong>Nomor:</strong> {previewInvoice.invoice_number}</p>
-                  <p><strong>Perihal:</strong> {previewInvoice.subject || 'Invoice'}</p>
+                  <p><strong>Perihal:</strong> {previewInvoice.subject || '—'}</p>
                   <p><strong>Kepada Yth:</strong> {previewInvoice.customer_name}</p>
                   {previewInvoice.customer_email?.trim() && (
                     <p className="text-gray-600 text-xs mt-0.5">Email: {previewInvoice.customer_email.trim()}</p>

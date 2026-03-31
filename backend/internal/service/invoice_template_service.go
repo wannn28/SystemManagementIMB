@@ -1,9 +1,14 @@
 package service
 
 import (
+	"errors"
+
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
 )
+
+// ErrTemplateInUseByInvoices returned when invoices still reference this template (FK).
+var ErrTemplateInUseByInvoices = errors.New("template masih dipakai oleh invoice atau penawaran yang sudah ada; ubah atau hapus dokumen tersebut terlebih dahulu")
 
 type InvoiceTemplateService interface {
 	Create(t *entity.InvoiceTemplate) error
@@ -30,6 +35,13 @@ func (s *invoiceTemplateService) Update(t *entity.InvoiceTemplate) error {
 }
 
 func (s *invoiceTemplateService) Delete(id uint) error {
+	n, err := s.repo.CountInvoicesUsingTemplate(id)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrTemplateInUseByInvoices
+	}
 	return s.repo.Delete(id)
 }
 
