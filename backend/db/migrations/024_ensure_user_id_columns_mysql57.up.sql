@@ -1,0 +1,68 @@
+-- Idempotent: adds user_id + index only if missing (MySQL 5.7+ / MariaDB).
+-- Use this if migration 022 failed or was skipped (e.g. ADD COLUMN IF NOT EXISTS unsupported).
+
+-- projects
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE projects ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND INDEX_NAME = 'idx_projects_user_id') > 0, 'SELECT 1', 'ALTER TABLE projects ADD INDEX idx_projects_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- finances
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finances' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE finances ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finances' AND INDEX_NAME = 'idx_finances_user_id') > 0, 'SELECT 1', 'ALTER TABLE finances ADD INDEX idx_finances_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- members
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE members ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND INDEX_NAME = 'idx_members_user_id') > 0, 'SELECT 1', 'ALTER TABLE members ADD INDEX idx_members_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- activities
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'activities' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE activities ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'activities' AND INDEX_NAME = 'idx_activities_user_id') > 0, 'SELECT 1', 'ALTER TABLE activities ADD INDEX idx_activities_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- customers
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE customers ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND INDEX_NAME = 'idx_customers_user_id') > 0, 'SELECT 1', 'ALTER TABLE customers ADD INDEX idx_customers_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- equipment
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'equipment' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE equipment ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'equipment' AND INDEX_NAME = 'idx_equipment_user_id') > 0, 'SELECT 1', 'ALTER TABLE equipment ADD INDEX idx_equipment_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- inventory_categories
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventory_categories' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE inventory_categories ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventory_categories' AND INDEX_NAME = 'idx_inventory_categories_user_id') > 0, 'SELECT 1', 'ALTER TABLE inventory_categories ADD INDEX idx_inventory_categories_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- invoices
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE invoices ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND INDEX_NAME = 'idx_invoices_user_id') > 0, 'SELECT 1', 'ALTER TABLE invoices ADD INDEX idx_invoices_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- invoice_templates
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_templates' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE invoice_templates ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_templates' AND INDEX_NAME = 'idx_invoice_templates_user_id') > 0, 'SELECT 1', 'ALTER TABLE invoice_templates ADD INDEX idx_invoice_templates_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- item_templates
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'item_templates' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE item_templates ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'item_templates' AND INDEX_NAME = 'idx_item_templates_user_id') > 0, 'SELECT 1', 'ALTER TABLE item_templates ADD INDEX idx_item_templates_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- finance_category_models
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finance_category_models' AND COLUMN_NAME = 'user_id') > 0, 'SELECT 1', 'ALTER TABLE finance_category_models ADD COLUMN user_id INT UNSIGNED NOT NULL DEFAULT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finance_category_models' AND INDEX_NAME = 'idx_finance_category_models_user_id') > 0, 'SELECT 1', 'ALTER TABLE finance_category_models ADD INDEX idx_finance_category_models_user_id (user_id)'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

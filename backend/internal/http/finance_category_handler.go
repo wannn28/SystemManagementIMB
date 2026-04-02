@@ -2,6 +2,7 @@ package http
 
 import (
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"fmt"
 	"net/http"
 
@@ -21,11 +22,15 @@ type createCategoryReq struct {
 }
 
 func (h *FinanceCategoryHandler) Create(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]any{"message": "unauthorized"})
+	}
 	var req createCategoryReq
 	if err := c.Bind(&req); err != nil || req.Name == "" {
 		return c.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request"})
 	}
-	item, err := h.service.Create(req.Name)
+	item, err := h.service.Create(userID, req.Name)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
 	}
@@ -62,7 +67,11 @@ func (h *FinanceCategoryHandler) Delete(c echo.Context) error {
 }
 
 func (h *FinanceCategoryHandler) List(c echo.Context) error {
-	items, err := h.service.List()
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]any{"message": "unauthorized"})
+	}
+	items, err := h.service.List(userID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
 	}

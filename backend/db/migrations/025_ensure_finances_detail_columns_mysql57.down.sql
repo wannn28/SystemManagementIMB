@@ -1,0 +1,2 @@
+-- No-op rollback (recommended: keep data and only add missing columns).
+-- If you really want rollback, run the inverse ALTER statements manually.

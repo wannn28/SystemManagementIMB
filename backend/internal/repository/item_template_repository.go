@@ -10,7 +10,7 @@ type ItemTemplateRepository interface {
 	Create(e *entity.ItemTemplate) error
 	Update(e *entity.ItemTemplate) error
 	Delete(id uint) error
-	FindAll(search string) ([]entity.ItemTemplate, error)
+	FindAll(userID uint, search string) ([]entity.ItemTemplate, error)
 	FindByID(id uint) (*entity.ItemTemplate, error)
 }
 
@@ -34,9 +34,9 @@ func (r *itemTemplateRepository) Delete(id uint) error {
 	return r.db.Delete(&entity.ItemTemplate{}, id).Error
 }
 
-func (r *itemTemplateRepository) FindAll(search string) ([]entity.ItemTemplate, error) {
+func (r *itemTemplateRepository) FindAll(userID uint, search string) ([]entity.ItemTemplate, error) {
 	var list []entity.ItemTemplate
-	q := r.db.Order("name ASC")
+	q := r.db.Where("user_id = ?", userID).Order("name ASC")
 	if search != "" {
 		q = q.Where("name LIKE ?", "%"+search+"%")
 	}

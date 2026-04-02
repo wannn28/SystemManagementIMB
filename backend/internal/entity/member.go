@@ -24,6 +24,7 @@ type Document struct {
 // Hapus struct Document dan modifikasi field Files & Documents
 type Member struct {
 	ID                 string         `gorm:"primaryKey;type:varchar(255)" json:"id"`
+	UserID             uint           `gorm:"not null;index;default:1" json:"user_id"`
 	FullName           string         `gorm:"size:255" json:"fullName"`
 	Role               string         `gorm:"size:100" json:"role"`
 	PhoneNumber        string         `gorm:"size:50" json:"phoneNumber"`

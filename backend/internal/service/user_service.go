@@ -9,6 +9,8 @@ import (
 
 type UserService interface {
 	CreateUser(user *entity.User) error
+	RegisterUserPending(user *entity.User) error
+	UpdatePassword(userID uint, newPassword string) error
 	GetAllUsers() ([]entity.User, error)
 	GetAllUsersWithPagination(params response.QueryParams) ([]entity.User, int, error)
 	GetUserByID(id uint) (*entity.User, error)
@@ -31,7 +33,34 @@ func (s *userService) CreateUser(user *entity.User) error {
 		return err
 	}
 	user.Password = hashedPassword
+	if user.Status == "" {
+		user.Status = "active"
+	}
 	return s.repo.Create(user)
+}
+
+func (s *userService) RegisterUserPending(user *entity.User) error {
+	hashedPassword, err := utils.HashPassword(user.Password)
+	if err != nil {
+		return err
+	}
+	user.Password = hashedPassword
+	user.Role = "user"
+	user.Status = "pending"
+	return s.repo.Create(user)
+}
+
+func (s *userService) UpdatePassword(userID uint, newPassword string) error {
+	u, err := s.repo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	hashedPassword, err := utils.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	u.Password = hashedPassword
+	return s.repo.Update(u)
 }
 
 func (s *userService) GetAllUsers() ([]entity.User, error) {

@@ -10,7 +10,7 @@ type CustomerRepository interface {
 	Create(c *entity.Customer) error
 	Update(c *entity.Customer) error
 	Delete(id uint) error
-	FindAll(search string) ([]entity.Customer, error)
+	FindAll(userID uint, search string) ([]entity.Customer, error)
 	FindByID(id uint) (*entity.Customer, error)
 }
 
@@ -34,9 +34,9 @@ func (r *customerRepository) Delete(id uint) error {
 	return r.db.Delete(&entity.Customer{}, id).Error
 }
 
-func (r *customerRepository) FindAll(search string) ([]entity.Customer, error) {
+func (r *customerRepository) FindAll(userID uint, search string) ([]entity.Customer, error) {
 	var list []entity.Customer
-	q := r.db.Order("name ASC")
+	q := r.db.Where("user_id = ?", userID).Order("name ASC")
 	if search != "" {
 		q = q.Where("name LIKE ? OR phone LIKE ? OR email LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}

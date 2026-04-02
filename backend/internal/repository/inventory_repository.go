@@ -12,7 +12,7 @@ type InventoryRepository interface {
 	CreateCategory(category *entity.InventoryCategory) error
 	UpdateCategory(category *entity.InventoryCategory) error
 	DeleteCategory(id string) error
-	GetAllCategories() ([]entity.InventoryCategory, error)
+	GetAllCategories(userID uint) ([]entity.InventoryCategory, error)
 	GetCategoryByID(id string) (*entity.InventoryCategory, error)
 
 	CreateData(data *entity.InventoryData) error
@@ -44,9 +44,9 @@ func (r *inventoryRepository) DeleteCategory(id string) error {
 	return r.db.Where("id = ?", id).Delete(&entity.InventoryCategory{}).Error
 }
 
-func (r *inventoryRepository) GetAllCategories() ([]entity.InventoryCategory, error) {
+func (r *inventoryRepository) GetAllCategories(userID uint) ([]entity.InventoryCategory, error) {
 	var categories []entity.InventoryCategory
-	err := r.db.Preload("Data").Find(&categories).Error
+	err := r.db.Where("user_id = ?", userID).Preload("Data").Find(&categories).Error
 	return categories, err
 }
 

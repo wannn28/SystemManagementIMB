@@ -10,7 +10,7 @@ type EquipmentRepository interface {
 	Create(e *entity.Equipment) error
 	Update(e *entity.Equipment) error
 	Delete(id uint) error
-	FindAll(search string, typ string) ([]entity.Equipment, error)
+	FindAll(userID uint, search string, typ string) ([]entity.Equipment, error)
 	FindByID(id uint) (*entity.Equipment, error)
 }
 
@@ -34,9 +34,9 @@ func (r *equipmentRepository) Delete(id uint) error {
 	return r.db.Delete(&entity.Equipment{}, id).Error
 }
 
-func (r *equipmentRepository) FindAll(search string, typ string) ([]entity.Equipment, error) {
+func (r *equipmentRepository) FindAll(userID uint, search string, typ string) ([]entity.Equipment, error) {
 	var list []entity.Equipment
-	q := r.db.Order("name ASC")
+	q := r.db.Where("user_id = ?", userID).Order("name ASC")
 	if search != "" {
 		q = q.Where("name LIKE ?", "%"+search+"%")
 	}

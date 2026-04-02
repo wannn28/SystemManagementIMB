@@ -32,8 +32,12 @@ func NewMySQLDB(config *config.Config) (*gorm.DB, error) {
 		&entity.Project{},
 		&entity.ProjectShareLink{},
 		&entity.Salary{},
+		// Multi-tenancy: finance tables also need user_id columns.
+		&entity.Finance{},
+		&entity.FinanceCategoryModel{},
 		&entity.ApiKey{},
 		&entity.IntegrationAPIToken{},
+		&entity.PasswordResetToken{},
 		&entity.InvoiceTemplate{},
 		&entity.Invoice{},
 		&entity.InvoiceItem{},

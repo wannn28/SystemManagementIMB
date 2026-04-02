@@ -3,11 +3,12 @@ package http
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
+	"dashboardadminimb/pkg/response"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
-	"dashboardadminimb/pkg/response"
 )
 
 type CustomerHandler struct {
@@ -19,8 +20,12 @@ func NewCustomerHandler(service service.CustomerService) *CustomerHandler {
 }
 
 func (h *CustomerHandler) List(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	search := c.QueryParam("q")
-	list, err := h.service.GetAll(search)
+	list, err := h.service.GetAll(userID, search)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -37,6 +42,10 @@ func (h *CustomerHandler) GetByID(c echo.Context) error {
 }
 
 func (h *CustomerHandler) Create(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	var body entity.Customer
 	if err := c.Bind(&body); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -44,7 +53,7 @@ func (h *CustomerHandler) Create(c echo.Context) error {
 	if body.Name == "" {
 		return response.Error(c, http.StatusBadRequest, echo.NewHTTPError(http.StatusBadRequest, "name is required"))
 	}
-	if err := h.service.Create(&body); err != nil {
+	if err := h.service.Create(userID, &body); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusCreated, body)

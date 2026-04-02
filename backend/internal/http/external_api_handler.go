@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"dashboardadminimb/pkg/response"
 
 	"github.com/labstack/echo/v4"
@@ -30,12 +31,12 @@ func NewExternalAPIHandler(projectService service.ProjectService, financeService
 
 // CutFillPushEntry is a single day's data pushed from Smart Nota.
 type CutFillPushEntry struct {
-	Date             string  `json:"date"`
-	Ritase           float64 `json:"ritase"`
-	Aktual           float64 `json:"aktual"`
-	Cuaca            string  `json:"cuaca"`
-	DisruptionHours  float64 `json:"disruption_hours"`
-	Catatan          string  `json:"catatan"`
+	Date            string  `json:"date"`
+	Ritase          float64 `json:"ritase"`
+	Aktual          float64 `json:"aktual"`
+	Cuaca           string  `json:"cuaca"`
+	DisruptionHours float64 `json:"disruption_hours"`
+	Catatan         string  `json:"catatan"`
 }
 
 // CutFillPushRequest is the body for POST /api/external/daily-reports.
@@ -45,7 +46,11 @@ type CutFillPushRequest struct {
 }
 
 func (h *ExternalAPIHandler) GetProjects(c echo.Context) error {
-	data, err := h.projectService.GetAllProjects()
+	userID, err := appmiddleware.IntegrationTokenUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	data, err := h.projectService.GetAllProjects(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -53,7 +58,11 @@ func (h *ExternalAPIHandler) GetProjects(c echo.Context) error {
 }
 
 func (h *ExternalAPIHandler) GetFinance(c echo.Context) error {
-	data, err := h.financeService.GetAllFinance()
+	userID, err := appmiddleware.IntegrationTokenUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	data, err := h.financeService.GetAllFinance(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -61,7 +70,11 @@ func (h *ExternalAPIHandler) GetFinance(c echo.Context) error {
 }
 
 func (h *ExternalAPIHandler) GetReports(c echo.Context) error {
-	projects, err := h.projectService.GetAllProjects()
+	userID, err := appmiddleware.IntegrationTokenUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	projects, err := h.projectService.GetAllProjects(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -77,7 +90,11 @@ func (h *ExternalAPIHandler) GetReports(c echo.Context) error {
 }
 
 func (h *ExternalAPIHandler) GetTeam(c echo.Context) error {
-	data, err := h.memberService.GetAllMembers()
+	userID, err := appmiddleware.IntegrationTokenUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	data, err := h.memberService.GetAllMembers(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -87,11 +104,15 @@ func (h *ExternalAPIHandler) GetTeam(c echo.Context) error {
 // GetDailyReportsByProject returns the daily reports for a specific project.
 // GET /api/external/daily-reports/:project_id
 func (h *ExternalAPIHandler) GetDailyReportsByProject(c echo.Context) error {
+	userID, err := appmiddleware.IntegrationTokenUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	projectID, err := strconv.ParseUint(c.Param("project_id"), 10, 32)
 	if err != nil {
 		return response.Error(c, http.StatusBadRequest, errors.New("invalid project_id"))
 	}
-	project, err := h.projectService.GetProjectByID(uint(projectID))
+	project, err := h.projectService.GetProjectByID(uint(projectID), userID)
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, errors.New("project not found"))
 	}
@@ -117,6 +138,10 @@ func (h *ExternalAPIHandler) GetDailyReportsByProject(c echo.Context) error {
 // into the project's reports.daily JSON array.
 // POST /api/external/daily-reports
 func (h *ExternalAPIHandler) PushCutFillReports(c echo.Context) error {
+	userID, err := appmiddleware.IntegrationTokenUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	var req CutFillPushRequest
 	if err := c.Bind(&req); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -128,12 +153,11 @@ func (h *ExternalAPIHandler) PushCutFillReports(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, errors.New("entries must not be empty"))
 	}
 
-	project, err := h.projectService.GetProjectByID(req.ProjectID)
+	project, err := h.projectService.GetProjectByID(req.ProjectID, userID)
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, errors.New("project not found"))
 	}
 
-	// Parse existing reports blob.
 	var reports map[string]interface{}
 	if len(project.Reports) > 0 {
 		_ = json.Unmarshal(project.Reports, &reports)
@@ -142,7 +166,6 @@ func (h *ExternalAPIHandler) PushCutFillReports(c echo.Context) error {
 		reports = map[string]interface{}{}
 	}
 
-	// Load existing daily array into []map[string]interface{}.
 	var daily []map[string]interface{}
 	if d, ok := reports["daily"]; ok {
 		if arr, ok := d.([]interface{}); ok {
@@ -154,7 +177,6 @@ func (h *ExternalAPIHandler) PushCutFillReports(c echo.Context) error {
 		}
 	}
 
-	// Build a date → index map for fast lookup.
 	dateIndex := make(map[string]int, len(daily))
 	for i, dr := range daily {
 		if date, ok := dr["date"].(string); ok {
@@ -236,4 +258,3 @@ func (h *ExternalAPIHandler) PushCutFillReports(c echo.Context) error {
 		"created":    created,
 	})
 }
-

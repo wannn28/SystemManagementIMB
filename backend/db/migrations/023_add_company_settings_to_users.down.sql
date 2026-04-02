@@ -1,0 +1,3 @@
+ALTER TABLE users DROP COLUMN IF EXISTS primary_color;
+ALTER TABLE users DROP COLUMN IF EXISTS company_logo;
+ALTER TABLE users DROP COLUMN IF EXISTS company_name;

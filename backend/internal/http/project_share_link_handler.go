@@ -22,7 +22,6 @@ func NewProjectShareLinkHandler(shareService service.ProjectShareLinkService, pr
 	return &ProjectShareLinkHandler{shareService: shareService, projectService: projectService}
 }
 
-// Create share link (admin/auth required)
 // POST /api/projects/:id/share-links
 func (h *ProjectShareLinkHandler) Create(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
@@ -33,13 +32,11 @@ func (h *ProjectShareLinkHandler) Create(c echo.Context) error {
 
 	link, err := h.shareService.Create(uint(id), req.Settings)
 	if err != nil {
-		// bisa error validasi (400) atau error DB (lebih tepat 500)
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusCreated, link)
 }
 
-// List share links for one project (admin/auth required)
 // GET /api/projects/:id/share-links
 func (h *ProjectShareLinkHandler) ListByProject(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
@@ -50,7 +47,6 @@ func (h *ProjectShareLinkHandler) ListByProject(c echo.Context) error {
 	return response.Success(c, http.StatusOK, links)
 }
 
-// Delete share link for one project (admin/auth required)
 // DELETE /api/projects/:id/share-links/:linkId
 func (h *ProjectShareLinkHandler) DeleteByProject(c echo.Context) error {
 	projectID, _ := strconv.Atoi(c.Param("id"))
@@ -61,15 +57,14 @@ func (h *ProjectShareLinkHandler) DeleteByProject(c echo.Context) error {
 	return response.Success(c, http.StatusOK, map[string]bool{"deleted": true})
 }
 
-// Get shared project + settings (public)
-// GET /api/public/projects/shared/:token
+// GET /api/public/projects/shared/:token  (public — no auth)
 func (h *ProjectShareLinkHandler) GetSharedProject(c echo.Context) error {
 	token := c.Param("token")
 	link, err := h.shareService.GetByToken(token)
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
-	project, err := h.projectService.GetProjectByID(link.ProjectID)
+	project, err := h.projectService.GetProjectByIDAdmin(link.ProjectID)
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
@@ -80,8 +75,7 @@ func (h *ProjectShareLinkHandler) GetSharedProject(c echo.Context) error {
 	})
 }
 
-// Update settings (public but requires edit_token)
-// PUT /api/public/projects/shared/:token
+// PUT /api/public/projects/shared/:token  (public with edit_token)
 func (h *ProjectShareLinkHandler) UpdateSharedSettings(c echo.Context) error {
 	token := c.Param("token")
 	editToken := c.QueryParam("edit_token")
@@ -100,11 +94,7 @@ func (h *ProjectShareLinkHandler) UpdateSharedSettings(c echo.Context) error {
 	})
 }
 
-// UpdateSharedReports menyimpan project.reports (daily/weekly/monthly).
-// PUT /api/public/projects/shared/:token/reports?edit_token=...
-// Akses diizinkan jika:
-// - edit_token valid, atau
-// - settings.allowEdit == true (link view boleh edit rekapitulasi).
+// PUT /api/public/projects/shared/:token/reports  (public with edit_token or allowEdit)
 func (h *ProjectShareLinkHandler) UpdateSharedReports(c echo.Context) error {
 	token := c.Param("token")
 	editToken := c.QueryParam("edit_token")
@@ -132,7 +122,8 @@ func (h *ProjectShareLinkHandler) UpdateSharedReports(c echo.Context) error {
 	if link.EditToken != editToken && !allowEdit {
 		return response.Error(c, http.StatusForbidden, errors.New("edit is not allowed"))
 	}
-	project, err := h.projectService.GetProjectByID(link.ProjectID)
+
+	project, err := h.projectService.GetProjectByIDAdmin(link.ProjectID)
 	if err != nil {
 		return response.Error(c, http.StatusNotFound, err)
 	}
@@ -140,7 +131,7 @@ func (h *ProjectShareLinkHandler) UpdateSharedReports(c echo.Context) error {
 	if err := h.projectService.UpdateProject(project); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
-	updated, err := h.projectService.GetProjectByID(link.ProjectID)
+	updated, err := h.projectService.GetProjectByIDAdmin(link.ProjectID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -148,4 +139,3 @@ func (h *ProjectShareLinkHandler) UpdateSharedReports(c echo.Context) error {
 		"project": updated,
 	})
 }
-

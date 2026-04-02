@@ -13,6 +13,7 @@ const (
 
 type Invoice struct {
 	ID                      uint             `gorm:"primaryKey" json:"id"`
+	UserID                  uint             `gorm:"not null;index;default:1" json:"user_id"`
 	TemplateID              uint             `gorm:"not null" json:"template_id"`
 	Template                *InvoiceTemplate `gorm:"foreignKey:TemplateID" json:"template,omitempty"`
 	CustomerID              *uint            `gorm:"index" json:"customer_id,omitempty"`

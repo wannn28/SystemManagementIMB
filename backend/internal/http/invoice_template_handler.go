@@ -8,12 +8,12 @@ import (
 
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"dashboardadminimb/pkg/response"
 
 	"github.com/labstack/echo/v4"
 )
 
-// templateRequest dipakai untuk Create/Update agar options bisa diterima sebagai object JSON.
 type templateRequest struct {
 	Name           string          `json:"name"`
 	Description    string          `json:"description"`
@@ -33,7 +33,11 @@ func NewInvoiceTemplateHandler(service service.InvoiceTemplateService) *InvoiceT
 }
 
 func (h *InvoiceTemplateHandler) List(c echo.Context) error {
-	list, err := h.service.GetAll()
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	list, err := h.service.GetAll(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -50,6 +54,10 @@ func (h *InvoiceTemplateHandler) GetByID(c echo.Context) error {
 }
 
 func (h *InvoiceTemplateHandler) Create(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	var req templateRequest
 	if err := c.Bind(&req); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -72,7 +80,7 @@ func (h *InvoiceTemplateHandler) Create(c echo.Context) error {
 	if t.SignatureCount < 1 || t.SignatureCount > 2 {
 		t.SignatureCount = 1
 	}
-	if err := h.service.Create(&t); err != nil {
+	if err := h.service.Create(userID, &t); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusCreated, t)

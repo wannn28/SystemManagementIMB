@@ -3,6 +3,7 @@ package http
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"dashboardadminimb/pkg/response"
 	"net/http"
 	"strconv"
@@ -19,9 +20,13 @@ func NewEquipmentHandler(service service.EquipmentService) *EquipmentHandler {
 }
 
 func (h *EquipmentHandler) List(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	search := c.QueryParam("q")
-	typ := c.QueryParam("type") // alat_berat | dump_truck | empty = all
-	list, err := h.service.GetAll(search, typ)
+	typ := c.QueryParam("type")
+	list, err := h.service.GetAll(userID, search, typ)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -38,6 +43,10 @@ func (h *EquipmentHandler) GetByID(c echo.Context) error {
 }
 
 func (h *EquipmentHandler) Create(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	var body entity.Equipment
 	if err := c.Bind(&body); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -57,7 +66,7 @@ func (h *EquipmentHandler) Create(c echo.Context) error {
 	if body.PricePerHour < 0 {
 		body.PricePerHour = 0
 	}
-	if err := h.service.Create(&body); err != nil {
+	if err := h.service.Create(userID, &body); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusCreated, body)

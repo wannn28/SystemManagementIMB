@@ -1,0 +1,2 @@
+-- Manual rollback: use backend/db/migrations/022_add_user_id_to_root_tables.down.sql
+-- Adjust DROP statements for your MySQL version (IF EXISTS may require MySQL 8+).

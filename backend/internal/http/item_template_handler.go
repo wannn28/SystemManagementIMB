@@ -3,6 +3,7 @@ package http
 import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"dashboardadminimb/pkg/response"
 	"net/http"
 	"strconv"
@@ -19,8 +20,12 @@ func NewItemTemplateHandler(service service.ItemTemplateService) *ItemTemplateHa
 }
 
 func (h *ItemTemplateHandler) List(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	search := c.QueryParam("q")
-	list, err := h.service.GetAll(search)
+	list, err := h.service.GetAll(userID, search)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -37,6 +42,10 @@ func (h *ItemTemplateHandler) GetByID(c echo.Context) error {
 }
 
 func (h *ItemTemplateHandler) Create(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	var body entity.ItemTemplate
 	if err := c.Bind(&body); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -44,7 +53,7 @@ func (h *ItemTemplateHandler) Create(c echo.Context) error {
 	if body.Name == "" {
 		return response.Error(c, http.StatusBadRequest, echo.NewHTTPError(http.StatusBadRequest, "name is required"))
 	}
-	if err := h.service.Create(&body); err != nil {
+	if err := h.service.Create(userID, &body); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	return response.Success(c, http.StatusCreated, body)

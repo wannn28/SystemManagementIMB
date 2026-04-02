@@ -8,6 +8,7 @@ import (
 	"dashboardadminimb/internal/imagepreprocess"
 	"dashboardadminimb/internal/ocr"
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -178,6 +179,10 @@ func parseInvoiceFromRequest(c echo.Context, inv *entity.Invoice) error {
 }
 
 func (h *InvoiceHandler) Create(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	var inv entity.Invoice
 	if err := parseInvoiceFromRequest(c, &inv); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
@@ -192,7 +197,7 @@ func (h *InvoiceHandler) Create(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, echo.NewHTTPError(http.StatusBadRequest, "template_id is required"))
 	}
 	inv.DueDate = normalizeDueDate(inv.DueDate)
-	if err := h.service.Create(&inv); err != nil {
+	if err := h.service.Create(userID, &inv); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 	hydrateCustomerFields(&inv)
@@ -269,8 +274,12 @@ func (h *InvoiceHandler) GetByID(c echo.Context) error {
 }
 
 func (h *InvoiceHandler) GetAllWithPagination(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	params := response.ParseQueryParams(c)
-	list, total, err := h.service.GetAllWithPagination(params)
+	list, total, err := h.service.GetAllWithPagination(params, userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -282,14 +291,18 @@ func (h *InvoiceHandler) GetAllWithPagination(c echo.Context) error {
 }
 
 func (h *InvoiceHandler) GetCustomerSuggestions(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
 	search := c.QueryParam("q")
 	limit := 30
 	if l := c.QueryParam("limit"); l != "" {
-		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 100 {
+		if n, err2 := strconv.Atoi(l); err2 == nil && n > 0 && n <= 100 {
 			limit = n
 		}
 	}
-	list, err := h.service.GetCustomerSuggestions(search, limit)
+	list, err := h.service.GetCustomerSuggestions(userID, search, limit)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}

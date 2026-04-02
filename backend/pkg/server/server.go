@@ -53,6 +53,8 @@ func StartServer() {
 	// Inisialisasi user service terlebih dahulu
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo)
+	passwordResetRepo := repository.NewPasswordResetTokenRepository(db)
+	passwordResetService := service.NewPasswordResetService(userRepo, passwordResetRepo, userService)
 
 	// Inisialisasi API key service
 	apiKeyRepo := repository.NewApiKeyRepository(db)
@@ -122,13 +124,13 @@ func StartServer() {
 	invoiceTemplateRepo := repository.NewInvoiceTemplateRepository(db)
 	invoiceTemplateService := service.NewInvoiceTemplateService(invoiceTemplateRepo)
 	// Seed default templates if none exist
-	if list, _ := invoiceTemplateRepo.FindAll(); len(list) == 0 {
+	if list, _ := invoiceTemplateRepo.FindAll(1); len(list) == 0 {
 		for _, t := range []struct{ name, desc, layout string }{
 			{"Standard", "Template invoice sederhana dengan header dan tabel item", "standard"},
 			{"Minimal", "Template minimal, cocok untuk nota cepat", "minimal"},
 			{"Professional", "Template formal dengan ruang logo dan footer", "professional"},
 		} {
-			_ = invoiceTemplateRepo.Create(&entity.InvoiceTemplate{Name: t.name, Description: t.desc, Layout: t.layout})
+			_ = invoiceTemplateRepo.Create(&entity.InvoiceTemplate{UserID: 1, Name: t.name, Description: t.desc, Layout: t.layout})
 		}
 	}
 	invoiceRepo := repository.NewInvoiceRepository(db)
@@ -147,7 +149,7 @@ func StartServer() {
 	itemTemplateService := service.NewItemTemplateService(itemTemplateRepo)
 	route.RegisterItemTemplateRoutes(e, cfg, itemTemplateService)
 
-	route.RegisterRoutes(e, userService, cfg)
+	route.RegisterRoutes(e, userService, passwordResetService, cfg)
 	route.RegisterApiKeyRoutes(e, apiKeyService, cfg)
 	route.RegisterIntegrationAPITokenRoutes(e, integrationTokenService, cfg)
 	route.RegisterExternalAPIRoutes(e, integrationTokenService, projectService, financeService, memberService)
@@ -158,6 +160,9 @@ func StartServer() {
 	uploadGroup := e.Group("/api/uploads")
 	uploadGroup.Use(appmiddleware.AdminAuth(cfg))
 	uploadGroup.POST("/file", uploadHandler.UploadFile)
+
+	// Serve uploaded files (logos, etc.) publicly
+	e.Static("/uploads", cfg.UploadDir)
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

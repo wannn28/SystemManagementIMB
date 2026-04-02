@@ -10,19 +10,19 @@ import (
 
 type MemberRepository interface {
 	Create(member *entity.Member) error
-	FindAll() ([]entity.Member, error)
-	FindAllWithPagination(params response.QueryParams) ([]entity.Member, int, error)
+	FindAll(userID uint) ([]entity.Member, error)
+	FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Member, int, error)
 	FindByID(id string) (*entity.Member, error)
 	Update(member *entity.Member) error
 	Delete(member *entity.Member) error
-	Count() (int64, error)
+	Count(userID uint) (int64, error)
 	DeactivateMember(id string, reason string, deactivatedAt string) error
 	ActivateMember(id string) error
 	GetMemberTotalSalary(memberID string) (float64, error)
-	GetAllMembersTotalSalary() (float64, error)
+	GetAllMembersTotalSalary(userID uint) (float64, error)
 	GetMemberTotalSalaryWithFilter(memberID string, year string, month string) (float64, error)
-	GetAllMembersTotalSalaryWithFilter(year string, month string) (float64, error)
-	GetAllMembersWithSalaryInfo(year string, month string, orderBy string) ([]MemberSalaryInfo, error)
+	GetAllMembersTotalSalaryWithFilter(userID uint, year string, month string) (float64, error)
+	GetAllMembersWithSalaryInfo(userID uint, year string, month string, orderBy string) ([]MemberSalaryInfo, error)
 	GetMemberMonthlySalaryDetails(memberID string, year string) ([]MonthlySalaryDetail, error)
 }
 
@@ -38,19 +38,18 @@ func (r *memberRepository) Create(member *entity.Member) error {
 	return r.db.Model(&entity.Member{}).Create(member).Error
 }
 
-func (r *memberRepository) FindAll() ([]entity.Member, error) {
+func (r *memberRepository) FindAll(userID uint) ([]entity.Member, error) {
 	var members []entity.Member
-	err := r.db.Model(&entity.Member{}).Find(&members).Error
+	err := r.db.Model(&entity.Member{}).Where("user_id = ?", userID).Find(&members).Error
 	return members, err
 }
 
-// Di internal/repository/member_repository.go
 func (r *memberRepository) FindByID(id string) (*entity.Member, error) {
 	var member entity.Member
-	// Tambahkan Preload("Salaries")
 	err := r.db.Preload("Salaries").Where("id = ?", id).First(&member).Error
 	return &member, err
 }
+
 func (r *memberRepository) Update(member *entity.Member) error {
 	return r.db.Save(member).Error
 }
@@ -59,17 +58,17 @@ func (r *memberRepository) Delete(member *entity.Member) error {
 	return r.db.Delete(member).Error
 }
 
-func (r *memberRepository) Count() (int64, error) {
+func (r *memberRepository) Count(userID uint) (int64, error) {
 	var count int64
-	err := r.db.Model(&entity.Member{}).Count(&count).Error
+	err := r.db.Model(&entity.Member{}).Where("user_id = ?", userID).Count(&count).Error
 	return count, err
 }
 
-func (r *memberRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Member, int, error) {
+func (r *memberRepository) FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Member, int, error) {
 	var members []entity.Member
 
 	queryBuilder := database.NewQueryBuilder(r.db)
-	query := queryBuilder.BuildMemberQuery(params)
+	query := queryBuilder.BuildMemberQuery(params, userID)
 
 	total, err := queryBuilder.Paginate(query, params, &members)
 	if err != nil {
@@ -108,11 +107,12 @@ func (r *memberRepository) GetMemberTotalSalary(memberID string) (float64, error
 	return total, err
 }
 
-func (r *memberRepository) GetAllMembersTotalSalary() (float64, error) {
+func (r *memberRepository) GetAllMembersTotalSalary(userID uint) (float64, error) {
 	var total float64
 	err := r.db.Model(&entity.Salary{}).
-		Where("status = ?", "Paid").
-		Select("COALESCE(SUM(salary), 0)").
+		Joins("JOIN members ON members.id = salaries.member_id").
+		Where("members.user_id = ? AND salaries.status = ?", userID, "Paid").
+		Select("COALESCE(SUM(salaries.salary), 0)").
 		Scan(&total).Error
 	return total, err
 }
@@ -120,44 +120,44 @@ func (r *memberRepository) GetAllMembersTotalSalary() (float64, error) {
 func (r *memberRepository) GetMemberTotalSalaryWithFilter(memberID string, year string, month string) (float64, error) {
 	var total float64
 	query := r.db.Model(&entity.Salary{}).Where("member_id = ? AND status = ?", memberID, "Paid")
-	
-	// Map month number to Indonesian month name
+
 	monthNames := map[string]string{
 		"01": "Januari", "02": "Februari", "03": "Maret", "04": "April",
 		"05": "Mei", "06": "Juni", "07": "Juli", "08": "Agustus",
 		"09": "September", "10": "Oktober", "11": "November", "12": "Desember",
 	}
-	
+
 	if year != "" && month != "" {
 		monthName := monthNames[month]
 		query = query.Where("month = ?", monthName+" "+year)
 	} else if year != "" {
 		query = query.Where("month LIKE ?", "% "+year)
 	}
-	
+
 	err := query.Select("COALESCE(SUM(salary), 0)").Scan(&total).Error
 	return total, err
 }
 
-func (r *memberRepository) GetAllMembersTotalSalaryWithFilter(year string, month string) (float64, error) {
+func (r *memberRepository) GetAllMembersTotalSalaryWithFilter(userID uint, year string, month string) (float64, error) {
 	var total float64
-	query := r.db.Model(&entity.Salary{}).Where("status = ?", "Paid")
-	
-	// Map month number to Indonesian month name
+	query := r.db.Model(&entity.Salary{}).
+		Joins("JOIN members ON members.id = salaries.member_id").
+		Where("members.user_id = ? AND salaries.status = ?", userID, "Paid")
+
 	monthNames := map[string]string{
 		"01": "Januari", "02": "Februari", "03": "Maret", "04": "April",
 		"05": "Mei", "06": "Juni", "07": "Juli", "08": "Agustus",
 		"09": "September", "10": "Oktober", "11": "November", "12": "Desember",
 	}
-	
+
 	if year != "" && month != "" {
 		monthName := monthNames[month]
-		query = query.Where("month = ?", monthName+" "+year)
+		query = query.Where("salaries.month = ?", monthName+" "+year)
 	} else if year != "" {
-		query = query.Where("month LIKE ?", "% "+year)
+		query = query.Where("salaries.month LIKE ?", "% "+year)
 	}
-	
-	err := query.Select("COALESCE(SUM(salary), 0)").Scan(&total).Error
+
+	err := query.Select("COALESCE(SUM(salaries.salary), 0)").Scan(&total).Error
 	return total, err
 }
 
@@ -179,50 +179,34 @@ type MonthlySalaryDetail struct {
 	CreatedAt   string  `json:"created_at"`
 }
 
-func (r *memberRepository) GetAllMembersWithSalaryInfo(year string, month string, orderBy string) ([]MemberSalaryInfo, error) {
+func (r *memberRepository) GetAllMembersWithSalaryInfo(userID uint, year string, month string, orderBy string) ([]MemberSalaryInfo, error) {
 	var results []MemberSalaryInfo
-	
-	// Map month number to Indonesian month name
+
 	monthNames := map[string]string{
-		"01": "Januari",
-		"02": "Februari",
-		"03": "Maret",
-		"04": "April",
-		"05": "Mei",
-		"06": "Juni",
-		"07": "Juli",
-		"08": "Agustus",
-		"09": "September",
-		"10": "Oktober",
-		"11": "November",
-		"12": "Desember",
+		"01": "Januari", "02": "Februari", "03": "Maret", "04": "April",
+		"05": "Mei", "06": "Juni", "07": "Juli", "08": "Agustus",
+		"09": "September", "10": "Oktober", "11": "November", "12": "Desember",
 	}
-	
-	// Build conditional SUM based on filters
+
 	var selectQuery string
 	var filterPattern string
-	
+
 	if year != "" && month != "" {
-		// Format: "Januari 2025"
 		monthName := monthNames[month]
 		filterPattern = monthName + " " + year
 		selectQuery = "members.id as member_id, members.full_name, members.role, members.is_active, COALESCE(SUM(CASE WHEN salaries.status = 'Paid' AND salaries.month = ? THEN salaries.salary ELSE 0 END), 0) as total_salary"
-		println("Filter by specific month:", filterPattern)
 	} else if year != "" {
-		// Match any month with year: "% 2025"
 		filterPattern = "% " + year
 		selectQuery = "members.id as member_id, members.full_name, members.role, members.is_active, COALESCE(SUM(CASE WHEN salaries.status = 'Paid' AND salaries.month LIKE ? THEN salaries.salary ELSE 0 END), 0) as total_salary"
-		println("Filter by year:", filterPattern)
 	} else {
 		selectQuery = "members.id as member_id, members.full_name, members.role, members.is_active, COALESCE(SUM(CASE WHEN salaries.status = 'Paid' THEN salaries.salary ELSE 0 END), 0) as total_salary"
-		println("No filter applied")
 	}
-	
+
 	query := r.db.Table("members").
 		Joins("LEFT JOIN salaries ON salaries.member_id = members.id").
+		Where("members.user_id = ?", userID).
 		Group("members.id, members.full_name, members.role, members.is_active")
-	
-	// Apply select with parameters
+
 	if year != "" && month != "" {
 		query = query.Select(selectQuery, filterPattern)
 	} else if year != "" {
@@ -230,37 +214,30 @@ func (r *memberRepository) GetAllMembersWithSalaryInfo(year string, month string
 	} else {
 		query = query.Select(selectQuery)
 	}
-	
-	// Default descending by total_salary
+
 	if orderBy == "asc" {
 		query = query.Order("total_salary ASC")
 	} else {
 		query = query.Order("total_salary DESC")
 	}
-	
-	// Enable debug to see SQL
-	err := query.Debug().Scan(&results).Error
-	
-	println("Query executed, found", len(results), "members")
-	
+
+	err := query.Scan(&results).Error
 	return results, err
 }
 
 func (r *memberRepository) GetMemberMonthlySalaryDetails(memberID string, year string) ([]MonthlySalaryDetail, error) {
 	var results []MonthlySalaryDetail
-	
+
 	query := r.db.Table("salaries").
 		Select("month, salary, loan, net_salary, gross_salary, status, created_at").
 		Where("member_id = ?", memberID)
-	
+
 	if year != "" {
-		// Match format "Bulan YYYY" like "Maret 2025"
 		query = query.Where("month LIKE ?", "% "+year)
 	}
-	
-	// Order by created_at since month is text format
+
 	query = query.Order("created_at DESC")
-	
+
 	err := query.Scan(&results).Error
 	return results, err
 }

@@ -10,10 +10,10 @@ import (
 )
 
 type InventoryService interface {
-	CreateCategory(category *entity.InventoryCategory) error
+	CreateCategory(userID uint, category *entity.InventoryCategory) error
 	UpdateCategory(category *entity.InventoryCategory) error
 	DeleteCategory(id string) error
-	GetAllCategories() ([]entity.InventoryCategory, error)
+	GetAllCategories(userID uint) ([]entity.InventoryCategory, error)
 	GetCategoryByID(id string) (*entity.InventoryCategory, error)
 
 	CreateData(data *entity.InventoryData) error
@@ -33,8 +33,9 @@ func NewInventoryService(repo repository.InventoryRepository) InventoryService {
 	return &inventoryService{repo}
 }
 
-func (s *inventoryService) CreateCategory(category *entity.InventoryCategory) error {
+func (s *inventoryService) CreateCategory(userID uint, category *entity.InventoryCategory) error {
 	category.ID = uuid.New().String()
+	category.UserID = userID
 	return s.repo.CreateCategory(category)
 }
 
@@ -46,8 +47,8 @@ func (s *inventoryService) DeleteCategory(id string) error {
 	return s.repo.DeleteCategory(id)
 }
 
-func (s *inventoryService) GetAllCategories() ([]entity.InventoryCategory, error) {
-	return s.repo.GetAllCategories()
+func (s *inventoryService) GetAllCategories(userID uint) ([]entity.InventoryCategory, error) {
+	return s.repo.GetAllCategories(userID)
 }
 
 func (s *inventoryService) GetCategoryByID(id string) (*entity.InventoryCategory, error) {

@@ -1,8 +1,8 @@
-// Di internal/http/statistics_handler.go
 package http
 
 import (
 	"dashboardadminimb/internal/service"
+	appmiddleware "dashboardadminimb/pkg/middleware"
 	"dashboardadminimb/pkg/response"
 	"net/http"
 
@@ -20,17 +20,22 @@ func NewStatisticsHandler(f service.FinanceService, m service.MemberService, p s
 }
 
 func (h *StatisticsHandler) GetDashboardStats(c echo.Context) error {
-	income, expense, err := h.financeSvc.GetFinancialSummary()
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+
+	income, expense, err := h.financeSvc.GetFinancialSummary(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
-	memberCount, err := h.memberSvc.GetMemberCount()
+	memberCount, err := h.memberSvc.GetMemberCount(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
 
-	projectCount, err := h.projectSvc.GetProjectCount()
+	projectCount, err := h.projectSvc.GetProjectCount(userID)
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}

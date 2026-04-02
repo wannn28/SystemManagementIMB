@@ -24,7 +24,6 @@ func NewQueryBuilder(db *gorm.DB) *QueryBuilder {
 func (qb *QueryBuilder) BuildQuery(params response.QueryParams, searchFields []string, allowedSortFields []string, allowedFilterFields map[string]string, model interface{}) *gorm.DB {
 	query := qb.DB.Model(model)
 
-	// Apply search
 	if params.Search != "" && len(searchFields) > 0 {
 		searchConditions := make([]string, 0)
 		searchArgs := make([]interface{}, 0)
@@ -39,14 +38,12 @@ func (qb *QueryBuilder) BuildQuery(params response.QueryParams, searchFields []s
 		}
 	}
 
-	// Apply sorting
 	if params.Sort != "" && len(allowedSortFields) > 0 {
 		if contains(allowedSortFields, params.Sort) {
 			query = query.Order(fmt.Sprintf("%s %s", params.Sort, params.Order))
 		}
 	}
 
-	// Apply filters
 	if params.Filter != "" && len(allowedFilterFields) > 0 {
 		filters := parseFilters(params.Filter)
 		for field, value := range filters {
@@ -63,12 +60,10 @@ func (qb *QueryBuilder) BuildQuery(params response.QueryParams, searchFields []s
 func (qb *QueryBuilder) Paginate(query *gorm.DB, params response.QueryParams, result interface{}) (int, error) {
 	var total int64
 
-	// Count total records
 	if err := query.Count(&total).Error; err != nil {
 		return 0, err
 	}
 
-	// Apply pagination
 	offset := (params.Page - 1) * params.Limit
 	if err := query.Offset(offset).Limit(params.Limit).Find(result).Error; err != nil {
 		return 0, err
@@ -77,7 +72,6 @@ func (qb *QueryBuilder) Paginate(query *gorm.DB, params response.QueryParams, re
 	return int(total), nil
 }
 
-// contains checks if a slice contains a specific value
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
@@ -87,7 +81,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// parseFilters parses filter string in format "field1:value1,field2:value2"
 func parseFilters(filterStr string) map[string]string {
 	filters := make(map[string]string)
 
@@ -117,19 +110,20 @@ func (qb *QueryBuilder) BuildUserQuery(params response.QueryParams) *gorm.DB {
 	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.User{})
 }
 
-// BuildProjectQuery builds a query specifically for projects
-func (qb *QueryBuilder) BuildProjectQuery(params response.QueryParams) *gorm.DB {
+// BuildProjectQuery builds a query specifically for projects, scoped to userID
+func (qb *QueryBuilder) BuildProjectQuery(params response.QueryParams, userID uint) *gorm.DB {
 	searchFields := []string{"name", "description", "status"}
 	allowedSortFields := []string{"id", "name", "start_date", "end_date", "created_at", "updated_at"}
 	allowedFilterFields := map[string]string{
 		"status": "status",
 	}
 
-	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Project{})
+	query := qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Project{})
+	return query.Where("user_id = ?", userID)
 }
 
-// BuildMemberQuery builds a query specifically for members
-func (qb *QueryBuilder) BuildMemberQuery(params response.QueryParams) *gorm.DB {
+// BuildMemberQuery builds a query specifically for members, scoped to userID
+func (qb *QueryBuilder) BuildMemberQuery(params response.QueryParams, userID uint) *gorm.DB {
 	searchFields := []string{"full_name", "role", "phone_number"}
 	allowedSortFields := []string{"id", "full_name", "role", "join_date", "created_at", "updated_at"}
 	allowedFilterFields := map[string]string{
@@ -137,8 +131,8 @@ func (qb *QueryBuilder) BuildMemberQuery(params response.QueryParams) *gorm.DB {
 	}
 
 	query := qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Member{})
+	query = query.Where("user_id = ?", userID)
 
-	// Apply is_active filter with boolean conversion (BuildQuery passes string "true"/"false")
 	if params.Filter != "" {
 		filters := parseFilters(params.Filter)
 		if v, ok := filters["is_active"]; ok {
@@ -150,8 +144,8 @@ func (qb *QueryBuilder) BuildMemberQuery(params response.QueryParams) *gorm.DB {
 	return query
 }
 
-// BuildFinanceQuery builds a query specifically for finances
-func (qb *QueryBuilder) BuildFinanceQuery(params response.QueryParams) *gorm.DB {
+// BuildFinanceQuery builds a query specifically for finances, scoped to userID
+func (qb *QueryBuilder) BuildFinanceQuery(params response.QueryParams, userID uint) *gorm.DB {
 	searchFields := []string{"keterangan", "category", "vendor_name", "no_bukti"}
 	allowedSortFields := []string{
 		"id", "jumlah", "tanggal", "status", "tax_paid",
@@ -160,17 +154,18 @@ func (qb *QueryBuilder) BuildFinanceQuery(params response.QueryParams) *gorm.DB 
 		"created_at", "updated_at",
 	}
 	allowedFilterFields := map[string]string{
-		"type":            "type",
-		"category":        "category",
-		"status":          "status",
-		"tax_paid":        "tax_paid",
-		"project_id":      "project_id",
-		"payment_method":  "payment_method",
-		"kategori_utama":  "kategori_utama",
-		"is_deductible":   "is_deductible",
+		"type":           "type",
+		"category":       "category",
+		"status":         "status",
+		"tax_paid":       "tax_paid",
+		"project_id":     "project_id",
+		"payment_method": "payment_method",
+		"kategori_utama": "kategori_utama",
+		"is_deductible":  "is_deductible",
 	}
 
-	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Finance{})
+	query := qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Finance{})
+	return query.Where("user_id = ?", userID)
 }
 
 // BuildInventoryQuery builds a query specifically for inventory
@@ -209,19 +204,20 @@ func (qb *QueryBuilder) BuildKasbonQuery(params response.QueryParams) *gorm.DB {
 	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Kasbon{})
 }
 
-// BuildActivityQuery builds a query specifically for activities
-func (qb *QueryBuilder) BuildActivityQuery(params response.QueryParams) *gorm.DB {
+// BuildActivityQuery builds a query specifically for activities, scoped to userID
+func (qb *QueryBuilder) BuildActivityQuery(params response.QueryParams, userID uint) *gorm.DB {
 	searchFields := []string{"title", "description", "type"}
 	allowedSortFields := []string{"id", "type", "timestamp", "created_at", "updated_at"}
 	allowedFilterFields := map[string]string{
 		"type": "type",
 	}
 
-	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Activity{})
+	query := qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Activity{})
+	return query.Where("user_id = ?", userID)
 }
 
-// BuildInvoiceQuery builds a query for invoices
-func (qb *QueryBuilder) BuildInvoiceQuery(params response.QueryParams) *gorm.DB {
+// BuildInvoiceQuery builds a query for invoices, scoped to userID
+func (qb *QueryBuilder) BuildInvoiceQuery(params response.QueryParams, userID uint) *gorm.DB {
 	searchFields := []string{"invoice_number", "customer_name", "customer_email"}
 	allowedSortFields := []string{"id", "invoice_number", "invoice_date", "created_at", "total", "status"}
 	allowedFilterFields := map[string]string{
@@ -229,5 +225,6 @@ func (qb *QueryBuilder) BuildInvoiceQuery(params response.QueryParams) *gorm.DB 
 		"template_id": "template_id",
 	}
 
-	return qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Invoice{})
+	query := qb.BuildQuery(params, searchFields, allowedSortFields, allowedFilterFields, &entity.Invoice{})
+	return query.Where("user_id = ?", userID)
 }

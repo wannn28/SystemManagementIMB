@@ -1,4 +1,3 @@
-// internal/repository/activity_repository.go
 package repository
 
 import (
@@ -11,8 +10,8 @@ import (
 
 type ActivityRepository interface {
 	Create(activity *entity.Activity) error
-	GetRecent(limit int) ([]entity.Activity, error)
-	FindAllWithPagination(params response.QueryParams) ([]entity.Activity, int, error)
+	GetRecent(userID uint, limit int) ([]entity.Activity, error)
+	FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Activity, int, error)
 }
 
 type activityRepository struct {
@@ -27,17 +26,17 @@ func (r *activityRepository) Create(activity *entity.Activity) error {
 	return r.db.Create(activity).Error
 }
 
-func (r *activityRepository) GetRecent(limit int) ([]entity.Activity, error) {
+func (r *activityRepository) GetRecent(userID uint, limit int) ([]entity.Activity, error) {
 	var activities []entity.Activity
-	err := r.db.Order("timestamp DESC").Limit(limit).Find(&activities).Error
+	err := r.db.Where("user_id = ?", userID).Order("timestamp DESC").Limit(limit).Find(&activities).Error
 	return activities, err
 }
 
-func (r *activityRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Activity, int, error) {
+func (r *activityRepository) FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Activity, int, error) {
 	var activities []entity.Activity
 
 	queryBuilder := database.NewQueryBuilder(r.db)
-	query := queryBuilder.BuildActivityQuery(params)
+	query := queryBuilder.BuildActivityQuery(params, userID)
 
 	total, err := queryBuilder.Paginate(query, params, &activities)
 	if err != nil {

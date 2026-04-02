@@ -18,6 +18,7 @@ const (
 
 type Activity struct {
 	ID          uint         `gorm:"primaryKey" json:"id"`
+	UserID      uint         `gorm:"not null;index;default:1" json:"user_id"`
 	Type        ActivityType `json:"type"`
 	Title       string       `json:"title"`
 	Description string       `json:"description"`

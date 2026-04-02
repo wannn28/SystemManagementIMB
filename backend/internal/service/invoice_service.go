@@ -7,12 +7,12 @@ import (
 )
 
 type InvoiceService interface {
-	Create(inv *entity.Invoice) error
+	Create(userID uint, inv *entity.Invoice) error
 	Update(inv *entity.Invoice) error
 	Delete(id uint) error
 	GetByID(id uint) (*entity.Invoice, error)
-	GetAllWithPagination(params response.QueryParams) ([]entity.Invoice, int, error)
-	GetCustomerSuggestions(search string, limit int) ([]repository.CustomerSuggestion, error)
+	GetAllWithPagination(params response.QueryParams, userID uint) ([]entity.Invoice, int, error)
+	GetCustomerSuggestions(userID uint, search string, limit int) ([]repository.CustomerSuggestion, error)
 }
 
 type invoiceService struct {
@@ -24,25 +24,22 @@ func NewInvoiceService(repo repository.InvoiceRepository) InvoiceService {
 }
 
 func itemTotal(item *entity.InvoiceItem) float64 {
-	// Prioritaskan total dari frontend (kolom Jumlah editable / hasil rumus),
-	// termasuk nilai negatif untuk potongan.
 	if item.Total != 0 {
 		return item.Total
 	}
-	// Baris sewa dengan Hari & Harga/Hari (dan optional BBM)
 	if item.Days > 0 {
 		rent := item.Days * item.Price
 		bbm := item.BbmQuantity * item.BbmUnitPrice
 		return rent + bbm
 	}
-	// Baris tetap (e.g. Mobilisasi PP): Jumlah tetap = Price (frontend kirim quantity=1, price=jumlah)
 	if item.Price > 0 && item.Quantity > 0 {
 		return float64(item.Quantity) * item.Price
 	}
 	return float64(item.Quantity) * item.Price
 }
 
-func (s *invoiceService) Create(inv *entity.Invoice) error {
+func (s *invoiceService) Create(userID uint, inv *entity.Invoice) error {
+	inv.UserID = userID
 	if inv.AttachmentPhotosPerPage <= 0 {
 		inv.AttachmentPhotosPerPage = 1
 	}
@@ -83,10 +80,10 @@ func (s *invoiceService) GetByID(id uint) (*entity.Invoice, error) {
 	return s.repo.FindByID(id)
 }
 
-func (s *invoiceService) GetAllWithPagination(params response.QueryParams) ([]entity.Invoice, int, error) {
-	return s.repo.FindAllWithPagination(params)
+func (s *invoiceService) GetAllWithPagination(params response.QueryParams, userID uint) ([]entity.Invoice, int, error) {
+	return s.repo.FindAllWithPagination(params, userID)
 }
 
-func (s *invoiceService) GetCustomerSuggestions(search string, limit int) ([]repository.CustomerSuggestion, error) {
-	return s.repo.FindCustomerSuggestions(search, limit)
+func (s *invoiceService) GetCustomerSuggestions(userID uint, search string, limit int) ([]repository.CustomerSuggestion, error) {
+	return s.repo.FindCustomerSuggestions(userID, search, limit)
 }

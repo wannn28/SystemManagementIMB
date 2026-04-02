@@ -1,6 +1,6 @@
 // src/pages/Login.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon, BuildingOfficeIcon, TruckIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import { authAPI } from '../api';
 
@@ -13,6 +13,8 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Pastikan tidak pakai token lama saat login gagal
+    localStorage.removeItem('token');
     setIsLoading(true);
     setError('');
     
@@ -26,6 +28,7 @@ const Login: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.log(err);
+      localStorage.removeItem('token');
       setError('Login gagal. Silakan periksa email dan password Anda.');
       setIsLoading(false);
     }
@@ -204,7 +207,18 @@ const Login: React.FC = () => {
             </form>
 
             {/* Footer */}
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center space-y-3">
+              <div className="text-sm">
+                <Link to="/forgot-password" className="text-gray-700 font-semibold hover:underline">
+                  Lupa password?
+                </Link>
+              </div>
+              <div className="text-sm text-gray-600">
+                Belum punya akun?{' '}
+                <Link to="/register" className="text-orange-600 font-semibold hover:underline">
+                  Daftar
+                </Link>
+              </div>
               <p className="text-xs text-gray-500">
                 © {new Date().getFullYear()} System Management. Hak cipta dilindungi.
               </p>

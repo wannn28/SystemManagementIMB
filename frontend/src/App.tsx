@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom'; 
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { BrandingProvider } from './context/BrandingContext';
 import Navbar from './component/Navbar';
 import Home from './pages/Home';
 import Projects from './pages/Projects';
@@ -15,6 +16,9 @@ import Invoices from './pages/Invoices';
 import EquipmentMaster from './pages/EquipmentMaster';
 import RekapitulasiCutFill from './pages/RekapitulasiCutFill';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import ProtectedRoute from './component/ProtectedRoute';
 
 const App: React.FC = () => {
@@ -26,9 +30,13 @@ const App: React.FC = () => {
 
   return (
     <BrowserRouter>
+      <BrandingProvider>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/shared/:projectId/:token" element={<SharedProjectView />} />
         
         {/* Protected Routes */}
@@ -59,6 +67,7 @@ const App: React.FC = () => {
           </Route>
         </Route>
       </Routes>
+      </BrandingProvider>
     </BrowserRouter>
   );
 };

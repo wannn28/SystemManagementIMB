@@ -4,6 +4,7 @@ import "time"
 
 type Customer struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not null;index;default:1" json:"user_id"`
 	Name      string    `gorm:"type:varchar(200);not null;index" json:"name"`
 	Phone     string    `gorm:"type:varchar(50)" json:"phone"`
 	Email     string    `gorm:"type:varchar(200)" json:"email"`

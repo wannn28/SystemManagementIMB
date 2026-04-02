@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// CustomerSuggestion untuk daftar pilih pelanggan dari data invoice
 type CustomerSuggestion struct {
 	CustomerName    string `json:"customer_name"`
 	CustomerPhone   string `json:"customer_phone"`
@@ -22,8 +21,8 @@ type InvoiceRepository interface {
 	Update(inv *entity.Invoice) error
 	Delete(id uint) error
 	FindByID(id uint) (*entity.Invoice, error)
-	FindAllWithPagination(params response.QueryParams) ([]entity.Invoice, int, error)
-	FindCustomerSuggestions(search string, limit int) ([]CustomerSuggestion, error)
+	FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Invoice, int, error)
+	FindCustomerSuggestions(userID uint, search string, limit int) ([]CustomerSuggestion, error)
 }
 
 type invoiceRepository struct {
@@ -55,7 +54,6 @@ func (r *invoiceRepository) Update(inv *entity.Invoice) error {
 		if err := tx.Save(inv).Error; err != nil {
 			return err
 		}
-		// Delete existing items and recreate (simple approach)
 		if err := tx.Where("invoice_id = ?", inv.ID).Delete(&entity.InvoiceItem{}).Error; err != nil {
 			return err
 		}
@@ -86,10 +84,10 @@ func (r *invoiceRepository) FindByID(id uint) (*entity.Invoice, error) {
 	return &inv, nil
 }
 
-func (r *invoiceRepository) FindAllWithPagination(params response.QueryParams) ([]entity.Invoice, int, error) {
+func (r *invoiceRepository) FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Invoice, int, error) {
 	var list []entity.Invoice
 	qb := database.NewQueryBuilder(r.db)
-	query := qb.BuildInvoiceQuery(params).Preload("Items").Preload("Template").Preload("Customer")
+	query := qb.BuildInvoiceQuery(params, userID).Preload("Items").Preload("Template").Preload("Customer")
 	query = r.applyInvoiceFilters(query, params)
 	total, err := qb.Paginate(query, params, &list)
 	if err != nil {
@@ -125,8 +123,7 @@ func parseFiltersForInvoice(filterStr string) map[string]string {
 	return m
 }
 
-// FindCustomerSuggestions returns distinct customers from invoices (nama + data terakhir), optional search by name
-func (r *invoiceRepository) FindCustomerSuggestions(search string, limit int) ([]CustomerSuggestion, error) {
+func (r *invoiceRepository) FindCustomerSuggestions(userID uint, search string, limit int) ([]CustomerSuggestion, error) {
 	if limit <= 0 {
 		limit = 30
 	}
@@ -140,13 +137,13 @@ func (r *invoiceRepository) FindCustomerSuggestions(search string, limit int) ([
 		FROM invoices i
 		INNER JOIN (
 			SELECT customer_name, MAX(id) AS mid FROM invoices
-			WHERE customer_name != '' AND customer_name IS NOT NULL AND customer_name LIKE ?
+			WHERE user_id = ? AND customer_name != '' AND customer_name IS NOT NULL AND customer_name LIKE ?
 			GROUP BY customer_name
 		) t ON i.customer_name = t.customer_name AND i.id = t.mid
 		ORDER BY i.id DESC
 		LIMIT ?
 		`
-		args = []interface{}{"%" + search + "%", limit}
+		args = []interface{}{userID, "%" + search + "%", limit}
 	} else {
 		query = `
 		SELECT i.customer_name AS customer_name, i.customer_phone AS customer_phone,
@@ -154,13 +151,13 @@ func (r *invoiceRepository) FindCustomerSuggestions(search string, limit int) ([
 		FROM invoices i
 		INNER JOIN (
 			SELECT customer_name, MAX(id) AS mid FROM invoices
-			WHERE customer_name != '' AND customer_name IS NOT NULL
+			WHERE user_id = ? AND customer_name != '' AND customer_name IS NOT NULL
 			GROUP BY customer_name
 		) t ON i.customer_name = t.customer_name AND i.id = t.mid
 		ORDER BY i.id DESC
 		LIMIT ?
 		`
-		args = []interface{}{limit}
+		args = []interface{}{userID, limit}
 	}
 	err := r.db.Raw(query, args...).Scan(&out).Error
 	return out, err

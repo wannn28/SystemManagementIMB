@@ -22,6 +22,7 @@ type MonthlyComparison struct {
 }
 type Finance struct {
 	ID               uint            `gorm:"primaryKey" json:"id"`
+	UserID           uint            `gorm:"not null;index;default:1" json:"user_id"`
 	Tanggal          string          `json:"tanggal"`
 	Unit             int             `json:"unit"`
 	Jumlah           float64         `json:"jumlah"`

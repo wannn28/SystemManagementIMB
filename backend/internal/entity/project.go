@@ -56,6 +56,7 @@ type ReportMonthly struct {
 
 type Project struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
+	UserID       uint           `gorm:"not null;index;default:1" json:"user_id"`
 	Name         string         `gorm:"size:255" json:"name"`
 	Description  string         `gorm:"type:text" json:"description"`
 	Status       string         `gorm:"size:50" json:"status"`

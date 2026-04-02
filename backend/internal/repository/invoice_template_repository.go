@@ -11,7 +11,7 @@ type InvoiceTemplateRepository interface {
 	Update(t *entity.InvoiceTemplate) error
 	Delete(id uint) error
 	CountInvoicesUsingTemplate(id uint) (int64, error)
-	FindAll() ([]entity.InvoiceTemplate, error)
+	FindAll(userID uint) ([]entity.InvoiceTemplate, error)
 	FindByID(id uint) (*entity.InvoiceTemplate, error)
 }
 
@@ -33,7 +33,6 @@ func (r *invoiceTemplateRepository) Update(t *entity.InvoiceTemplate) error {
 	return r.db.Save(t).Error
 }
 
-// normalizeTemplateOptions sets empty Options to "{}" so MySQL JSON column accepts it.
 func normalizeTemplateOptions(t *entity.InvoiceTemplate) {
 	if t.Options == "" {
 		t.Options = "{}"
@@ -50,9 +49,9 @@ func (r *invoiceTemplateRepository) CountInvoicesUsingTemplate(id uint) (int64, 
 	return n, err
 }
 
-func (r *invoiceTemplateRepository) FindAll() ([]entity.InvoiceTemplate, error) {
+func (r *invoiceTemplateRepository) FindAll(userID uint) ([]entity.InvoiceTemplate, error) {
 	var list []entity.InvoiceTemplate
-	err := r.db.Order("name ASC").Find(&list).Error
+	err := r.db.Where("user_id = ?", userID).Order("name ASC").Find(&list).Error
 	return list, err
 }
 

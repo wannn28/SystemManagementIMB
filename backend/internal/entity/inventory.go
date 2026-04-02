@@ -6,6 +6,7 @@ import (
 
 type InventoryCategory struct {
 	ID          string          `gorm:"primaryKey;type:varchar(36)" json:"id"`
+	UserID      uint            `gorm:"not null;index;default:1" json:"user_id"`
 	Title       string          `gorm:"size:255" json:"title"`
 	Description string          `gorm:"type:text" json:"description"`
 	Headers     datatypes.JSON  `gorm:"type:json" json:"headers"`
