@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import { uploadsAPI } from '../api/uploads';
 import { equipmentApi } from '../api/equipment';
 import type { Equipment } from '../types/equipment';
+import { FinanceCategoryCombobox } from './FinanceCategoryCombobox';
 
 export type FinanceFormData = Omit<Partial<FinanceEntry>, 'equipmentId'> & {
   tanggal: string;
@@ -37,6 +38,32 @@ const TAX_TYPES = [
 ];
 
 const MAIN_CATEGORIES = ['Operasional', 'Pembelian', 'Aset', 'Pajak', 'Owner/Pribadi'];
+
+/** Pilihan umum di dropdown; pengguna tetap bisa mengetik kategori lain. */
+const STATIC_CATEGORY_PRESETS_EXPENSE = [
+  'Operasional',
+  'Pembelian',
+  'Sparepart',
+  'Solar / BBM',
+  'Gaji & upah',
+  'Sewa alat / kendaraan',
+  'Material / bahan',
+  'Perbaikan & servis',
+  'Transport & logistik',
+  'Pajak & iuran',
+  'Marketing / admin',
+  'Lainnya',
+];
+
+const STATIC_CATEGORY_PRESETS_INCOME = [
+  'Termin proyek',
+  'Progress pembayaran',
+  'Sewa alat berat',
+  'Jasa / konsultasi',
+  'Penjualan material',
+  'Operasional (refund)',
+  'Lainnya',
+];
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -128,6 +155,21 @@ const FinanceEntryModal: React.FC<Props> = ({ entry, type, categories, onSave, o
   const set = (patch: Partial<FinanceFormData>) => setForm(f => ({ ...f, ...patch }));
   const total = Number(form.unit ?? 0) * Number(form.hargaPerUnit ?? 0);
 
+  const categoryDatalistOptions = useMemo(() => {
+    const presets = type === 'income' ? STATIC_CATEGORY_PRESETS_INCOME : STATIC_CATEGORY_PRESETS_EXPENSE;
+    const seen = new Set(presets.map(s => s.toLowerCase()));
+    const fromDb: string[] = [];
+    for (const c of categories) {
+      const n = (c.name || '').trim();
+      if (!n) continue;
+      const k = n.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      fromDb.push(n);
+    }
+    return [...presets, ...fromDb];
+  }, [type, categories]);
+
   const handleSave = async () => {
     await onSave({ ...form, unit: Number(form.unit), hargaPerUnit: Number(form.hargaPerUnit) });
   };
@@ -199,10 +241,14 @@ const FinanceEntryModal: React.FC<Props> = ({ entry, type, categories, onSave, o
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label text="Kategori" />
-                  <input list="fin-cats" type="text" value={form.category} onChange={e => set({ category: e.target.value })} placeholder="Pilih atau ketik kategori" className={inputCls} />
-                  <datalist id="fin-cats">
-                    {categories.map(c => <option key={c.id} value={c.name} />)}
-                  </datalist>
+                  <FinanceCategoryCombobox
+                    value={form.category}
+                    onChange={v => set({ category: v })}
+                    options={categoryDatalistOptions}
+                    placeholder="Ketik atau pilih dari daftar"
+                    inputClassName={inputCls}
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">Daftar putih di bawah field; Anda tetap bisa mengetik kategori apa pun.</p>
                 </div>
                 <div>
                   <Label text="Status Pembayaran" />

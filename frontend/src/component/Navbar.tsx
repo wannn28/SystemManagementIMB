@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiLogOut, FiChevronLeft, FiCreditCard, FiFileText, FiFile, FiTruck } from 'react-icons/fi';
-import DefaultLogo from '../assets/images/logo.png';
+import { FiHome, FiFolder, FiBox, FiUsers, FiFlag, FiSettings, FiLogOut, FiChevronLeft, FiCreditCard, FiFileText, FiFile, FiTruck, FiBriefcase } from 'react-icons/fi';
 import { useBranding } from '../context/BrandingContext';
 import { resolveLogoUrl } from '../api/companySettings';
 
@@ -13,10 +12,17 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
   const location = useLocation();
   const { branding } = useBranding();
+  const [companyLogoFailed, setCompanyLogoFailed] = useState(false);
 
   const primaryColor = branding.primary_color || '#f97316';
-  const logoSrc = branding.company_logo ? resolveLogoUrl(branding.company_logo) : DefaultLogo;
   const companyName = branding.company_name || 'MANAGEMENT SYSTEM';
+
+  useEffect(() => {
+    setCompanyLogoFailed(false);
+  }, [branding.company_logo]);
+
+  const showCompanyImage = Boolean(branding.company_logo) && !companyLogoFailed;
+  const logoUrl = branding.company_logo ? resolveLogoUrl(branding.company_logo) : '';
   const userName = branding.name || 'Admin';
 
   const menuItems = [
@@ -59,12 +65,21 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, isCollapsed }) => {
               className="absolute inset-0 rounded-xl blur-md opacity-50"
               style={{ background: primaryColor }}
             />
-            <img
-              src={logoSrc}
-              alt="Logo"
-              className="relative w-14 h-14 rounded-xl object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).src = DefaultLogo; }}
-            />
+            {showCompanyImage ? (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="relative w-14 h-14 rounded-xl object-cover bg-slate-700/50"
+                onError={() => setCompanyLogoFailed(true)}
+              />
+            ) : (
+              <div
+                className="relative w-14 h-14 rounded-xl flex items-center justify-center bg-slate-800/90 ring-1 ring-white/10"
+                aria-hidden
+              >
+                <FiBriefcase className="w-7 h-7" style={{ color: primaryColor }} />
+              </div>
+            )}
           </div>
           {!isCollapsed && (
             <div className="ml-4 min-w-0">

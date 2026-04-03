@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon, BuildingOfficeIcon, TruckIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import { authAPI } from '../api';
+import { markSessionAfterLogin } from '../utils/postLoginRefetch';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -20,8 +21,9 @@ const Login: React.FC = () => {
     try {
       const response = await authAPI.login(email, password);
       localStorage.setItem('token', response.token);
-      // Full reload agar BrandingContext & data perusahaan diambil ulang dengan token baru
-      window.location.replace('/');
+      markSessionAfterLogin();
+      // Full reload: state aplikasi & interceptor harus fresh dengan token baru
+      window.location.replace(`/?_login=${Date.now()}`);
     } catch (err) {
       console.log(err);
       localStorage.removeItem('token');

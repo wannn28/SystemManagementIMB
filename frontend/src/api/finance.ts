@@ -140,7 +140,7 @@ export const financeAPI = {
 
   // Get finance summary
   getFinanceSummary: async () => {
-    const response: any = await axios.get(`${API_URL}/summary`);
+    const response: any = await axios.get(`${API_URL}/summary`, { headers: getAuthHeaders() });
     return response.data.data;
   },
 
@@ -154,7 +154,7 @@ export const financeAPI = {
 
   // Get monthly finance data
   getMonthlyFinance: async () => {
-    const response: any = await axios.get(`${API_URL}/monthly`);
+    const response: any = await axios.get(`${API_URL}/monthly`, { headers: getAuthHeaders() });
     return response.data.data;
   },
 

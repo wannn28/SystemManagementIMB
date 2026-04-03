@@ -15,6 +15,7 @@ import {
 import { FiUsers, FiActivity, FiDollarSign, FiClock, FiPlus, FiMinus, FiRefreshCw} from 'react-icons/fi';
 import { financeAPI, membersAPI, projectsAPI, activitiesAPI } from '../api';
 import ActivitiesModal from '../component/ActivitiesModal';
+import { shouldDeferRefetchAfterLogin } from '../utils/postLoginRefetch';
 
 ChartJS.register(
   CategoryScale,
@@ -60,24 +61,18 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch financial summary
         const summaryRes = await financeAPI.getFinanceSummary();
-        console.log(summaryRes)
         setFinancialSummary(summaryRes);
-        
-        // Fetch member count
+
         const membersRes = await membersAPI.getMemberCount();
         setMemberCount(membersRes.count);
-        
-        // Fetch project count
+
         const projectsRes = await projectsAPI.getProjectCount();
         setProjectCount(projectsRes.count);
-        
-        // Fetch monthly comparison
+
         const monthlyRes = await financeAPI.getMonthlyFinance();
         setMonthlyData(monthlyRes);
-        
-        // Fetch recent activities
+
         const activitiesRes = await activitiesAPI.getAllActivities();
         setActivities(activitiesRes);
       } catch (error) {
@@ -85,7 +80,34 @@ const Home: React.FC<HomeProps> = ({ isCollapsed }) => {
       }
     };
 
-    fetchData();
+    void fetchData();
+    if (!shouldDeferRefetchAfterLogin()) return;
+    const tid = window.setTimeout(() => void fetchData(), 350);
+    return () => clearTimeout(tid);
+  }, []);
+
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted || !localStorage.getItem('token')) return;
+      void (async () => {
+        try {
+          const summaryRes = await financeAPI.getFinanceSummary();
+          setFinancialSummary(summaryRes);
+          const membersRes = await membersAPI.getMemberCount();
+          setMemberCount(membersRes.count);
+          const projectsRes = await projectsAPI.getProjectCount();
+          setProjectCount(projectsRes.count);
+          const monthlyRes = await financeAPI.getMonthlyFinance();
+          setMonthlyData(monthlyRes);
+          const activitiesRes = await activitiesAPI.getAllActivities();
+          setActivities(activitiesRes);
+        } catch {
+          /* ignore */
+        }
+      })();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
   // Format currency

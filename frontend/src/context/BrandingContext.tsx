@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { companySettingsApi, CompanySettings } from '../api/companySettings';
+import {
+  clearPostLoginSessionFlag,
+  shouldDeferRefetchAfterLogin,
+} from '../utils/postLoginRefetch';
 
 const AUTH_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password']);
 
@@ -50,6 +54,21 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     void refresh();
+    const needDefer = shouldDeferRefetchAfterLogin();
+    if (!needDefer) return;
+    const tid = window.setTimeout(() => {
+      clearPostLoginSessionFlag();
+      void refresh();
+    }, 200);
+    return () => clearTimeout(tid);
+  }, [refresh]);
+
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted && localStorage.getItem('token')) void refresh();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, [refresh]);
 
   // Jika login lewat navigate (tanpa reload), ambil ulang branding setelah keluar dari halaman auth

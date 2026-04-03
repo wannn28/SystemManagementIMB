@@ -25,11 +25,23 @@ export interface RegisterResponse {
 
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    const response: any = await axios.post(`${API_URL}/login`, {
-      email,
-      password
-    });
-    return response.data;
+    const response = await axios.post<
+      | { token?: string; user?: LoginResponse['user'] }
+      | { data?: { token?: string; user?: LoginResponse['user'] } }
+    >(`${API_URL}/login`, { email, password });
+    const body = response.data as Record<string, unknown>;
+    const token =
+      (typeof body.token === 'string' ? body.token : undefined) ??
+      (typeof (body.data as { token?: string } | undefined)?.token === 'string'
+        ? (body.data as { token: string }).token
+        : undefined);
+    if (!token?.trim()) {
+      throw new Error('Respons login tidak berisi token');
+    }
+    const user = (body.user ?? (body.data as { user?: LoginResponse['user'] } | undefined)?.user) as
+      | LoginResponse['user']
+      | undefined;
+    return { token: token.trim(), user: user ?? { id: 0, email: '', name: '' } };
   },
   register: async (payload: RegisterRequest): Promise<RegisterResponse> => {
     const response: any = await axios.post(`${API_URL}/register`, payload);
