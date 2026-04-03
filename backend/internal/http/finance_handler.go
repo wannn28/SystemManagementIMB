@@ -8,10 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
 )
+
+var financeMonthYYYYMM = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
 type FinanceHandler struct {
 	service               service.FinanceService
@@ -181,6 +184,22 @@ func (h *FinanceHandler) GetFinancialSummary(c echo.Context) error {
 		"income":  income,
 		"expense": expense,
 	})
+}
+
+func (h *FinanceHandler) GetMonthlySummaryByEquipment(c echo.Context) error {
+	userID, err := appmiddleware.CurrentUserID(c)
+	if err != nil {
+		return response.Error(c, http.StatusUnauthorized, err)
+	}
+	month := c.QueryParam("month")
+	if !financeMonthYYYYMM.MatchString(month) {
+		return response.Error(c, http.StatusBadRequest, errors.New("month query is required as YYYY-MM"))
+	}
+	rows, err := h.service.GetMonthlySummaryByEquipment(userID, month)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, err)
+	}
+	return response.Success(c, http.StatusOK, rows)
 }
 
 func (h *FinanceHandler) GetMonthlyComparison(c echo.Context) error {

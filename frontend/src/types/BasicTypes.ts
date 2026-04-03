@@ -186,6 +186,8 @@ export interface FinanceEntry {
   taxPaid?: boolean;
   category: string;
   projectId?: number;
+  /** Master alat berat (opsional) — untuk laba/rugi per unit */
+  equipmentId?: number | null;
   // Detail fields
   noBukti?: string;
   vendorName?: string;

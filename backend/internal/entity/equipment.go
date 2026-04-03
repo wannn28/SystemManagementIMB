@@ -17,3 +17,10 @@ type Equipment struct {
 func (Equipment) TableName() string {
 	return "equipment"
 }
+
+// EquipmentWithFinanceTotals is a list row with lifetime pemasukan/pengeluaran from Finance (equipment_id).
+type EquipmentWithFinanceTotals struct {
+	Equipment
+	TotalIncome  float64 `json:"total_income"`
+	TotalExpense float64 `json:"total_expense"`
+}

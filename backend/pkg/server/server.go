@@ -86,9 +86,10 @@ func StartServer() {
 	salaryRepo := repository.NewSalaryRepository(db)
 	salaryService := service.NewSalaryService(salaryRepo, memberRepo, salaryDetailService, kasbonService)
 
-	// Initialize finance service first (needed by project routes)
+	equipmentRepo := repository.NewEquipmentRepository(db)
 	financeRepo := repository.NewFinanceRepository(db)
-	financeService := service.NewFinanceService(financeRepo)
+	financeService := service.NewFinanceService(financeRepo, equipmentRepo)
+	equipmentService := service.NewEquipmentService(equipmentRepo, financeRepo)
 
 	// Registrasi route
 	route.RegisterProjectRoutes(e, projectService, cfg, activityService)
@@ -141,8 +142,6 @@ func StartServer() {
 	customerService := service.NewCustomerService(customerRepo)
 	route.RegisterCustomerRoutes(e, cfg, customerService)
 
-	equipmentRepo := repository.NewEquipmentRepository(db)
-	equipmentService := service.NewEquipmentService(equipmentRepo)
 	route.RegisterEquipmentRoutes(e, cfg, equipmentService)
 
 	itemTemplateRepo := repository.NewItemTemplateRepository(db)

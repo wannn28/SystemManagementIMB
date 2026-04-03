@@ -1,6 +1,8 @@
-import { financeAPI, PaginationParams } from '../api/finance';
+import { financeAPI, PaginationParams, EquipmentMonthlyFinanceRow } from '../api/finance';
+import { equipmentApi } from '../api/equipment';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
+import type { Equipment } from '../types/equipment';
 import FinancePDFExportButton from '../component/FinancePDFExportButton';
 import FinanceEntryModal, { FinanceFormData } from '../component/FinanceEntryModal';
 import { useLocation } from 'react-router-dom';
@@ -106,6 +108,10 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
     const [selectedKategoriUtama, setSelectedKategoriUtama] = useState('');
     const [selectedProjectId, setSelectedProjectId] = useState('');
+    const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
+    const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
+    const [equipmentSummaryRows, setEquipmentSummaryRows] = useState<EquipmentMonthlyFinanceRow[]>([]);
+    const [equipmentSummaryLoading, setEquipmentSummaryLoading] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [minAmount, setMinAmount] = useState('');
@@ -114,6 +120,17 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     // Sorting state — default: tanggal terbaru dulu
     const [sortBy, setSortBy] = useState<'id' | 'tanggal' | 'jumlah' | 'status' | 'tax_paid'>('tanggal');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    const equipmentById = useMemo(() => {
+        const m = new Map<number, Equipment>();
+        equipmentList.forEach(e => m.set(e.id, e));
+        return m;
+    }, [equipmentList]);
+
+    const equipmentSummaryMonth = useMemo(() => {
+        if (!selectedYear || !selectedMonth) return '';
+        return `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    }, [selectedYear, selectedMonth]);
     
     // Loading state
     const [isLoading, setIsLoading] = useState(false);
@@ -134,6 +151,8 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         if (selectedCategory) filters.push(`category:${selectedCategory}`);
         if (selectedStatus) filters.push(`status:${selectedStatus}`);
         if (selectedProjectId) filters.push(`project_id:${selectedProjectId}`);
+        if (selectedEquipmentId === 'none') filters.push('equipment_id:none');
+        else if (selectedEquipmentId) filters.push(`equipment_id:${selectedEquipmentId}`);
         if (selectedTaxStatus) filters.push(`tax_paid:${selectedTaxStatus === 'paid' ? 'true' : 'false'}`);
         if (selectedPaymentMethod) filters.push(`payment_method:${selectedPaymentMethod}`);
         if (selectedKategoriUtama) filters.push(`kategori_utama:${selectedKategoriUtama}`);
@@ -141,15 +160,17 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         if (minAmount && maxAmount) filters.push(`min_amount:${minAmount},max_amount:${maxAmount}`);
         
         return filters.join(',');
-    }, [selectedCategory, selectedStatus, selectedProjectId, selectedTaxStatus, selectedPaymentMethod, selectedKategoriUtama, startDate, endDate, minAmount, maxAmount]);
+    }, [selectedCategory, selectedStatus, selectedProjectId, selectedEquipmentId, selectedTaxStatus, selectedPaymentMethod, selectedKategoriUtama, startDate, endDate, minAmount, maxAmount]);
 
     // Read optional presets from URL (?type=expense&project_id=11)
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const t = params.get('type');
         const pid = params.get('project_id');
+        const eid = params.get('equipment_id');
         if (t === 'income' || t === 'expense') setActiveSection(t);
         if (pid) setSelectedProjectId(pid);
+        if (eid) setSelectedEquipmentId(eid);
         // reset to first page when opening with presets
         setCurrentPage(1);
     }, [location.search]);
@@ -243,7 +264,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
     useEffect(() => {
         setCurrentPage(1); // Reset to first page when filters change
         fetchData(true);
-    }, [debouncedSearchTerm, selectedCategory, selectedMonth, selectedYear, selectedStatus, selectedTaxStatus, selectedPaymentMethod, selectedKategoriUtama, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
+    }, [debouncedSearchTerm, selectedCategory, selectedMonth, selectedYear, selectedStatus, selectedTaxStatus, selectedPaymentMethod, selectedKategoriUtama, selectedEquipmentId, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
 
     // Fetch data when active section changes
     useEffect(() => {
@@ -257,6 +278,27 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         }
     }, [currentPage, pageSize]);
 
+    useEffect(() => {
+        if (!equipmentSummaryMonth) {
+            setEquipmentSummaryRows([]);
+            return;
+        }
+        let cancelled = false;
+        setEquipmentSummaryLoading(true);
+        financeAPI
+            .getMonthlySummaryByEquipment(equipmentSummaryMonth)
+            .then(rows => {
+                if (!cancelled) setEquipmentSummaryRows(rows);
+            })
+            .catch(() => {
+                if (!cancelled) setEquipmentSummaryRows([]);
+            })
+            .finally(() => {
+                if (!cancelled) setEquipmentSummaryLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [equipmentSummaryMonth]);
+
     // Initial data fetch
     useEffect(() => {
         fetchData(true);
@@ -266,6 +308,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                 setCategories(list);
             } catch (e) {
                 console.error('Error loading categories:', e);
+            }
+            try {
+                const eq = await equipmentApi.getList();
+                setEquipmentList(eq);
+            } catch (e) {
+                console.error('Error loading equipment:', e);
             }
         })();
     }, []);
@@ -312,6 +360,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
         setEndDate('');
         setMinAmount('');
         setMaxAmount('');
+        setSelectedEquipmentId('');
         setSortBy('id');
         setSortOrder('asc');
         setCurrentPage(1);
@@ -364,10 +413,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     }
                 }
             }
+            const { equipmentId: eqField, ...rest } = data;
+            const equipmentId = eqField === '' ? null : eqField;
+            const payload = { ...rest, type: activeSection, equipmentId };
             if (editingEntry?.id) {
-                await financeAPI.updateFinance(editingEntry.id, { ...data, type: activeSection });
+                await financeAPI.updateFinance(editingEntry.id, payload);
             } else {
-                await financeAPI.createFinance({ ...data, type: activeSection });
+                await financeAPI.createFinance(payload);
             }
             setShowEntryModal(false);
             setEditingEntry(null);
@@ -419,6 +471,13 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
             <td className="border border-gray-200 px-3 py-2.5 text-sm max-w-xs truncate">{item.keterangan}</td>
             <td className="border border-gray-200 px-3 py-2.5 text-sm">
                 <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">{item.category}</span>
+            </td>
+            <td className="border border-gray-200 px-3 py-2.5 text-sm max-w-[140px] truncate" title={item.equipmentId != null ? (equipmentById.get(item.equipmentId)?.name ?? '') : ''}>
+                {item.equipmentId != null ? (
+                    <span className="text-gray-800">{equipmentById.get(item.equipmentId)?.name ?? `ID ${item.equipmentId}`}</span>
+                ) : (
+                    <span className="text-gray-300">—</span>
+                )}
             </td>
             <td className="border border-gray-200 px-3 py-2.5 text-center">
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statusClass(item.status)}`}>{item.status}</span>
@@ -486,7 +545,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     </div>
                     
                     {/* Basic Filters */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-9 gap-3 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-10 gap-3 mb-6">
                         <div className="relative">
                             <input
                                 type="text"
@@ -575,6 +634,18 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <option value="Aset">Aset</option>
                             <option value="Pajak">Pajak</option>
                             <option value="Owner/Pribadi">Owner/Pribadi</option>
+                        </select>
+                        <select
+                            value={selectedEquipmentId}
+                            onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                            title="Filter berdasarkan alat berat"
+                            className={`border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 text-sm ${selectedEquipmentId ? 'border-blue-500 bg-blue-50' : ''}`}
+                        >
+                            <option value="">Semua alat</option>
+                            <option value="none">Tanpa alat berat</option>
+                            {equipmentList.map(eq => (
+                                <option key={eq.id} value={String(eq.id)}>{eq.name}</option>
+                            ))}
                         </select>
                         <div className="flex gap-2">
                             <button
@@ -733,7 +804,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                     </div>
 
                     {/* Active Filters Display */}
-                    {(searchTerm || selectedCategory || selectedMonth || selectedYear || selectedStatus || selectedTaxStatus || selectedPaymentMethod || selectedKategoriUtama || startDate || endDate || minAmount || maxAmount) && (
+                    {(searchTerm || selectedCategory || selectedMonth || selectedYear || selectedStatus || selectedTaxStatus || selectedPaymentMethod || selectedKategoriUtama || selectedEquipmentId || startDate || endDate || minAmount || maxAmount) && (
                         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                             <h4 className="text-sm font-medium text-blue-800 mb-2">Filter Aktif:</h4>
                             <div className="flex flex-wrap gap-2">
@@ -808,6 +879,12 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                         Kategori: {selectedKategoriUtama}
                                         <button onClick={() => setSelectedKategoriUtama('')} className="ml-1 text-blue-600 hover:text-blue-800">✕</button>
+                                    </span>
+                                )}
+                                {selectedEquipmentId && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Alat: {selectedEquipmentId === 'none' ? 'Tanpa alat' : (equipmentById.get(Number(selectedEquipmentId))?.name ?? `#${selectedEquipmentId}`)}
+                                        <button onClick={() => setSelectedEquipmentId('')} className="ml-1 text-blue-600 hover:text-blue-800">✕</button>
                                     </span>
                                 )}
                                 {(startDate || endDate) && (
@@ -905,6 +982,50 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                         </div>
                     </div>
                 </div>
+
+                {equipmentSummaryMonth && (
+                    <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200 p-5 mb-6 shadow-sm">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                            Ringkasan per alat berat ({equipmentSummaryMonth})
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-3">Bulan dari filter di atas. Hanya transaksi yang sudah ditautkan ke alat berat.</p>
+                        {equipmentSummaryLoading ? (
+                            <p className="text-sm text-gray-500">Memuat ringkasan…</p>
+                        ) : equipmentSummaryRows.length === 0 ? (
+                            <p className="text-sm text-gray-500">
+                                Belum ada pemasukan/pengeluaran dengan alat berat di bulan ini, atau belum ada yang ditautkan.
+                            </p>
+                        ) : (
+                            <div className="overflow-x-auto rounded-lg border border-gray-100">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 text-gray-600">
+                                        <tr>
+                                            <th className="text-left px-3 py-2 font-semibold">Alat</th>
+                                            <th className="text-right px-3 py-2 font-semibold">Pemasukan</th>
+                                            <th className="text-right px-3 py-2 font-semibold">Pengeluaran</th>
+                                            <th className="text-right px-3 py-2 font-semibold">Saldo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {equipmentSummaryRows.map(row => {
+                                            const saldo = row.income - row.expense;
+                                            return (
+                                                <tr key={row.equipmentId} className="border-t border-gray-100">
+                                                    <td className="px-3 py-2 font-medium text-gray-800">{row.equipmentName}</td>
+                                                    <td className="px-3 py-2 text-right text-green-700">Rp {row.income.toLocaleString('id-ID')}</td>
+                                                    <td className="px-3 py-2 text-right text-red-700">Rp {row.expense.toLocaleString('id-ID')}</td>
+                                                    <td className={`px-3 py-2 text-right font-semibold ${saldo >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                                                        Rp {saldo.toLocaleString('id-ID')}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Navigation Tabs */}
                 <div className="flex gap-3 mb-6">
@@ -1019,6 +1140,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     </th>
                                     <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Keterangan</th>
                                     <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Kategori</th>
+                                    <th className="border border-gray-200 px-3 py-2.5 font-semibold text-gray-800">Alat berat</th>
                                     <th className="border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-white/50 font-semibold text-gray-800" onClick={() => handleSort('status')}>
                                         <div className="flex items-center justify-center gap-1">Status {sortBy === 'status' && <span className="text-green-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>}</div>
                                     </th>
@@ -1032,7 +1154,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                             <tbody>
                                 {isLoading ? (
                                     <tr>
-                                        <td colSpan={11} className="text-center py-12">
+                                        <td colSpan={12} className="text-center py-12">
                                             <div className="flex items-center justify-center">
                                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                                                 <span className="ml-3 text-gray-600 font-medium">Memuat data...</span>
@@ -1041,7 +1163,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
                                     </tr>
                                 ) : (activeSection === 'income' ? incomeData : expenseData).length === 0 ? (
                                     <tr>
-                                        <td colSpan={11} className="text-center py-12 text-gray-500">
+                                        <td colSpan={12} className="text-center py-12 text-gray-500">
                                             <div className="flex flex-col items-center">
                                                 <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1137,6 +1259,7 @@ const Finance: React.FC<FinanceProps> = ({ isCollapsed }) => {
             {/* Entry Modal */}
             {showEntryModal && (
                 <FinanceEntryModal
+                    key={editingEntry?.id ?? `new-${activeSection}`}
                     entry={editingEntry}
                     type={activeSection}
                     categories={categories}

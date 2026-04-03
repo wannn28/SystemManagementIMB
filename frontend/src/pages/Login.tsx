@@ -1,6 +1,6 @@
 // src/pages/Login.tsx
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon, BuildingOfficeIcon, TruckIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import { authAPI } from '../api';
 
@@ -9,7 +9,6 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,12 +19,9 @@ const Login: React.FC = () => {
     
     try {
       const response = await authAPI.login(email, password);
-      console.log(response);
       localStorage.setItem('token', response.token);
-      // set time out 3 detik
-      setTimeout(() => {
-        navigate('/');
-      }, 3000);
+      // Full reload agar BrandingContext & data perusahaan diambil ulang dengan token baru
+      window.location.replace('/');
     } catch (err) {
       console.log(err);
       localStorage.removeItem('token');

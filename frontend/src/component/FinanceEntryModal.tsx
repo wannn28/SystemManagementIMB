@@ -1,14 +1,18 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FinanceEntry } from '../types/BasicTypes';
 import { uploadsAPI } from '../api/uploads';
+import { equipmentApi } from '../api/equipment';
+import type { Equipment } from '../types/equipment';
 
-export type FinanceFormData = Partial<FinanceEntry> & {
+export type FinanceFormData = Omit<Partial<FinanceEntry>, 'equipmentId'> & {
   tanggal: string;
   unit: number;
   hargaPerUnit: number;
   keterangan: string;
   category: string;
   status: 'Paid' | 'Partial' | 'Unpaid';
+  /** Kosong = tidak ditautkan ke alat berat */
+  equipmentId: number | '';
 };
 
 interface Props {
@@ -61,6 +65,7 @@ const buildInitial = (entry: Partial<FinanceEntry> | null): FinanceFormData => (
   catatan: '',
   lampiranUrls: '',
   ...entry,
+  equipmentId: entry?.equipmentId != null ? Number(entry.equipmentId) : '',
 });
 
 const Label: React.FC<{ text: string }> = ({ text }) => (
@@ -72,9 +77,28 @@ const inputCls = 'border border-gray-300 p-2 rounded-lg w-full text-sm focus:rin
 const FinanceEntryModal: React.FC<Props> = ({ entry, type, categories, onSave, onClose, saving }) => {
   const [tab, setTab] = useState(0);
   const [form, setForm] = useState<FinanceFormData>(() => buildInitial(entry));
+  const [equipmentOptions, setEquipmentOptions] = useState<Equipment[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setForm(buildInitial(entry));
+    setTab(0);
+  }, [entry?.id, type]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await equipmentApi.getList();
+        if (!cancelled) setEquipmentOptions(list);
+      } catch {
+        if (!cancelled) setEquipmentOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Parse stored URL list (comma-separated)
   const attachmentUrls = (form.lampiranUrls || '').split(',').map(u => u.trim()).filter(Boolean);
@@ -188,6 +212,27 @@ const FinanceEntryModal: React.FC<Props> = ({ entry, type, categories, onSave, o
                     <option value="Paid">Paid</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <Label text="Alat berat (opsional)" />
+                <select
+                  value={form.equipmentId === '' ? '' : String(form.equipmentId)}
+                  onChange={e =>
+                    set({ equipmentId: e.target.value === '' ? '' : Number(e.target.value) })
+                  }
+                  className={inputCls}
+                >
+                  <option value="">— Tidak ditautkan —</option>
+                  {equipmentOptions.map(eq => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.name}
+                      {eq.type === 'dump_truck' ? ' (Dump truck)' : ' (Alat berat)'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Pilih alat jika transaksi ini khusus unit tersebut (sparepart, solar, pendapatan sewa, dll.).
+                </p>
               </div>
             </div>
           )}

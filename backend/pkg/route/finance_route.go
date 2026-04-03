@@ -23,7 +23,8 @@ func RegisterFinanceRoutes(e *echo.Echo, financeService service.FinanceService, 
 	g.PUT("/:id", handler.UpdateFinance)
 	g.DELETE("/:id", handler.DeleteFinance)
 
-	// Summary and analytics
+	// Summary and analytics (register more specific paths first)
+	g.GET("/summary/by-equipment", handler.GetMonthlySummaryByEquipment)
 	g.GET("/summary", handler.GetFinancialSummary)
 	g.GET("/monthly", handler.GetMonthlyComparison)
 

@@ -17,21 +17,23 @@ export const resolveLogoUrl = (path: string): string => {
   return `${backendRoot}${path}`;
 };
 
+type ApiEnvelope<T> = { data: T };
+
 export const companySettingsApi = {
   getSettings: async (): Promise<CompanySettings> => {
-    const res = await axios.get(`${API_BASE_URL}/user/settings`, { headers: getAuthHeaders() });
+    const res = await axios.get<ApiEnvelope<CompanySettings>>(`${API_BASE_URL}/user/settings`, { headers: getAuthHeaders() });
     return res.data.data;
   },
 
   updateSettings: async (data: { company_name?: string; primary_color?: string }): Promise<CompanySettings> => {
-    const res = await axios.put(`${API_BASE_URL}/user/settings`, data, { headers: getAuthHeaders() });
+    const res = await axios.put<ApiEnvelope<CompanySettings>>(`${API_BASE_URL}/user/settings`, data, { headers: getAuthHeaders() });
     return res.data.data;
   },
 
   uploadLogo: async (file: File): Promise<{ company_logo: string }> => {
     const formData = new FormData();
     formData.append('logo', file);
-    const res = await axios.post(`${API_BASE_URL}/user/settings/logo`, formData, {
+    const res = await axios.post<ApiEnvelope<{ company_logo: string }>>(`${API_BASE_URL}/user/settings/logo`, formData, {
       headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data;

@@ -23,6 +23,8 @@ type FinanceRepository interface {
 	GetFinanceByAmountRange(userID uint, minAmount, maxAmount float64) ([]entity.Finance, error)
 	GetFinanceByCategory(userID uint, category entity.FinanceCategory) ([]entity.Finance, error)
 	GetFinanceByStatus(userID uint, status string) ([]entity.Finance, error)
+	GetMonthlySummaryByEquipment(userID uint, monthYYYYMM string) ([]entity.EquipmentMonthlyFinanceRow, error)
+	SumLifetimeFinanceByEquipment(userID uint) ([]entity.EquipmentFinanceSumRow, error)
 }
 
 type financeRepository struct {
@@ -116,6 +118,40 @@ func (r *financeRepository) GetFinanceByStatus(userID uint, status string) ([]en
 	return finances, err
 }
 
+func (r *financeRepository) GetMonthlySummaryByEquipment(userID uint, monthYYYYMM string) ([]entity.EquipmentMonthlyFinanceRow, error) {
+	var rows []entity.EquipmentMonthlyFinanceRow
+	err := r.db.Raw(`
+		SELECT
+			e.id AS equipment_id,
+			e.name AS equipment_name,
+			e.type AS equipment_type,
+			COALESCE(SUM(CASE WHEN f.type = 'income' THEN f.jumlah ELSE 0 END), 0) AS income,
+			COALESCE(SUM(CASE WHEN f.type = 'expense' THEN f.jumlah ELSE 0 END), 0) AS expense
+		FROM finances f
+		INNER JOIN equipment e ON e.id = f.equipment_id AND e.user_id = f.user_id
+		WHERE f.user_id = ?
+			AND f.equipment_id IS NOT NULL
+			AND DATE_FORMAT(f.tanggal, '%Y-%m') = ?
+		GROUP BY e.id, e.name, e.type
+		ORDER BY e.name ASC
+	`, userID, monthYYYYMM).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *financeRepository) SumLifetimeFinanceByEquipment(userID uint) ([]entity.EquipmentFinanceSumRow, error) {
+	var rows []entity.EquipmentFinanceSumRow
+	err := r.db.Raw(`
+		SELECT
+			equipment_id,
+			COALESCE(SUM(CASE WHEN type = 'income' THEN jumlah ELSE 0 END), 0) AS income,
+			COALESCE(SUM(CASE WHEN type = 'expense' THEN jumlah ELSE 0 END), 0) AS expense
+		FROM finances
+		WHERE user_id = ? AND equipment_id IS NOT NULL
+		GROUP BY equipment_id
+	`, userID).Scan(&rows).Error
+	return rows, err
+}
+
 func (r *financeRepository) FindAllWithPagination(params response.QueryParams, userID uint) ([]entity.Finance, int, error) {
 	var finances []entity.Finance
 
@@ -174,6 +210,14 @@ func (r *financeRepository) applyCustomFinanceFilters(query *gorm.DB, params res
 
 		if isd, exists := filters["is_deductible"]; exists {
 			query = query.Where("is_deductible = ?", isd)
+		}
+
+		if eq, exists := filters["equipment_id"]; exists && eq != "" {
+			if eq == "none" || eq == "null" {
+				query = query.Where("equipment_id IS NULL")
+			} else {
+				query = query.Where("equipment_id = ?", eq)
+			}
 		}
 	}
 

@@ -36,6 +36,7 @@ type Finance struct {
 	Source           string          `json:"source" gorm:"type:varchar(50);default:'manual'"`
 	ProjectIncomeID  *int            `json:"projectIncomeId,omitempty" gorm:"column:project_income_id"`
 	ProjectExpenseID *int            `json:"projectExpenseId,omitempty" gorm:"column:project_expense_id"`
+	EquipmentID      *uint           `json:"equipmentId,omitempty" gorm:"column:equipment_id;index"`
 	// Detail fields
 	NoBukti          string  `gorm:"column:no_bukti;type:varchar(100)" json:"noBukti"`
 	VendorName       string  `gorm:"column:vendor_name;type:varchar(200)" json:"vendorName"`
@@ -53,4 +54,20 @@ type Finance struct {
 	IsDeductible     bool    `gorm:"column:is_deductible;default:false" json:"isDeductible"`
 	Catatan          string  `gorm:"column:catatan;type:text" json:"catatan"`
 	LampiranURLs     string  `gorm:"column:lampiran_urls;type:text" json:"lampiranUrls"`
+}
+
+// EquipmentMonthlyFinanceRow is aggregated income/expense per equipment for a calendar month (YYYY-MM).
+type EquipmentMonthlyFinanceRow struct {
+	EquipmentID   uint    `json:"equipmentId" gorm:"column:equipment_id"`
+	EquipmentName string  `json:"equipmentName" gorm:"column:equipment_name"`
+	EquipmentType string  `json:"equipmentType" gorm:"column:equipment_type"`
+	Income        float64 `json:"income" gorm:"column:income"`
+	Expense       float64 `json:"expense" gorm:"column:expense"`
+}
+
+// EquipmentFinanceSumRow is lifetime totals per equipment_id (raw query scan).
+type EquipmentFinanceSumRow struct {
+	EquipmentID uint    `gorm:"column:equipment_id"`
+	Income      float64 `gorm:"column:income"`
+	Expense     float64 `gorm:"column:expense"`
 }

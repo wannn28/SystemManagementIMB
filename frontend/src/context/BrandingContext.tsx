@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { companySettingsApi, CompanySettings } from '../api/companySettings';
+
+const AUTH_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password']);
 
 interface BrandingContextValue {
   branding: CompanySettings;
@@ -26,8 +29,10 @@ const BrandingContext = createContext<BrandingContextValue>({
 export const useBranding = () => useContext(BrandingContext);
 
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
   const [branding, setBranding] = useState<CompanySettings>(DEFAULT_BRANDING);
   const [isLoading, setIsLoading] = useState(false);
+  const prevPathRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -44,8 +49,19 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
+
+  // Jika login lewat navigate (tanpa reload), ambil ulang branding setelah keluar dari halaman auth
+  useEffect(() => {
+    const cur = location.pathname;
+    const prev = prevPathRef.current;
+    const token = localStorage.getItem('token');
+    if (prev !== null && token && AUTH_PATHS.has(prev) && !AUTH_PATHS.has(cur)) {
+      void refresh();
+    }
+    prevPathRef.current = cur;
+  }, [location.pathname, refresh]);
 
   const updateBranding = useCallback((data: Partial<CompanySettings>) => {
     setBranding(prev => ({ ...prev, ...data }));

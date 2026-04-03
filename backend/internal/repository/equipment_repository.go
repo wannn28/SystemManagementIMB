@@ -12,6 +12,7 @@ type EquipmentRepository interface {
 	Delete(id uint) error
 	FindAll(userID uint, search string, typ string) ([]entity.Equipment, error)
 	FindByID(id uint) (*entity.Equipment, error)
+	FindByIDForUser(id, userID uint) (*entity.Equipment, error)
 }
 
 type equipmentRepository struct {
@@ -50,6 +51,15 @@ func (r *equipmentRepository) FindAll(userID uint, search string, typ string) ([
 func (r *equipmentRepository) FindByID(id uint) (*entity.Equipment, error) {
 	var e entity.Equipment
 	err := r.db.First(&e, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+func (r *equipmentRepository) FindByIDForUser(id, userID uint) (*entity.Equipment, error) {
+	var e entity.Equipment
+	err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&e).Error
 	if err != nil {
 		return nil, err
 	}

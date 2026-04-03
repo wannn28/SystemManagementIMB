@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiPlus, FiEdit2, FiTrash2, FiExternalLink } from 'react-icons/fi';
 import { equipmentApi } from '../api/equipment';
 import type { Equipment, CreateEquipmentRequest } from '../types/equipment';
 import { Modal } from '../component/Modal';
@@ -88,6 +89,9 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Alat Berat & Dump Truck</h1>
             <p className="text-gray-500">Daftar alat berat dan dump truck untuk dipilih di invoice</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Kolom pemasukan/pengeluaran: akumulasi dari Finance (transaksi yang memilih alat ini). Bukan harga sewa/hari.
+            </p>
           </div>
         </div>
 
@@ -132,6 +136,8 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plat (Dumptruck)</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga/Hari</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga/Jam</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total pemasukan</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total pengeluaran</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
                   </tr>
                 </thead>
@@ -144,7 +150,20 @@ const EquipmentMaster: React.FC<EquipmentMasterProps> = ({ isCollapsed }) => {
                       <td className="px-4 py-3 text-sm text-gray-600">{item.type === 'dump_truck' ? (item.license_plate || '-') : '-'}</td>
                       <td className="px-4 py-3 text-right text-sm">{(item.price_per_day ?? 0) > 0 ? `Rp ${Number(item.price_per_day).toLocaleString('id-ID')}` : '-'}</td>
                       <td className="px-4 py-3 text-right text-sm">{(item.price_per_hour ?? 0) > 0 ? `Rp ${Number(item.price_per_hour).toLocaleString('id-ID')}` : '-'}</td>
+                      <td className="px-4 py-3 text-right text-sm text-green-700 whitespace-nowrap font-medium">
+                        Rp {(item.total_income ?? 0).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-red-700 whitespace-nowrap font-medium">
+                        Rp {(item.total_expense ?? 0).toLocaleString('id-ID')}
+                      </td>
                       <td className="px-4 py-3 text-right">
+                        <Link
+                          to={`/finance?equipment_id=${item.id}`}
+                          className="text-emerald-600 hover:text-emerald-800 text-sm mr-2 inline-flex items-center gap-0.5"
+                          title="Buka Finance difilter alat ini"
+                        >
+                          <FiExternalLink className="inline" /> Finance
+                        </Link>
                         <button type="button" onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-700 text-sm mr-2">
                           <FiEdit2 className="inline" /> Edit
                         </button>

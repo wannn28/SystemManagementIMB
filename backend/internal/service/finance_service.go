@@ -4,6 +4,7 @@ import (
 	"dashboardadminimb/internal/entity"
 	"dashboardadminimb/internal/repository"
 	"dashboardadminimb/pkg/response"
+	"errors"
 )
 
 type FinanceService interface {
@@ -20,23 +21,49 @@ type FinanceService interface {
 	GetFinanceByAmountRange(userID uint, minAmount, maxAmount float64) ([]entity.Finance, error)
 	GetFinanceByCategory(userID uint, category entity.FinanceCategory) ([]entity.Finance, error)
 	GetFinanceByStatus(userID uint, status string) ([]entity.Finance, error)
+	GetMonthlySummaryByEquipment(userID uint, monthYYYYMM string) ([]entity.EquipmentMonthlyFinanceRow, error)
 }
 
 type financeService struct {
-	repo repository.FinanceRepository
+	repo      repository.FinanceRepository
+	equipRepo repository.EquipmentRepository
 }
 
-func NewFinanceService(repo repository.FinanceRepository) FinanceService {
-	return &financeService{repo}
+func NewFinanceService(repo repository.FinanceRepository, equipRepo repository.EquipmentRepository) FinanceService {
+	return &financeService{repo: repo, equipRepo: equipRepo}
+}
+
+func (s *financeService) clearZeroEquipmentID(f *entity.Finance) {
+	if f.EquipmentID != nil && *f.EquipmentID == 0 {
+		f.EquipmentID = nil
+	}
+}
+
+func (s *financeService) validateEquipmentForUser(userID uint, finance *entity.Finance) error {
+	s.clearZeroEquipmentID(finance)
+	if finance.EquipmentID == nil {
+		return nil
+	}
+	_, err := s.equipRepo.FindByIDForUser(*finance.EquipmentID, userID)
+	if err != nil {
+		return errors.New("equipment not found or access denied")
+	}
+	return nil
 }
 
 func (s *financeService) CreateFinance(userID uint, finance *entity.Finance) error {
 	finance.UserID = userID
+	if err := s.validateEquipmentForUser(userID, finance); err != nil {
+		return err
+	}
 	finance.Jumlah = finance.HargaPerUnit * float64(finance.Unit)
 	return s.repo.Create(finance)
 }
 
 func (s *financeService) UpdateFinance(finance *entity.Finance) error {
+	if err := s.validateEquipmentForUser(finance.UserID, finance); err != nil {
+		return err
+	}
 	finance.Jumlah = finance.HargaPerUnit * float64(finance.Unit)
 	return s.repo.Update(finance)
 }
@@ -83,4 +110,8 @@ func (s *financeService) GetFinanceByCategory(userID uint, category entity.Finan
 
 func (s *financeService) GetFinanceByStatus(userID uint, status string) ([]entity.Finance, error) {
 	return s.repo.GetFinanceByStatus(userID, status)
+}
+
+func (s *financeService) GetMonthlySummaryByEquipment(userID uint, monthYYYYMM string) ([]entity.EquipmentMonthlyFinanceRow, error) {
+	return s.repo.GetMonthlySummaryByEquipment(userID, monthYYYYMM)
 }

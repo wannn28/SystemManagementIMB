@@ -8,6 +8,10 @@ export interface Equipment {
   price_per_hour?: number;
   created_at?: string;
   updated_at?: string;
+  /** Total pemasukan (Finance) yang ditautkan ke alat ini, seumur hidup data */
+  total_income?: number;
+  /** Total pengeluaran (Finance) yang ditautkan ke alat ini, seumur hidup data */
+  total_expense?: number;
 }
 
 export interface CreateEquipmentRequest {

@@ -25,6 +25,14 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface EquipmentMonthlyFinanceRow {
+  equipmentId: number;
+  equipmentName: string;
+  equipmentType: string;
+  income: number;
+  expense: number;
+}
+
 export const financeAPI = {
   categories: {
     list: async (): Promise<Array<{id:number; name:string}>> => {
@@ -134,6 +142,14 @@ export const financeAPI = {
   getFinanceSummary: async () => {
     const response: any = await axios.get(`${API_URL}/summary`);
     return response.data.data;
+  },
+
+  getMonthlySummaryByEquipment: async (monthYYYYMM: string): Promise<EquipmentMonthlyFinanceRow[]> => {
+    const response: any = await axios.get(`${API_URL}/summary/by-equipment`, {
+      params: { month: monthYYYYMM },
+      headers: getAuthHeaders(),
+    });
+    return response.data?.data ?? [];
   },
 
   // Get monthly finance data
