@@ -537,9 +537,8 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   <thead className="bg-green-50">
                     <tr>
                       <th className="py-2 px-4 border-b text-left">Tanggal</th>
-                      <th className="py-2 px-4 border-b text-center">Jumlah</th>
                       <th className="py-2 px-4 border-b text-center">Satuan</th>
-                      <th className="py-2 px-4 border-b text-center">Harga per Unit</th>
+                      <th className="py-2 px-4 border-b text-center">Harga per Satuan</th>
                       <th className="py-2 px-4 border-b text-center">Total</th>
                       <th className="py-2 px-4 border-b text-left">Keterangan</th>
                     </tr>
@@ -552,9 +551,6 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                         </td>
                         <td className="py-2 px-4 border-b text-center">
                           {formatSalaryQuantity(item.jam_trip, item.unit)}
-                        </td>
-                        <td className="py-2 px-4 border-b text-center">
-                          {normalizeSalaryUnit(item.unit)}
                         </td>
                         <td className="py-2 px-4 border-b text-center">
                           Rp{item.harga_per_jam.toLocaleString()}
@@ -667,10 +663,9 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                 {type === 'salary' ? (
                   <>
                     <th className="py-2 px-4 border-b">Tanggal</th>
-                    <th className="py-2 px-4 border-b">Jumlah</th>
                     <th className="py-2 px-4 border-b">Satuan</th>
-                    <th className="py-2 px-4 border-b">Harga per Unit</th>
-                    <th className="py-2 px-4 border-b">Jumlah Bayar</th>
+                    <th className="py-2 px-4 border-b">Harga per Satuan</th>
+                    <th className="py-2 px-4 border-b">Total</th>
                     <th className="py-2 px-4 border-b">Keterangan</th>
                   </>
                 ) : (
@@ -704,23 +699,23 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                           {type === 'salary' && (
                             <>
                               <td className="py-2 px-4 border-b">
-                                <input
-                                  type="number"
-                                  value={formData.jam_trip ?? ''}
-                                  onChange={(e) => setFormData({ ...formData, jam_trip: Number(e.target.value) })}
-                                  className="p-1 border rounded w-full text-sm text-center"
-                                />
-                              </td>
-                              <td className="py-2 px-4 border-b">
-                                <select
-                                  value={normalizeSalaryUnit(formData.unit)}
-                                  onChange={(e) => setFormData({ ...formData, unit: e.target.value as SalaryQuantityUnit })}
-                                  className="p-1 border rounded w-full text-sm"
-                                >
-                                  {SALARY_QUANTITY_UNITS.map((u) => (
-                                    <option key={u} value={u}>{u}</option>
-                                  ))}
-                                </select>
+                                <div className="flex gap-1 items-center">
+                                  <input
+                                    type="number"
+                                    value={formData.jam_trip ?? ''}
+                                    onChange={(e) => setFormData({ ...formData, jam_trip: Number(e.target.value) })}
+                                    className="p-1 border rounded w-full text-sm text-center"
+                                  />
+                                  <select
+                                    value={normalizeSalaryUnit(formData.unit)}
+                                    onChange={(e) => setFormData({ ...formData, unit: e.target.value as SalaryQuantityUnit })}
+                                    className="p-1 border rounded text-sm"
+                                  >
+                                    {SALARY_QUANTITY_UNITS.map((u) => (
+                                      <option key={u} value={u}>{u}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               </td>
                               <td className="py-2 px-4 border-b">
                                 <input
@@ -785,11 +780,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                                 )}
                               </td>
                               <td className="py-2 px-4 border-b text-center">
-                                {normalizeSalaryUnit((item as SalaryDetail).unit)}
-                              </td>
-                              <td className="py-2 px-4 border-b text-center">
                                 Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
-                                <div className="text-xs text-gray-500">{salaryRateLabel((item as SalaryDetail).unit)}</div>
                               </td>
                               <td className="py-2 px-4 border-b text-center">
                                 Rp{((item as SalaryDetail).jam_trip *
