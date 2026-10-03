@@ -1,0 +1,9 @@
+SET @sql := (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 'salary_details'
+     AND COLUMN_NAME = 'unit') = 0,
+  'SELECT 1',
+  'ALTER TABLE salary_details DROP COLUMN unit'
+));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

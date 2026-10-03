@@ -39,6 +39,7 @@ func (h *SalaryDetailHandler) CreateDetail(c echo.Context) error {
 		return response.Error(c, 400, err)
 	}
 	detail.SalaryID = uint(salaryID)
+	detail.Unit = detail.NormalizeUnit()
 	if err := h.repo.Create(&detail); err != nil {
 		return response.Error(c, 500, err)
 	}
@@ -60,6 +61,7 @@ func (h *SalaryDetailHandler) UpdateDetail(c echo.Context) error {
 	}
 	detail.ID = uint(id)
 	detail.SalaryID = uint(salaryID)
+	detail.Unit = detail.NormalizeUnit()
 	if err := h.repo.Update(&detail); err != nil {
 		return response.Error(c, 500, err)
 	}

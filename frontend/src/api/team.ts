@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Member, SalaryDetail, Kasbon, SalaryRecord, PaginatedResponse, QueryParams } from '../types/BasicTypes';
 import { getAuthHeaders, getMultipartHeaders } from './config';
+import { normalizeSalaryUnit } from '../utils/salaryUnit';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -335,14 +336,19 @@ export const teamAPI = {
         headers: getAuthHeaders()
       });
       
-      return response.data.data || [];
+      const details: SalaryDetail[] = response.data.data || [];
+      return details.map((d) => ({ ...d, unit: normalizeSalaryUnit(d.unit) }));
     },
 
     // Create salary detail
     create: async (salaryId: string, detailData: Partial<SalaryDetail>): Promise<SalaryDetail> => {
       const response: any = await axios.post(
         `${API_URL}/salaries/${salaryId}/details`,
-        { ...detailData, tanggal: new Date(detailData.tanggal as string).toISOString() },
+        {
+          ...detailData,
+          unit: normalizeSalaryUnit(detailData.unit),
+          tanggal: new Date(detailData.tanggal as string).toISOString(),
+        },
         {
           headers: getAuthHeaders()
         }
@@ -355,7 +361,11 @@ export const teamAPI = {
     update: async (salaryId: string, detailId: string, detailData: Partial<SalaryDetail>): Promise<SalaryDetail> => {
       const response: any = await axios.put(
         `${API_URL}/salaries/${salaryId}/details/${detailId}`,
-        { ...detailData, tanggal: new Date(detailData.tanggal as string).toISOString() },
+        {
+          ...detailData,
+          unit: normalizeSalaryUnit(detailData.unit),
+          tanggal: new Date(detailData.tanggal as string).toISOString(),
+        },
         {
           headers: getAuthHeaders()
         }
