@@ -247,6 +247,7 @@ func (h *SalaryHandler) CreateSalaryDetail(c echo.Context) error {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
 	detail.SalaryID = uint(salaryID)
+	detail.Unit = detail.NormalizeUnit()
 	if err := h.detailService.CreateDetail(&detail); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
@@ -273,6 +274,9 @@ func (h *SalaryHandler) GetSalaryDetail(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}
+	for i := range details {
+		details[i].Unit = details[i].NormalizeUnit()
+	}
 	return response.Success(c, http.StatusOK, details)
 }
 
@@ -285,11 +289,17 @@ func (h *SalaryHandler) UpdateSalaryDetail(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
+	detailID, err := strconv.Atoi(c.Param("detailId"))
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, err)
+	}
 	var detail entity.SalaryDetail
 	if err := c.Bind(&detail); err != nil {
 		return response.Error(c, http.StatusBadRequest, err)
 	}
+	detail.ID = uint(detailID)
 	detail.SalaryID = uint(salaryID)
+	detail.Unit = detail.NormalizeUnit()
 	if err := h.detailService.UpdateDetail(&detail); err != nil {
 		return response.Error(c, http.StatusInternalServerError, err)
 	}

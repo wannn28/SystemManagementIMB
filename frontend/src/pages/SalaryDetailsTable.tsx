@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { SalaryDetail, Kasbon } from '../types/BasicTypes';
 import { smartNotaApi } from '../api/smartNota';
 import { hasSmartNotaApiKey } from '../utils/apiKey';
+import {
+  SALARY_QUANTITY_UNITS,
+  SalaryQuantityUnit,
+  formatSalaryQuantity,
+  normalizeSalaryUnit,
+  salaryRateLabel,
+} from '../utils/salaryUnit';
 
 interface SalaryDetailsTableProps {
   type: 'salary' | 'kasbon';
@@ -35,6 +42,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
     dateFrom: '',
     dateTo: '',
     hargaPerTrip: '',
+    unit: 'Trip' as SalaryQuantityUnit,
     keterangan: ''
   });
   const [importLoading, setImportLoading] = useState(false);
@@ -49,10 +57,14 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const payload =
+      type === 'salary'
+        ? { ...formData, unit: normalizeSalaryUnit(formData.unit) }
+        : formData;
     if (editingId) {
-      onEdit(editingId, formData);
+      onEdit(editingId, payload);
     } else {
-      onAdd(formData);
+      onAdd(payload);
     }
     setShowForm(false);
     setEditingId(null);
@@ -61,7 +73,11 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
 
   const handleInlineSave = () => {
     if (!editingId) return;
-    onEdit(editingId, formData);
+    const payload =
+      type === 'salary'
+        ? { ...formData, unit: normalizeSalaryUnit(formData.unit) }
+        : formData;
+    onEdit(editingId, payload);
     setEditingId(null);
     setFormData({});
   };
@@ -211,13 +227,16 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
         }
       });
 
-      // Convert to salary details format and sort by date
+      // Convert to salary details format and sort by date.
+      // Smart Nota invoices are trips — set unit so the slip does not imply hours.
+      const importUnit = normalizeSalaryUnit(importFormData.unit || 'Trip');
       const salaryDetails = Object.entries(tripsByDate)
         .map(([date, tripCount]) => ({
           tanggal: date,
           jam_trip: tripCount,
           harga_per_jam: Number(importFormData.hargaPerTrip),
-          keterangan: importFormData.keterangan || `Import dari Smart Nota Digital - ${tripCount} trip`
+          unit: importUnit,
+          keterangan: importFormData.keterangan || `Import dari Smart Nota Digital - ${tripCount} ${importUnit.toLowerCase()}`
         }))
         .sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
 
@@ -263,6 +282,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
       dateFrom: '',
       dateTo: '',
       hargaPerTrip: '',
+      unit: 'Trip',
       keterangan: ''
     });
   };
@@ -298,7 +318,13 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
           )}
           <button
             type="button"
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (!showForm) {
+                setEditingId(null);
+                setFormData(type === 'salary' ? { unit: 'Jam' } : {});
+              }
+              setShowForm(!showForm);
+            }}
             className="text-blue-600 hover:text-blue-800"
           >
             {showForm ? 'Sembunyikan' : 'Tampilkan'}
@@ -319,18 +345,35 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
                   className="p-2 border rounded"
                 />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step="any"
+                    placeholder="Jumlah"
+                    value={formData.jam_trip || ''}
+                    onChange={(e) => setFormData({ ...formData, jam_trip: Number(e.target.value) })}
+                    className="p-2 border rounded flex-1"
+                  />
+                  <select
+                    required
+                    value={normalizeSalaryUnit(formData.unit)}
+                    onChange={(e) => setFormData({ ...formData, unit: e.target.value as SalaryQuantityUnit })}
+                    className="p-2 border rounded w-28"
+                    aria-label="Satuan"
+                  >
+                    {SALARY_QUANTITY_UNITS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
                 <input
                   type="number"
                   required
-                  placeholder="Jam/Trip"
-                  value={formData.jam_trip || ''}
-                  onChange={(e) => setFormData({ ...formData, jam_trip: Number(e.target.value) })}
-                  className="p-2 border rounded"
-                />
-                <input
-                  type="number"
-                  required
-                  placeholder="Harga per Jam/Trip"
+                  min={0}
+                  step="any"
+                  placeholder={salaryRateLabel(formData.unit)}
                   value={formData.harga_per_jam || ''}
                   onChange={(e) => setFormData({ ...formData, harga_per_jam: Number(e.target.value) })}
                   className="p-2 border rounded"
@@ -439,17 +482,27 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
               <input
                 type="number"
                 required
-                placeholder="Harga per Trip"
+                placeholder={salaryRateLabel(importFormData.unit)}
                 value={importFormData.hargaPerTrip}
                 onChange={(e) => setImportFormData({ ...importFormData, hargaPerTrip: e.target.value })}
                 className="p-2 border rounded"
               />
+              <select
+                value={importFormData.unit}
+                onChange={(e) => setImportFormData({ ...importFormData, unit: e.target.value as SalaryQuantityUnit })}
+                className="p-2 border rounded"
+                aria-label="Satuan import"
+              >
+                {SALARY_QUANTITY_UNITS.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 placeholder="Keterangan (opsional)"
                 value={importFormData.keterangan}
                 onChange={(e) => setImportFormData({ ...importFormData, keterangan: e.target.value })}
-                className="p-2 border rounded md:col-span-2"
+                className="p-2 border rounded"
               />
             </div>
 
@@ -484,8 +537,9 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                   <thead className="bg-green-50">
                     <tr>
                       <th className="py-2 px-4 border-b text-left">Tanggal</th>
-                      <th className="py-2 px-4 border-b text-center">Jumlah Trip</th>
-                      <th className="py-2 px-4 border-b text-center">Harga per Trip</th>
+                      <th className="py-2 px-4 border-b text-center">Jumlah</th>
+                      <th className="py-2 px-4 border-b text-center">Satuan</th>
+                      <th className="py-2 px-4 border-b text-center">Harga per Unit</th>
                       <th className="py-2 px-4 border-b text-center">Total</th>
                       <th className="py-2 px-4 border-b text-left">Keterangan</th>
                     </tr>
@@ -497,7 +551,10 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                           {formatDateIndonesian(item.tanggal)}
                         </td>
                         <td className="py-2 px-4 border-b text-center">
-                          {item.jam_trip}
+                          {formatSalaryQuantity(item.jam_trip, item.unit)}
+                        </td>
+                        <td className="py-2 px-4 border-b text-center">
+                          {normalizeSalaryUnit(item.unit)}
                         </td>
                         <td className="py-2 px-4 border-b text-center">
                           Rp{item.harga_per_jam.toLocaleString()}
@@ -531,8 +588,8 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
               
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
                 <p className="text-blue-700 text-sm">
-                  💡 <strong>Info:</strong> Data akan diimport berdasarkan jumlah trip per tanggal. 
-                  Jika ada multiple invoice di tanggal yang sama, akan dihitung sebagai 1 entry dengan total trip.
+                  💡 <strong>Info:</strong> Data diimport per tanggal dengan satuan yang dipilih
+                  (default Trip dari Smart Nota). Jumlah × harga per satuan = total baris.
                 </p>
               </div>
             </div>
@@ -610,9 +667,10 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                 {type === 'salary' ? (
                   <>
                     <th className="py-2 px-4 border-b">Tanggal</th>
-                    <th className="py-2 px-4 border-b">Jam/Trip</th>
-                    <th className="py-2 px-4 border-b">Harga</th>
                     <th className="py-2 px-4 border-b">Jumlah</th>
+                    <th className="py-2 px-4 border-b">Satuan</th>
+                    <th className="py-2 px-4 border-b">Harga per Unit</th>
+                    <th className="py-2 px-4 border-b">Jumlah Bayar</th>
                     <th className="py-2 px-4 border-b">Keterangan</th>
                   </>
                 ) : (
@@ -654,11 +712,23 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                                 />
                               </td>
                               <td className="py-2 px-4 border-b">
+                                <select
+                                  value={normalizeSalaryUnit(formData.unit)}
+                                  onChange={(e) => setFormData({ ...formData, unit: e.target.value as SalaryQuantityUnit })}
+                                  className="p-1 border rounded w-full text-sm"
+                                >
+                                  {SALARY_QUANTITY_UNITS.map((u) => (
+                                    <option key={u} value={u}>{u}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-2 px-4 border-b">
                                 <input
                                   type="number"
                                   value={formData.harga_per_jam ?? ''}
                                   onChange={(e) => setFormData({ ...formData, harga_per_jam: Number(e.target.value) })}
                                   className="p-1 border rounded w-full text-sm text-center"
+                                  placeholder={salaryRateLabel(formData.unit)}
                                 />
                               </td>
                               <td className="py-2 px-4 border-b text-center">
@@ -709,10 +779,17 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                           {type === 'salary' && (
                             <>
                               <td className="py-2 px-4 border-b text-center">
-                                {(item as SalaryDetail).jam_trip}
+                                {formatSalaryQuantity(
+                                  (item as SalaryDetail).jam_trip,
+                                  (item as SalaryDetail).unit
+                                )}
+                              </td>
+                              <td className="py-2 px-4 border-b text-center">
+                                {normalizeSalaryUnit((item as SalaryDetail).unit)}
                               </td>
                               <td className="py-2 px-4 border-b text-center">
                                 Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
+                                <div className="text-xs text-gray-500">{salaryRateLabel((item as SalaryDetail).unit)}</div>
                               </td>
                               <td className="py-2 px-4 border-b text-center">
                                 Rp{((item as SalaryDetail).jam_trip *
@@ -731,7 +808,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                               type="button"
                               onClick={() => {
                                 setEditingId(item.id);
-                                setFormData(type === 'salary' ? { id: item.id, tanggal: item.tanggal, jam_trip: (item as SalaryDetail).jam_trip, harga_per_jam: (item as SalaryDetail).harga_per_jam, keterangan: item.keterangan } : { id: item.id, tanggal: item.tanggal, jumlah: (item as Kasbon).jumlah, keterangan: item.keterangan });
+                                setFormData(type === 'salary' ? { id: item.id, tanggal: item.tanggal, jam_trip: (item as SalaryDetail).jam_trip, harga_per_jam: (item as SalaryDetail).harga_per_jam, unit: normalizeSalaryUnit((item as SalaryDetail).unit), keterangan: item.keterangan } : { id: item.id, tanggal: item.tanggal, jumlah: (item as Kasbon).jumlah, keterangan: item.keterangan });
                               }}
                               className="text-blue-600 hover:text-blue-800 mr-2"
                             >

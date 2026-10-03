@@ -17,7 +17,7 @@ export interface InventoryItem {
   headers: TableHeader[];
   data: TableRow[];
 }
-7
+
 // Tambahkan di BasicTypes.ts
 export interface SalaryRecord {
   id?: number | string;
@@ -38,8 +38,10 @@ export interface SalaryRecord {
 export interface SalaryDetail {
   id: string;
   tanggal: string;
-  jam_trip: number;       // 🟢 Dari jamTrip -> jam_trip
-  harga_per_jam: number;  // 🟢 Dari hargaPerJam -> harga_per_jam
+  jam_trip: number;       // Quantity (hours, trips, or days)
+  harga_per_jam: number;  // Rate for the selected unit
+  /** Quantity unit: Jam | Trip | Hari. Missing/empty = Jam for legacy hour rows. */
+  unit?: 'Jam' | 'Trip' | 'Hari' | string;
   keterangan: string;
 }
 
