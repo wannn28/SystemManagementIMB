@@ -36,3 +36,8 @@ export function formatSalaryQuantity(quantity: number, unit?: string | null): st
   const formatted = Number.isInteger(q) ? String(q) : String(q);
   return `${formatted} ${salaryUnitLabel(unit)}`;
 }
+
+/** Display rate with unit, e.g. "Rp18,000 / Trip" — not "(Harga per Trip)". */
+export function formatSalaryRate(rate: number, unit?: string | null): string {
+  return `Rp${Number(rate).toLocaleString()} / ${salaryUnitLabel(unit)}`;
+}

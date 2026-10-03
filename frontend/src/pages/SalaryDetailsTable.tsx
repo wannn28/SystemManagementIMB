@@ -8,6 +8,7 @@ import {
   formatSalaryQuantity,
   normalizeSalaryUnit,
   salaryRateLabel,
+  formatSalaryRate,
 } from '../utils/salaryUnit';
 
 interface SalaryDetailsTableProps {
@@ -553,7 +554,7 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                           {formatSalaryQuantity(item.jam_trip, item.unit)}
                         </td>
                         <td className="py-2 px-4 border-b text-center">
-                          Rp{item.harga_per_jam.toLocaleString()}
+                          {formatSalaryRate(item.harga_per_jam, item.unit)}
                         </td>
                         <td className="py-2 px-4 border-b text-center">
                           Rp{(item.jam_trip * item.harga_per_jam).toLocaleString()}
@@ -780,7 +781,10 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                                 )}
                               </td>
                               <td className="py-2 px-4 border-b text-center">
-                                Rp{(item as SalaryDetail).harga_per_jam.toLocaleString()}
+                                {formatSalaryRate(
+                                  (item as SalaryDetail).harga_per_jam,
+                                  (item as SalaryDetail).unit
+                                )}
                               </td>
                               <td className="py-2 px-4 border-b text-center">
                                 Rp{((item as SalaryDetail).jam_trip *

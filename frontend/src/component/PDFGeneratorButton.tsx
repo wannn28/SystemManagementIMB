@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Member, SalaryRecord } from '../types/BasicTypes';
-import { formatSalaryQuantity } from '../utils/salaryUnit';
+import { formatSalaryQuantity, formatSalaryRate } from '../utils/salaryUnit';
 
 interface PDFGeneratorButtonProps {
   member: Member;
@@ -49,7 +49,7 @@ export const PDFGeneratorButton: React.FC<PDFGeneratorButtonProps> = ({ member, 
       body: salary.details.map(d => [
         new Date(d.tanggal).toLocaleDateString(),
         formatSalaryQuantity(d.jam_trip, d.unit),
-        `Rp${d.harga_per_jam.toLocaleString()}`,
+        formatSalaryRate(d.harga_per_jam, d.unit),
         `Rp${(d.jam_trip * d.harga_per_jam).toLocaleString()}`,
         d.keterangan
       ]),
