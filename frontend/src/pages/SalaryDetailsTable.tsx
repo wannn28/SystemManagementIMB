@@ -6,9 +6,12 @@ import {
   SALARY_QUANTITY_UNITS,
   SalaryQuantityUnit,
   formatSalaryQuantity,
+  formatSalaryQuantityTotals,
+  formatSalaryRupiah,
   normalizeSalaryUnit,
   salaryRateLabel,
   formatSalaryRate,
+  summarizeSalaryDetails,
 } from '../utils/salaryUnit';
 
 interface SalaryDetailsTableProps {
@@ -596,7 +599,20 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
 
       {data.length > 0 && !isTableExpanded && (
         <div className="py-3 px-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
-          Tabel berisi <strong>{data.length}</strong> baris. Klik &quot;Tampilkan tabel&quot; di atas untuk melihat rincian.
+          <p>
+            Tabel berisi <strong>{data.length}</strong> baris. Klik &quot;Tampilkan tabel&quot; di atas untuk melihat rincian.
+          </p>
+          {type === 'salary' && (() => {
+            const { quantityByUnit, totalAmount } = summarizeSalaryDetails(
+              data as SalaryDetail[]
+            );
+            const quantityLabel = formatSalaryQuantityTotals(quantityByUnit);
+            return (
+              <p className="mt-2 font-semibold text-gray-800">
+                Total: {quantityLabel || '—'} · {formatSalaryRupiah(totalAmount)}
+              </p>
+            );
+          })()}
         </div>
       )}
       {data.length > 0 && isTableExpanded && (
@@ -728,7 +744,9 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                                 />
                               </td>
                               <td className="py-2 px-4 border-b text-center">
-                                Rp{((Number(formData.jam_trip) || 0) * (Number(formData.harga_per_jam) || 0)).toLocaleString()}
+                                {formatSalaryRupiah(
+                                  (Number(formData.jam_trip) || 0) * (Number(formData.harga_per_jam) || 0)
+                                )}
                               </td>
                             </>
                           )}
@@ -787,14 +805,16 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                                 )}
                               </td>
                               <td className="py-2 px-4 border-b text-center">
-                                Rp{((item as SalaryDetail).jam_trip *
-                                  (item as SalaryDetail).harga_per_jam).toLocaleString()}
+                                {formatSalaryRupiah(
+                                  (item as SalaryDetail).jam_trip *
+                                    (item as SalaryDetail).harga_per_jam
+                                )}
                               </td>
                             </>
                           )}
                           {type === 'kasbon' && (
                             <td className="py-2 px-4 border-b text-center">
-                              Rp{(item as Kasbon).jumlah.toLocaleString()}
+                              {formatSalaryRupiah((item as Kasbon).jumlah)}
                             </td>
                           )}
                           <td className="py-2 px-4 border-b text-center">{item.keterangan}</td>
@@ -822,6 +842,27 @@ export const SalaryDetailsTable: React.FC<SalaryDetailsTableProps> = ({
                     </tr>
                   );
                 })}
+              {type === 'salary' && (() => {
+                const { quantityByUnit, totalAmount } = summarizeSalaryDetails(
+                  data as SalaryDetail[]
+                );
+                const quantityLabel = formatSalaryQuantityTotals(quantityByUnit);
+                return (
+                  <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
+                    <td className="py-2 px-4 border-b text-center" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="py-2 px-4 border-b text-center">
+                      {quantityLabel || '—'}
+                    </td>
+                    <td className="py-2 px-4 border-b text-center" />
+                    <td className="py-2 px-4 border-b text-center">
+                      {formatSalaryRupiah(totalAmount)}
+                    </td>
+                    <td className="py-2 px-4 border-b" colSpan={2} />
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
