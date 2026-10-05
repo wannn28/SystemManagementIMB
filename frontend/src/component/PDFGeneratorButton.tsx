@@ -1,7 +1,13 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Member, SalaryRecord } from '../types/BasicTypes';
-import { formatSalaryQuantity, formatSalaryRate } from '../utils/salaryUnit';
+import {
+  formatSalaryQuantity,
+  formatSalaryQuantityTotals,
+  formatSalaryRate,
+  formatSalaryRupiah,
+  summarizeSalaryDetails,
+} from '../utils/salaryUnit';
 
 interface PDFGeneratorButtonProps {
   member: Member;
@@ -42,18 +48,35 @@ export const PDFGeneratorButton: React.FC<PDFGeneratorButtonProps> = ({ member, 
     doc.text(`Jabatan: ${member.role}`, SIDE_MARGIN, y);
 
     // Tabel Rincian Gaji — quantity includes unit (e.g. "17 Jam", "1 Hari")
+    // Footer totals: quantity per unit that appears + sum of line amounts
+    const salaryTotals = summarizeSalaryDetails(salary.details || []);
+    const quantityTotalsLabel = formatSalaryQuantityTotals(salaryTotals.quantityByUnit);
+
     autoTable(doc, {
       startY: y + 8,
       margin: tableMargin,
       head: [['Tanggal', 'Satuan', 'Harga per Satuan', 'Total', 'Keterangan']],
-      body: salary.details.map(d => [
+      body: (salary.details || []).map(d => [
         new Date(d.tanggal).toLocaleDateString(),
         formatSalaryQuantity(d.jam_trip, d.unit),
         formatSalaryRate(d.harga_per_jam, d.unit),
-        `Rp${(d.jam_trip * d.harga_per_jam).toLocaleString()}`,
+        formatSalaryRupiah(d.jam_trip * d.harga_per_jam),
         d.keterangan
       ]),
-      theme: 'grid'
+      foot: [[
+        'Total',
+        quantityTotalsLabel || '—',
+        '',
+        formatSalaryRupiah(salaryTotals.totalAmount),
+        ''
+      ]],
+      showFoot: 'lastPage',
+      theme: 'grid',
+      footStyles: {
+        fillColor: [243, 244, 246],
+        textColor: [17, 24, 39],
+        fontStyle: 'bold',
+      },
     });
 
     // Tabel Kasbon

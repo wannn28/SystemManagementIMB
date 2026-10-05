@@ -41,3 +41,51 @@ export function formatSalaryQuantity(quantity: number, unit?: string | null): st
 export function formatSalaryRate(rate: number, unit?: string | null): string {
   return `Rp${Number(rate).toLocaleString()} / ${salaryUnitLabel(unit)}`;
 }
+
+/** Same Rupiah formatting as existing salary line amounts. */
+export function formatSalaryRupiah(amount: number): string {
+  return `Rp${Number(amount).toLocaleString()}`;
+}
+
+export type SalaryDetailLike = {
+  jam_trip: number;
+  harga_per_jam: number;
+  unit?: string | null;
+};
+
+export type SalaryDetailsTotals = {
+  /** Quantity summed per unit that appears (Jam / Trip / Hari). */
+  quantityByUnit: Partial<Record<SalaryQuantityUnit, number>>;
+  /** Sum of line amounts (quantity × rate). */
+  totalAmount: number;
+};
+
+/** Sum quantity per unit and total money across salary work rows. */
+export function summarizeSalaryDetails(
+  details: Array<SalaryDetailLike>
+): SalaryDetailsTotals {
+  const quantityByUnit: Partial<Record<SalaryQuantityUnit, number>> = {};
+  let totalAmount = 0;
+
+  for (const d of details) {
+    const qty = Number(d.jam_trip) || 0;
+    const rate = Number(d.harga_per_jam) || 0;
+    const unit = normalizeSalaryUnit(d.unit);
+    quantityByUnit[unit] = (quantityByUnit[unit] || 0) + qty;
+    totalAmount += qty * rate;
+  }
+
+  return { quantityByUnit, totalAmount };
+}
+
+/**
+ * Format quantity totals for units that appear, e.g. "150 Trip" or
+ * "8 Jam, 120 Trip, 2 Hari". Units with zero quantity are omitted.
+ */
+export function formatSalaryQuantityTotals(
+  quantityByUnit: Partial<Record<SalaryQuantityUnit, number>>
+): string {
+  return SALARY_QUANTITY_UNITS.filter((u) => (quantityByUnit[u] || 0) !== 0)
+    .map((u) => formatSalaryQuantity(quantityByUnit[u]!, u))
+    .join(', ');
+}
